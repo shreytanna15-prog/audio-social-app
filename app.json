@@ -34,6 +34,15 @@
             "imageWidth": 76
           }
         }
+      ],
+      "expo-sharing",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Audio Social Media App to access your microphone.",
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
+        }
       ]
     ],
     "experiments": {
