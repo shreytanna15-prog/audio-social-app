@@ -5,9 +5,20 @@ import { IconButton } from '@/module/audio/components/icon-button';
 type RecorderControlsProps = {
   isRecording?: boolean;
   isPaused?: boolean;
+  canReset?: boolean;
+  onPauseResume?: () => void;
+  onMainAction?: () => void;
+  onReset?: () => void;
 };
 
-export function RecorderControls({ isRecording = false, isPaused = false }: RecorderControlsProps) {
+export function RecorderControls({
+  isRecording = false,
+  isPaused = false,
+  canReset = false,
+  onPauseResume,
+  onMainAction,
+  onReset,
+}: RecorderControlsProps) {
   return (
     <View style={styles.container}>
       <IconButton
@@ -17,6 +28,7 @@ export function RecorderControls({ isRecording = false, isPaused = false }: Reco
           web: isPaused ? 'play_arrow' : 'pause',
         }}
         disabled={!isRecording}
+        onPress={onPauseResume}
       />
 
       <IconButton
@@ -27,6 +39,7 @@ export function RecorderControls({ isRecording = false, isPaused = false }: Reco
         }}
         variant="primary"
         size={28}
+        onPress={onMainAction}
       />
 
       <IconButton
@@ -35,7 +48,8 @@ export function RecorderControls({ isRecording = false, isPaused = false }: Reco
           android: 'refresh',
           web: 'refresh',
         }}
-        disabled={!isRecording}
+        disabled={!canReset}
+        onPress={onReset}
       />
     </View>
   );

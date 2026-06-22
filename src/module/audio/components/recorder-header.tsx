@@ -2,9 +2,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { RecordingTimer } from '@/module/audio/components/recording-timer';
 
+import type { RecorderStatus } from '@/module/audio/types/recorder';
+
 type RecorderHeaderProps = {
   title: string;
-  status: 'idle' | 'recording' | 'paused' | 'preview';
+  status: RecorderStatus;
   timerSeconds: number;
 };
 

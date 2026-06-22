@@ -1,22 +1,36 @@
 import { StyleSheet, View } from 'react-native';
 
-import { RecorderControls } from '@/module/audio/components/recorder-controls';
-import { RecorderHeader } from '@/module/audio/components/recorder-header';
-import { WaveformDisplay } from '@/module/audio/components/waveform-display';
+import { RecorderControls, RecorderHeader, WaveformDisplay } from '@/module/audio/components';
+import { useAudioSession } from '@/module/audio/context';
 
-type RecorderSectionProps = {
-  status: 'idle' | 'recording' | 'paused' | 'preview';
-  timerSeconds: number;
-};
-
-export function RecorderSection({ status, timerSeconds }: RecorderSectionProps) {
-  const isRecording = status === 'recording' || status === 'paused';
+export function RecorderSection() {
+  const {
+    status,
+    timerSeconds,
+    meteringBars,
+    hasActiveSession,
+    isPaused,
+    handleMainAction,
+    handlePauseResume,
+    resetSession,
+  } = useAudioSession();
 
   return (
     <View style={styles.container}>
-      <RecorderHeader title="New recording" status={status} timerSeconds={timerSeconds} />
-      <WaveformDisplay active={status === 'recording'} height={140} />
-      <RecorderControls isRecording={isRecording} isPaused={status === 'paused'} />
+      <RecorderHeader title="Audio Recording" status={status} timerSeconds={timerSeconds} />
+      <WaveformDisplay
+        bars={meteringBars}
+        active={status === 'recording'}
+        height={140}
+      />
+      <RecorderControls
+        isRecording={hasActiveSession}
+        isPaused={isPaused}
+        canReset={hasActiveSession || status === 'preview'}
+        onPauseResume={handlePauseResume}
+        onMainAction={handleMainAction}
+        onReset={resetSession}
+      />
     </View>
   );
 }

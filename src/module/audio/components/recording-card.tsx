@@ -1,3 +1,4 @@
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { IconButton } from '@/module/audio/components/icon-button';
@@ -11,12 +12,25 @@ type RecordingCardProps = {
 };
 
 export function RecordingCard({ recording, index }: RecordingCardProps) {
+  const player = useAudioPlayer(recording.uri);
+  const playerStatus = useAudioPlayerStatus(player);
+
   const createdLabel = new Date(recording.createdAt).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const handlePlay = () => {
+    if (playerStatus.playing) {
+      player.pause();
+      return;
+    }
+
+    player.seekTo(0);
+    player.play();
+  };
 
   return (
     <View style={styles.card}>
@@ -30,12 +44,13 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
         <View style={styles.actions}>
           <IconButton
             icon={{
-              ios: 'play.fill',
-              android: 'play_arrow',
-              web: 'play_arrow',
+              ios: playerStatus.playing ? 'pause.fill' : 'play.fill',
+              android: playerStatus.playing ? 'pause' : 'play_arrow',
+              web: playerStatus.playing ? 'pause' : 'play_arrow',
             }}
             size={20}
             style={styles.smallButton}
+            onPress={handlePlay}
           />
           <IconButton
             icon={{

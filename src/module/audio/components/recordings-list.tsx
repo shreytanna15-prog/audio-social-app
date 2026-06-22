@@ -1,24 +1,26 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { RecordingCard } from '@/module/audio/components/recording-card';
-import type { AudioRecording } from '@/types/audio';
+import { useRecordings } from '@/module/audio/context';
 
-type RecordingsListProps = {
-  recordings: AudioRecording[];
-};
+export function RecordingsList() {
+  const { recordings, isLoading } = useRecordings();
 
-export function RecordingsList({ recordings }: RecordingsListProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>My recordings</Text>
-      <FlatList
-        data={recordings}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.empty}>No recordings yet</Text>}
-        renderItem={({ item, index }) => <RecordingCard recording={item} index={index} />}
-      />
+      {isLoading ? (
+        <ActivityIndicator style={styles.loader} />
+      ) : (
+        <FlatList
+          data={recordings}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={<Text style={styles.empty}>No recordings yet</Text>}
+          renderItem={({ item, index }) => <RecordingCard recording={item} index={index} />}
+        />
+      )}
     </View>
   );
 }
@@ -40,6 +42,9 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     color: '#7A7F87',
+    paddingVertical: 24,
+  },
+  loader: {
     paddingVertical: 24,
   },
 });
