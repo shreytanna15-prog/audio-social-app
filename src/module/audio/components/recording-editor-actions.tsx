@@ -51,8 +51,12 @@ export function RecordingEditorActions({
         <Pressable
           style={[styles.saveButton, styles.doneButton, isSaving && styles.buttonDisabled]}
           disabled={isSaving}
-          onPress={onDiscard}>
-          <Text style={styles.saveButtonText}>Done</Text>
+          onPress={onSave}>
+          {isSaving ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.saveButtonText}>Done</Text>
+          )}
         </Pressable>
       )}
     </View>

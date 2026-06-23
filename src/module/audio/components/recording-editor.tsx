@@ -1,5 +1,4 @@
 import { Alert, StyleSheet, Text, View } from 'react-native';
-
 import {
   EffectChipRow,
   IconButton,
@@ -7,34 +6,43 @@ import {
   RecordingTimer,
   WaveformDisplay,
 } from '@/module/audio/components';
+
 import { useRecordingEditorSession } from '@/module/audio/hooks/use-recording-editor-session';
+import type { AudioEffectId } from '@/module/audio/types/effects';
 import type { RecordingEditorMode } from '@/module/audio/types/recording-editor-route';
+import type { RecordingEditorSavePayload } from '@/module/audio/types/recording-editor-save';
 
 const PLACEHOLDER_BARS = [0.25, 0.4, 0.65, 0.5, 0.8, 0.55, 0.7, 0.45, 0.6, 0.35, 0.75, 0.5];
 
 type RecordingEditorProps = {
   mode: RecordingEditorMode;
-  originalUri: string;
+  pristineUri: string;
+  playbackUri: string;
+  initialAppliedEffects?: AudioEffectId[];
   durationSeconds: number;
   title: string;
   isSaving?: boolean;
-  onSave: (sourceUri: string) => void;
+  onSave: (payload: RecordingEditorSavePayload) => Promise<void>;
   onDiscard: () => void;
 };
 
 export function RecordingEditor({
   mode,
-  originalUri,
+  pristineUri,
+  playbackUri,
+  initialAppliedEffects = [],
   durationSeconds,
   title,
   isSaving = false,
   onSave,
   onDiscard,
 }: RecordingEditorProps) {
-  const session = useRecordingEditorSession({
-    originalUri,
-    isSaving,
-    onEffectError: (message) => Alert.alert('Effect failed', message),
+  const session = useRecordingEditorSession({ 
+    pristineUri, 
+    playbackUri, 
+    initialAppliedEffects, 
+    isSaving, 
+    onEffectError: (message) => Alert.alert("Effect failed", message),
   });
 
   const handleDiscard = async () => {
@@ -42,18 +50,25 @@ export function RecordingEditor({
     onDiscard();
   };
 
+  const handleSave = async () => {
+    await onSave({
+      sourceUri: session.workingUri,
+      appliedEffects: session.appliedEffectIds,
+    });
+
+    await session.cleanupWorkingFile();
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>
       <RecordingTimer seconds={durationSeconds} />
       <WaveformDisplay height={120} bars={PLACEHOLDER_BARS} active={session.isPlaying} />
-
       {session.appliedEffectLabel ? (
         <Text style={styles.appliedEffect}>Applied: {session.appliedEffectLabel}</Text>
       ) : (
-        <Text style={styles.hint}>Tap an effect to process this recording.</Text>
+        <Text style={styles.hint}>Tap effects to apply. Select multiple to combine.</Text>
       )}
-
       <View style={styles.playRow}>
         <IconButton
           icon={{
@@ -67,22 +82,20 @@ export function RecordingEditor({
           disabled={session.isPlaybackDisabled}
         />
       </View>
-
       <EffectChipRow
-        selectedEffectId={session.selectedEffectId}
-        onSelectEffect={session.applyEffect}
+        selectedEffectIds={session.selectedEffectIds}
+        onToggleEffect={(effectId) => void session.toggleEffect(effectId)}
         disabled={isSaving}
         isProcessing={session.isProcessing}
         processingLabel={session.processingLabel}
       />
-
       <RecordingEditorActions
         mode={mode}
         canReset={session.canReset}
         isSaving={isSaving}
         onReset={() => void session.resetEffects()}
         onDiscard={() => void handleDiscard()}
-        onSave={() => onSave(session.workingUri)}
+        onSave={() => void handleSave()}
       />
     </View>
   );

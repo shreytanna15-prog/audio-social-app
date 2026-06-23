@@ -1,11 +1,12 @@
-import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import { useMemo } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { IconButton } from '@/module/audio/components/icon-button';
-import { WaveformDisplay } from '@/module/audio/components/waveform-display';
+import { IconButton, WaveformDisplay } from '@/module/audio/components';
 import { createLabel, formatDuration } from '@/module/audio/utils/format';
+import { useRecordings } from '@/store';
 import type { AudioRecording } from '@/types/audio';
 
 type RecordingCardProps = {
@@ -15,6 +16,7 @@ type RecordingCardProps = {
 
 export function RecordingCard({ recording, index }: RecordingCardProps) {
   const router = useRouter();
+  const { deleteRecording } = useRecordings();
   const player = useAudioPlayer(recording.uri);
   const playerStatus = useAudioPlayerStatus(player);
 
@@ -35,6 +37,46 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
 
     player.seekTo(0);
     player.play();
+  };
+
+  const handleShare = async () => {
+    try {
+      const canShare = await Sharing.isAvailableAsync();
+
+      if (!canShare) {
+        Alert.alert('Sharing unavailable', 'Sharing is not available on this device.');
+        return;
+      }
+
+      await Sharing.shareAsync(recording.uri, {
+        mimeType: 'audio/mp4',
+        UTI: 'public.m4a-audio',
+        dialogTitle: `Recording ${index + 1}`,
+      });
+    } catch (error) {
+      console.log('Error sharing recording:', error);
+    }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete recording?',
+      'This recording will be permanently removed from your device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            if (playerStatus.playing) {
+              player.pause();
+            }
+
+            void deleteRecording(recording.id);
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -65,6 +107,9 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
             }}
             size={18}
             style={styles.smallButton}
+            onPress={() => {
+              void handleShare();
+            }}
           />
           <IconButton
             icon={{
@@ -75,6 +120,7 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
             size={18}
             variant="danger"
             style={styles.smallButton}
+            onPress={handleDelete}
           />
         </View>
       </View>

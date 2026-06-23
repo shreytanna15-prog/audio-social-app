@@ -1,13 +1,13 @@
 import { Platform } from 'react-native';
 
 import { createProcessedRecordingUri } from '@/module/audio/data/processed-recording.repository';
-import { getAudioEffectFilter } from '@/module/audio/domain/audio-effect-filters';
+import { getCombinedAudioEffectFilter } from '@/module/audio/domain/audio-effect-filters';
 import { resolveProcessedFileUri, runFfmpegAudioFilter } from '@/module/audio/services/ffmpeg.service';
 import type { AudioEffectId } from '@/module/audio/types/effects';
 import { assertFfmpegAvailable, FFMPEG_UNAVAILABLE_MESSAGE } from '@/module/audio/utils/ffmpeg-availability';
 
-export async function applyAudioEffect(
-  effectId: AudioEffectId,
+export async function applyAudioEffects(
+  effectIds: AudioEffectId[],
   inputUri: string,
 ): Promise<string> {
   if (Platform.OS === 'web') {
@@ -16,12 +16,16 @@ export async function applyAudioEffect(
 
   assertFfmpegAvailable();
 
-  const outputUri = createProcessedRecordingUri(effectId);
+  if (effectIds.length === 0) {
+    throw new Error('At least one effect is required.');
+  }
+
+  const outputUri = createProcessedRecordingUri(effectIds);
 
   await runFfmpegAudioFilter({
     inputUri,
     outputUri,
-    audioFilter: getAudioEffectFilter(effectId),
+    audioFilter: getCombinedAudioEffectFilter(effectIds),
   });
 
   return resolveProcessedFileUri(outputUri);

@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { RecorderControls, RecorderHeader, WaveformDisplay } from '@/module/audio/components';
-import { useAudioSession } from '@/module/audio/context';
+import { useAudioSession } from '@/store';
 
 export function RecorderSection() {
   const {

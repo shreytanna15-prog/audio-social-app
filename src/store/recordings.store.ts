@@ -3,14 +3,25 @@ import { Alert } from 'react-native';
 import { create } from 'zustand';
 
 import {
+  deleteRecording as deleteRecordingFromRepository,
   listRecordings,
   saveRecording as saveRecordingToRepository,
+  updateRecording as updateRecordingInRepository,
 } from '@/module/audio/data/recording-repository';
+import type { AudioEffectId } from '@/module/audio/types/effects';
 import type { AudioRecording } from '@/types/audio';
 
 export type SaveRecordingParams = {
   sourceUri: string;
   durationSeconds: number;
+  appliedEffects?: AudioEffectId[];
+};
+
+export type UpdateRecordingParams = {
+  id: string;
+  sourceUri: string;
+  durationSeconds: number;
+  appliedEffects: AudioEffectId[];
 };
 
 export type RecordingsState = {
@@ -19,6 +30,8 @@ export type RecordingsState = {
   isSaving: boolean;
   refreshRecordings: () => Promise<void>;
   saveRecording: (params: SaveRecordingParams) => Promise<AudioRecording | null>;
+  updateRecording: (params: UpdateRecordingParams) => Promise<AudioRecording | null>;
+  deleteRecording: (id: string) => Promise<boolean>;
 };
 
 export const useRecordingsStore = create<RecordingsState>((set) => ({
@@ -57,6 +70,42 @@ export const useRecordingsStore = create<RecordingsState>((set) => ({
       set({ isSaving: false });
     }
   },
+
+  updateRecording: async (params) => {
+    set({ isSaving: true });
+
+    try {
+      const recording = await updateRecordingInRepository(params);
+      set((state) => ({
+        recordings: state.recordings.map((item) => (item.id === recording.id ? recording : item)),
+      }));
+      return recording;
+    } catch (error) {
+      console.log('Error updating recording:', error);
+      Alert.alert('Error', 'Could not save recording changes.');
+      return null;
+    } finally {
+      set({ isSaving: false });
+    }
+  },
+
+  deleteRecording: async (id) => {
+    try {
+      const deleted = await deleteRecordingFromRepository(id);
+
+      if (deleted) {
+        set((state) => ({
+          recordings: state.recordings.filter((item) => item.id !== id),
+        }));
+      }
+
+      return deleted;
+    } catch (error) {
+      console.log('Error deleting recording:', error);
+      Alert.alert('Error', 'Could not delete recording.');
+      return false;
+    }
+  },
 }));
 
 export function useRecordings(): RecordingsState {
@@ -65,6 +114,8 @@ export function useRecordings(): RecordingsState {
   const isSaving = useRecordingsStore((state) => state.isSaving);
   const refreshRecordings = useRecordingsStore((state) => state.refreshRecordings);
   const saveRecording = useRecordingsStore((state) => state.saveRecording);
+  const updateRecording = useRecordingsStore((state) => state.updateRecording);
+  const deleteRecording = useRecordingsStore((state) => state.deleteRecording);
 
   return useMemo(
     () => ({
@@ -73,7 +124,9 @@ export function useRecordings(): RecordingsState {
       isSaving,
       refreshRecordings,
       saveRecording,
+      updateRecording,
+      deleteRecording,
     }),
-    [recordings, isLoading, isSaving, refreshRecordings, saveRecording],
+    [recordings, isLoading, isSaving, refreshRecordings, saveRecording, updateRecording, deleteRecording],
   );
 }

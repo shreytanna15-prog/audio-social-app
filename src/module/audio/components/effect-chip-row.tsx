@@ -5,16 +5,16 @@ import { useTheme } from '@/hooks/use-theme';
 import { AUDIO_EFFECTS, type AudioEffectId } from '@/module/audio/types/effects';
 
 type EffectChipRowProps = {
-  selectedEffectId?: AudioEffectId | null;
-  onSelectEffect?: (effectId: AudioEffectId) => void;
+  selectedEffectIds?: AudioEffectId[];
+  onToggleEffect?: (effectId: AudioEffectId) => void;
   disabled?: boolean;
   isProcessing?: boolean;
   processingLabel?: string;
 };
 
 export function EffectChipRow({
-  selectedEffectId = null,
-  onSelectEffect,
+  selectedEffectIds = [],
+  onToggleEffect,
   disabled = false,
   isProcessing = false,
   processingLabel,
@@ -35,13 +35,13 @@ export function EffectChipRow({
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {AUDIO_EFFECTS.map((effect) => {
-          const isSelected = selectedEffectId === effect.id;
+          const isSelected = selectedEffectIds.includes(effect.id);
 
           return (
             <Pressable
               key={effect.id}
               disabled={chipsDisabled}
-              onPress={() => onSelectEffect?.(effect.id)}
+              onPress={() => onToggleEffect?.(effect.id)}
               style={[
                 styles.chip,
                 isSelected && styles.chipSelected,

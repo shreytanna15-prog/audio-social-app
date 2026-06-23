@@ -10,4 +10,5 @@ export {
   useRecordingsStore,
   type RecordingsState,
   type SaveRecordingParams,
+  type UpdateRecordingParams,
 } from '@/store/recordings.store';

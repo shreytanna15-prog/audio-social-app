@@ -1,69 +1,89 @@
 import { useCallback, useState } from 'react';
 
 import { deleteProcessedRecording } from '@/module/audio/data/processed-recording.repository';
-import { getEffectLabel, getEffectProcessingLabel } from '@/module/audio/domain/audio-effect.helpers';
+import {
+  getAppliedEffectsLabel,
+  getEffectsProcessingLabel,
+} from '@/module/audio/domain/audio-effect.helpers';
 import { useRecordingPlayback } from '@/module/audio/hooks/use-recording-playback';
-import { applyAudioEffect } from '@/module/audio/services/audio-effects.service';
+import { applyAudioEffects } from '@/module/audio/services/audio-effects.service';
 import type { AudioEffectId } from '@/module/audio/types/effects';
 
 type UseRecordingEditorSessionOptions = {
-  originalUri: string;
+  pristineUri: string;
+  playbackUri: string;
+  initialAppliedEffects?: AudioEffectId[];
   isSaving?: boolean;
   onEffectError?: (message: string) => void;
 };
 
 export function useRecordingEditorSession({
-  originalUri,
+  pristineUri,
+  playbackUri,
+  initialAppliedEffects = [],
   isSaving = false,
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
-  const [workingUri, setWorkingUri] = useState(originalUri);
-  const [selectedEffectId, setSelectedEffectId] = useState<AudioEffectId | null>(null);
-  const [appliedEffectId, setAppliedEffectId] = useState<AudioEffectId | null>(null);
+  const [workingUri, setWorkingUri] = useState(playbackUri);
+  const [selectedEffectIds, setSelectedEffectIds] = useState<AudioEffectId[]>(initialAppliedEffects);
+  const [appliedEffectIds, setAppliedEffectIds] = useState<AudioEffectId[]>(initialAppliedEffects);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingLabel, setProcessingLabel] = useState<string | undefined>();
 
   const playback = useRecordingPlayback(workingUri);
 
-  const canReset = appliedEffectId != null && !isProcessing && !isSaving;
-  const appliedEffectLabel = appliedEffectId ? getEffectLabel(appliedEffectId) : null;
+  const canReset = appliedEffectIds.length > 0 && !isProcessing && !isSaving;
+  const appliedEffectLabel = getAppliedEffectsLabel(appliedEffectIds);
   const isPlaybackDisabled = isProcessing || isSaving;
 
-  const applyEffect = useCallback(
+  const toggleEffect = useCallback(
     async (effectId: AudioEffectId) => {
       if (isProcessing || isSaving) {
         return;
       }
 
-      setSelectedEffectId(effectId);
+      const isSelected = selectedEffectIds.includes(effectId);
+      const nextEffectIds = isSelected
+        ? selectedEffectIds.filter((id) => id !== effectId)
+        : [...selectedEffectIds, effectId];
+
+      setSelectedEffectIds(nextEffectIds);
       setIsProcessing(true);
-      setProcessingLabel(getEffectProcessingLabel(effectId));
+      setProcessingLabel(getEffectsProcessingLabel(nextEffectIds));
       playback.pause();
 
       try {
         const previousUri = workingUri;
-        const nextUri = await applyAudioEffect(effectId, originalUri);
 
-        await deleteProcessedRecording(previousUri, originalUri);
+        if (nextEffectIds.length === 0) {
+          await deleteProcessedRecording(previousUri, pristineUri);
+          setWorkingUri(pristineUri);
+          setAppliedEffectIds([]);
+        } else {
+          const nextUri = await applyAudioEffects(nextEffectIds, pristineUri);
 
-        setWorkingUri(nextUri);
-        setAppliedEffectId(effectId);
+          await deleteProcessedRecording(previousUri, pristineUri);
+
+          setWorkingUri(nextUri);
+          setAppliedEffectIds(nextEffectIds);
+        }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not apply this effect.';
+        const message = error instanceof Error ? error.message : 'Could not apply effects.';
         onEffectError?.(message);
-        setSelectedEffectId(appliedEffectId);
+        setSelectedEffectIds(appliedEffectIds);
       } finally {
         setIsProcessing(false);
         setProcessingLabel(undefined);
       }
     },
     [
-      appliedEffectId,
+      appliedEffectIds,
       isProcessing,
       isSaving,
       onEffectError,
-      originalUri,
       playback,
+      pristineUri,
+      selectedEffectIds,
       workingUri,
     ],
   );
@@ -74,19 +94,20 @@ export function useRecordingEditorSession({
     }
 
     playback.pause();
-    await deleteProcessedRecording(workingUri, originalUri);
-    setWorkingUri(originalUri);
-    setSelectedEffectId(null);
-    setAppliedEffectId(null);
-  }, [canReset, originalUri, playback, workingUri]);
+    await deleteProcessedRecording(workingUri, pristineUri);
+    setWorkingUri(pristineUri);
+    setSelectedEffectIds([]);
+    setAppliedEffectIds([]);
+  }, [canReset, playback, pristineUri, workingUri]);
 
   const cleanupWorkingFile = useCallback(async () => {
-    await deleteProcessedRecording(workingUri, originalUri);
-  }, [originalUri, workingUri]);
+    await deleteProcessedRecording(workingUri, pristineUri);
+  }, [pristineUri, workingUri]);
 
   return {
     workingUri,
-    selectedEffectId,
+    selectedEffectIds,
+    appliedEffectIds,
     appliedEffectLabel,
     isProcessing,
     processingLabel,
@@ -94,7 +115,7 @@ export function useRecordingEditorSession({
     isPlaybackDisabled,
     isPlaying: playback.isPlaying,
     togglePlayback: playback.togglePlayback,
-    applyEffect,
+    toggleEffect,
     resetEffects,
     cleanupWorkingFile,
   };

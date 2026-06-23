@@ -8,6 +8,20 @@ const EFFECT_FILTERS: Record<AudioEffectId, string> = {
   enhance: 'loudnorm=I=-14:TP=-1.5:LRA=11,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,equalizer=f=3000:width_type=o:gain=2',
 };
 
+export const EFFECT_APPLICATION_ORDER: AudioEffectId[] = [
+  'denoise',
+  'reverb',
+  'echo',
+  'modulate',
+  'enhance',
+];
+
 export function getAudioEffectFilter(effectId: AudioEffectId): string {
   return EFFECT_FILTERS[effectId];
+}
+
+export function getCombinedAudioEffectFilter(effectIds: AudioEffectId[]): string {
+  const orderedIds = EFFECT_APPLICATION_ORDER.filter((id) => effectIds.includes(id));
+
+  return orderedIds.map((id) => getAudioEffectFilter(id)).join(',');
 }

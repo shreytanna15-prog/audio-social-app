@@ -1,10 +1,16 @@
 import {
+  deleteAsync,
   makeDirectoryAsync,
   readAsStringAsync,
   writeAsStringAsync,
 } from 'expo-file-system/legacy';
 
-import { getIndexPath, getPendingDirectory, getRecordingsRoot } from '@/module/audio/data/recording-paths';
+import {
+  getIndexPath,
+  getPendingDirectory,
+  getRecordingDirectory,
+  getRecordingsRoot,
+} from '@/module/audio/data/recording-paths';
 import type { AudioRecording } from '@/types/audio';
 
 export async function ensureRecordingsRoot(): Promise<void> {
@@ -33,4 +39,12 @@ export async function readIndex(): Promise<AudioRecording[]> {
 export async function writeIndex(recordings: AudioRecording[]): Promise<void> {
   await ensureRecordingsRoot();
   await writeAsStringAsync(getIndexPath(), JSON.stringify(recordings, null, 2));
+}
+
+export async function deleteRecordingFiles(id: string): Promise<void> {
+  try {
+    await deleteAsync(getRecordingDirectory(id), { idempotent: true });
+  } catch {
+    // Recording directory may already be removed.
+  }
 }

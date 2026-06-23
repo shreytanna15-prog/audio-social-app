@@ -6,17 +6,29 @@ import {
   getPendingRecordingUri,
   getRecordingFileUri,
   getRecordingRelativePath,
+  getRecordingSourceFileUri,
+  getRecordingSourceRelativePath,
 } from '@/module/audio/data/recording-paths';
 import {
+  deleteRecordingFiles,
   ensureRecordingsRoot,
   readIndex,
   writeIndex,
 } from '@/module/audio/data/recording-storage';
+import type { AudioEffectId } from '@/module/audio/types/effects';
 import type { AudioRecording } from '@/types/audio';
 
 type SaveRecordingInput = {
   sourceUri: string;
   durationSeconds: number;
+  appliedEffects?: AudioEffectId[];
+};
+
+type UpdateRecordingInput = {
+  id: string;
+  sourceUri: string;
+  durationSeconds: number;
+  appliedEffects: AudioEffectId[];
 };
 
 async function readRecordingBytes(sourceUri: string): Promise<Uint8Array> {
@@ -45,6 +57,31 @@ async function persistRecordingFile(sourceUri: string, destinationUri: string): 
   const bytes = await readRecordingBytes(sourceUri);
   destination.create({ overwrite: true });
   destination.write(bytes);
+}
+
+async function ensureSourceBackup(id: string, currentOriginalUri: string): Promise<void> {
+  const sourceUri = getRecordingSourceFileUri(id);
+  const source = new File(sourceUri);
+
+  if (!source.exists) {
+    await persistRecordingFile(currentOriginalUri, sourceUri);
+  }
+}
+
+async function cleanupTemporarySourceUri(sourceUri: string, destinationUri: string): Promise<void> {
+  if (sourceUri === destinationUri) {
+    return;
+  }
+
+  if (!sourceUri.includes('/_processed/') && !sourceUri.includes('/_pending/')) {
+    return;
+  }
+
+  try {
+    await deleteAsync(sourceUri, { idempotent: true });
+  } catch {
+    // Temporary file may already be removed.
+  }
 }
 
 export async function stagePreviewRecording(sourceUri: string): Promise<string> {
@@ -79,19 +116,22 @@ export async function listRecordings(): Promise<AudioRecording[]> {
 export async function saveRecording({
   sourceUri,
   durationSeconds,
+  appliedEffects = [],
 }: SaveRecordingInput): Promise<AudioRecording> {
   const id = Crypto.randomUUID();
   const now = new Date().toISOString();
   const destinationUri = getRecordingFileUri(id);
+  const pristineUri = getRecordingSourceFileUri(id);
 
   await ensureRecordingsRoot();
   await persistRecordingFile(sourceUri, destinationUri);
+  await persistRecordingFile(sourceUri, pristineUri);
 
-  if (sourceUri.includes('/_pending/')) {
+  if (sourceUri.includes('/_pending/') || sourceUri.includes('/_processed/')) {
     try {
       await deleteAsync(sourceUri, { idempotent: true });
     } catch {
-      // Pending file may already be removed.
+      // Temporary file may already be removed.
     }
   }
 
@@ -99,8 +139,10 @@ export async function saveRecording({
     id,
     uri: destinationUri,
     path: getRecordingRelativePath(id),
+    sourcePath: getRecordingSourceRelativePath(id),
     type: 'draft',
     duration: durationSeconds,
+    appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -110,4 +152,57 @@ export async function saveRecording({
   await writeIndex(index);
 
   return recording;
+}
+
+export async function updateRecording({
+  id,
+  sourceUri,
+  durationSeconds,
+  appliedEffects,
+}: UpdateRecordingInput): Promise<AudioRecording> {
+  const recordings = await readIndex();
+  const existing = recordings.find((item) => item.id === id);
+
+  if (!existing) {
+    throw new Error(`Recording not found: ${id}`);
+  }
+
+  const destinationUri = getRecordingFileUri(id);
+
+  await ensureRecordingsRoot();
+  await ensureSourceBackup(id, existing.uri);
+
+  if (sourceUri !== destinationUri) {
+    await persistRecordingFile(sourceUri, destinationUri);
+  }
+
+  await cleanupTemporarySourceUri(sourceUri, destinationUri);
+
+  const now = new Date().toISOString();
+  const updated: AudioRecording = {
+    ...existing,
+    duration: durationSeconds,
+    sourcePath: existing.sourcePath ?? getRecordingSourceRelativePath(id),
+    appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
+    updatedAt: now,
+  };
+
+  const nextIndex = recordings.map((item) => (item.id === id ? updated : item));
+  await writeIndex(nextIndex);
+
+  return updated;
+}
+
+export async function deleteRecording(id: string): Promise<boolean> {
+  const recordings = await readIndex();
+  const hasRecording = recordings.some((item) => item.id === id);
+
+  if (!hasRecording) {
+    return false;
+  }
+
+  await deleteRecordingFiles(id);
+  await writeIndex(recordings.filter((item) => item.id !== id));
+
+  return true;
 }

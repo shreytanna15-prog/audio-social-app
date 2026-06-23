@@ -1,8 +1,11 @@
 import { documentDirectory } from 'expo-file-system/legacy';
 
+import type { AudioRecording } from '@/types/audio';
+
 const RECORDINGS_FOLDER = 'recordings';
 const INDEX_FILE = 'index.json';
 const ORIGINAL_FILE = 'original.m4a';
+const SOURCE_FILE = 'source.m4a';
 
 function requireDocumentDirectory(): string {
   if (!documentDirectory) {
@@ -30,6 +33,24 @@ export function getRecordingFileUri(id: string): string {
 
 export function getRecordingRelativePath(id: string): string {
   return `${RECORDINGS_FOLDER}/${id}/${ORIGINAL_FILE}`;
+}
+
+export function getRecordingSourceFileUri(id: string): string {
+  return `${getRecordingDirectory(id)}${SOURCE_FILE}`;
+}
+
+export function getRecordingSourceRelativePath(id: string): string {
+  return `${RECORDINGS_FOLDER}/${id}/${SOURCE_FILE}`;
+}
+
+export function resolvePristineRecordingUri(
+  recording: Pick<AudioRecording, 'uri' | 'sourcePath'>,
+): string {
+  if (recording.sourcePath && documentDirectory) {
+    return `${documentDirectory}${recording.sourcePath}`;
+  }
+
+  return recording.uri;
 }
 
 const PENDING_FOLDER = '_pending';

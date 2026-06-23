@@ -1,94 +1,121 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useMemo } from "react";
 
-import { useRecordings } from '@/module/audio/context';
-import { discardPreviewRecording } from '@/module/audio/data/recording-repository';
+import { resolvePristineRecordingUri } from "@/module/audio/data/recording-paths";
+import { discardPreviewRecording } from "@/module/audio/data/recording-repository";
+
 import type {
   RecordingEditorMode,
   RecordingEditorRouteParams,
-} from '@/module/audio/types/recording-editor-route';
+} from "@/module/audio/types/recording-editor-route";
+import type { RecordingEditorSavePayload } from "@/module/audio/types/recording-editor-save";
+import { useRecordings } from "@/store";
 
 type RecordingEditorReadyState = {
-  status: 'ready';
+  status: "ready";
   mode: RecordingEditorMode;
-  originalUri: string;
+  pristineUri: string;
+  playbackUri: string;
+  initialAppliedEffects: RecordingEditorSavePayload["appliedEffects"];
   durationSeconds: number;
   screenTitle: string;
   contentTitle: string;
   isSaving: boolean;
-  onSave: (sourceUri: string) => Promise<void>;
+  onSave: (payload: RecordingEditorSavePayload) => Promise<void>;
   onDiscard: () => Promise<void>;
 };
 
 export type RecordingEditorRouteState =
-  | { status: 'loading' }
-  | { status: 'error' }
+  | { status: "loading" }
+  | { status: "error" }
   | RecordingEditorReadyState;
 
 export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const router = useRouter();
-  const { id, uri, duration } = useLocalSearchParams<RecordingEditorRouteParams>();
-  const { recordings, isLoading, isSaving, saveRecording } = useRecordings();
+  const { id, uri, duration } =
+    useLocalSearchParams<RecordingEditorRouteParams>();
 
-  const isPending = id === 'new';
+  const { recordings, isLoading, isSaving, saveRecording, updateRecording } =
+    useRecordings();
+  const isPending = id === "new";
 
-  const savedRecording = useMemo(
-    () => (isPending ? null : recordings.find((recording) => recording.id === id) ?? null),
-    [id, isPending, recordings],
-  );
+  const savedRecording = useMemo(() => {
+    if (isPending) {
+      return null;
+    }
+    return recordings.find((recording) => recording.id === id) ?? null;
+  }, [id, isPending, recordings]);
 
-  const originalUri = isPending ? uri : savedRecording?.uri;
+  const playbackUri = isPending ? uri : savedRecording?.uri;
+
+  const pristineUri = isPending
+    ? uri
+    : savedRecording
+      ? resolvePristineRecordingUri(savedRecording)
+      : undefined;
+
+  const initialAppliedEffects = savedRecording?.appliedEffects ?? [];
+
   const durationSeconds = isPending
     ? Number(duration ?? 0)
     : (savedRecording?.duration ?? 0);
 
-  const recordingIndex = useMemo(
-    () => recordings.findIndex((item) => item.id === id),
-    [id, recordings],
-  );
+  const recordingIndex = recordings.findIndex((item) => item.id === id);
 
   const handleSave = useCallback(
-    async (sourceUri: string) => {
-      if (isSaving) {
-        return;
-      }
+    async ({ sourceUri, appliedEffects }: RecordingEditorSavePayload) => {
+      if (isSaving) return;
 
-      const saved = await saveRecording({
-        sourceUri,
-        durationSeconds,
-      });
+      const saved = isPending
+        ? await saveRecording({ sourceUri, durationSeconds, appliedEffects })
+        : await updateRecording({
+            id,
+            sourceUri,
+            durationSeconds,
+            appliedEffects,
+          });
 
       if (saved) {
         router.back();
       }
     },
-    [durationSeconds, isSaving, router, saveRecording],
+    [
+      durationSeconds,
+      id,
+      isPending,
+      isSaving,
+      router,
+      saveRecording,
+      updateRecording,
+    ],
   );
 
   const handleDiscard = useCallback(async () => {
-    if (isPending && originalUri) {
-      await discardPreviewRecording(originalUri);
+    if (isPending && playbackUri) {
+      await discardPreviewRecording(playbackUri);
     }
 
     router.back();
-  }, [isPending, originalUri, router]);
+  }, [isPending, playbackUri, router]);
 
   if (!isPending && isLoading) {
-    return { status: 'loading' };
+    return { status: "loading" };
   }
 
-  if (!originalUri || Number.isNaN(durationSeconds)) {
-    return { status: 'error' };
+  if (!playbackUri || !pristineUri || Number.isNaN(durationSeconds)) {
+    return { status: "error" };
   }
 
   return {
-    status: 'ready',
-    mode: isPending ? 'pending' : 'saved',
-    originalUri,
+    status: "ready",
+    mode: isPending ? "pending" : "saved",
+    pristineUri,
+    playbackUri,
+    initialAppliedEffects,
     durationSeconds,
-    screenTitle: isPending ? 'New recording' : 'Edit recording',
+    screenTitle: isPending ? "New recording" : "Edit recording",
     contentTitle: isPending
-      ? 'Review your recording'
+      ? "Review your recording"
       : `Recording ${recordingIndex + 1}`,
     isSaving,
     onSave: handleSave,

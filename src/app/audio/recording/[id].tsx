@@ -25,7 +25,9 @@ export default function RecordingScreen() {
       <Stack.Screen options={{ title: routeState.screenTitle }} />
       <RecordingEditor
         mode={routeState.mode}
-        originalUri={routeState.originalUri}
+        pristineUri={routeState.pristineUri}
+        playbackUri={routeState.playbackUri}
+        initialAppliedEffects={routeState.initialAppliedEffects}
         durationSeconds={routeState.durationSeconds}
         title={routeState.contentTitle}
         isSaving={routeState.isSaving}
