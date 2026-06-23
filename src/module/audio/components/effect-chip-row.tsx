@@ -1,31 +1,61 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
+import { AUDIO_EFFECTS, type AudioEffectId } from '@/module/audio/types/effects';
 
-const EFFECTS = [
-  { id: 'enhance', label: 'Enhance', icon: { ios: 'wand.and.stars', android: 'auto_fix_high', web: 'auto_fix_high' } },
-  { id: 'denoise', label: 'Denoise', icon: { ios: 'waveform.path.ecg', android: 'graphic_eq', web: 'graphic_eq' } },
-  { id: 'reverb', label: 'Reverb', icon: { ios: 'dot.radiowaves.left.and.right', android: 'surround_sound', web: 'surround_sound' } },
-  { id: 'echo', label: 'Echo', icon: { ios: 'repeat', android: 'repeat', web: 'repeat' } },
-  { id: 'modulate', label: 'Modulate', icon: { ios: 'slider.horizontal.3', android: 'tune', web: 'tune' } },
-] as const;
+type EffectChipRowProps = {
+  selectedEffectId?: AudioEffectId | null;
+  onSelectEffect?: (effectId: AudioEffectId) => void;
+  disabled?: boolean;
+  isProcessing?: boolean;
+  processingLabel?: string;
+};
 
-export function EffectChipRow() {
+export function EffectChipRow({
+  selectedEffectId = null,
+  onSelectEffect,
+  disabled = false,
+  isProcessing = false,
+  processingLabel,
+}: EffectChipRowProps) {
   const theme = useTheme();
+  const chipsDisabled = disabled || isProcessing;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Effects</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>Effects</Text>
+        {isProcessing ? (
+          <View style={styles.processingRow}>
+            <ActivityIndicator size="small" color="#1A73E8" />
+            {processingLabel ? <Text style={styles.processingText}>{processingLabel}</Text> : null}
+          </View>
+        ) : null}
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {EFFECTS.map((effect, index) => (
-          <Pressable
-            key={effect.id}
-            style={[styles.chip, index === 0 && styles.chipSelected]}>
-            <SymbolView name={effect.icon} size={16} tintColor={index === 0 ? '#ffffff' : theme.text} />
-            <Text style={[styles.chipText, index === 0 && styles.chipTextSelected]}>{effect.label}</Text>
-          </Pressable>
-        ))}
+        {AUDIO_EFFECTS.map((effect) => {
+          const isSelected = selectedEffectId === effect.id;
+
+          return (
+            <Pressable
+              key={effect.id}
+              disabled={chipsDisabled}
+              onPress={() => onSelectEffect?.(effect.id)}
+              style={[
+                styles.chip,
+                isSelected && styles.chipSelected,
+                chipsDisabled && styles.chipDisabled,
+              ]}>
+              <SymbolView
+                name={effect.icon}
+                size={16}
+                tintColor={isSelected ? '#ffffff' : theme.text}
+              />
+              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{effect.label}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -36,10 +66,27 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 4,
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1A1D21',
+  },
+  processingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  processingText: {
+    fontSize: 12,
+    color: '#1A73E8',
+    flexShrink: 1,
   },
   scroll: {
     gap: 8,
@@ -56,6 +103,9 @@ const styles = StyleSheet.create({
   },
   chipSelected: {
     backgroundColor: '#1A73E8',
+  },
+  chipDisabled: {
+    opacity: 0.5,
   },
   chipText: {
     fontSize: 13,

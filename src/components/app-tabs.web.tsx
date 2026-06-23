@@ -24,7 +24,7 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="audio" href="/audio" asChild>
+          <TabTrigger name="audio" href="/audio/index" asChild>
             <TabButton>Audio</TabButton>
           </TabTrigger>
         </CustomTabList>

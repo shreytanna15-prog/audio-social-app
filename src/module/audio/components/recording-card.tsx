@@ -1,9 +1,11 @@
+import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconButton } from '@/module/audio/components/icon-button';
 import { WaveformDisplay } from '@/module/audio/components/waveform-display';
-import { formatDuration } from '@/module/audio/utils/format-duration';
+import { createLabel, formatDuration } from '@/module/audio/utils/format';
 import type { AudioRecording } from '@/types/audio';
 
 type RecordingCardProps = {
@@ -12,15 +14,18 @@ type RecordingCardProps = {
 };
 
 export function RecordingCard({ recording, index }: RecordingCardProps) {
+  const router = useRouter();
   const player = useAudioPlayer(recording.uri);
   const playerStatus = useAudioPlayerStatus(player);
 
-  const createdLabel = new Date(recording.createdAt).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const createdLabel = useMemo(() => createLabel(recording.createdAt), [recording.createdAt]);
+
+  const openEditor = () => {
+    router.push({
+      pathname: '/audio/recording/[id]',
+      params: { id: recording.id },
+    });
+  };
 
   const handlePlay = () => {
     if (playerStatus.playing) {
@@ -33,7 +38,7 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
   };
 
   return (
-    <View style={styles.card}>
+    <Pressable onPress={openEditor} style={styles.card}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Recording {index + 1}</Text>
@@ -74,7 +79,7 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
         </View>
       </View>
       <WaveformDisplay height={48} bars={[0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.45, 0.75, 0.55, 0.65]} />
-    </View>
+    </Pressable>
   );
 }
 
@@ -113,3 +118,4 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
 });
+

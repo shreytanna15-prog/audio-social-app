@@ -41,3 +41,13 @@ export function getPendingDirectory(): string {
 export function getPendingRecordingUri(pendingId: string): string {
   return `${getPendingDirectory()}${pendingId}.m4a`;
 }
+
+const PROCESSED_FOLDER = '_processed';
+
+export function getProcessedDirectory(): string {
+  return `${getPendingDirectory()}${PROCESSED_FOLDER}/`;
+}
+
+export function getProcessedRecordingUri(effectId: string, fileId: string): string {
+  return `${getProcessedDirectory()}${fileId}-${effectId}.m4a`;
+}

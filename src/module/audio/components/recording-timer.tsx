@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { formatDuration } from '@/module/audio/utils/format-duration';
+import { formatDuration } from '@/module/audio/utils/format';
 
 type RecordingTimerProps = {
   seconds: number;

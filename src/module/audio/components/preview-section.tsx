@@ -1,6 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { EffectChipRow, PreviewActions, RecordingTimer, WaveformDisplay } from '@/module/audio/components';
+import { EffectChipRow } from '@/module/audio/components/effect-chip-row';
+import { PreviewActions } from '@/module/audio/components/preview-actions';
+import { RecordingTimer } from '@/module/audio/components/recording-timer';
+import { WaveformDisplay } from '@/module/audio/components/waveform-display';
 import { useAudioSession } from '@/module/audio/context';
 
 export function PreviewSection() {

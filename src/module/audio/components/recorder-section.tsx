@@ -26,7 +26,7 @@ export function RecorderSection() {
       <RecorderControls
         isRecording={hasActiveSession}
         isPaused={isPaused}
-        canReset={hasActiveSession || status === 'preview'}
+        canReset={hasActiveSession}
         onPauseResume={handlePauseResume}
         onMainAction={handleMainAction}
         onReset={resetSession}

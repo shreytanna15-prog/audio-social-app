@@ -1,11 +1,11 @@
 export { EffectChipRow } from '@/module/audio/components/effect-chip-row';
 export { IconButton } from '@/module/audio/components/icon-button';
-export { PreviewActions } from '@/module/audio/components/preview-actions';
-export { PreviewSection } from '@/module/audio/components/preview-section';
 export { RecorderControls } from '@/module/audio/components/recorder-controls';
 export { RecorderHeader } from '@/module/audio/components/recorder-header';
 export { RecorderSection } from '@/module/audio/components/recorder-section';
 export { RecordingCard } from '@/module/audio/components/recording-card';
+export { RecordingEditor } from '@/module/audio/components/recording-editor';
+export { RecordingEditorActions } from '@/module/audio/components/recording-editor-actions';
 export { RecordingTimer } from '@/module/audio/components/recording-timer';
 export { RecordingsList } from '@/module/audio/components/recordings-list';
 export { WaveformDisplay } from '@/module/audio/components/waveform-display';
