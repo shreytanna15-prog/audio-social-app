@@ -1,20 +1,25 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState } from "react";
 
-import { deleteProcessedRecording } from '@/module/audio/data/processed-recording.repository';
+import { deleteProcessedRecording } from "@/module/audio/data/processed-recording.repository";
+import {
+  getEffectErrorDebugDetails,
+  toEffectErrorPresentation,
+  type EffectErrorPresentation,
+} from "@/module/audio/domain/audio-effect-errors";
 import {
   getAppliedEffectsLabel,
   getEffectsProcessingLabel,
-} from '@/module/audio/domain/audio-effect.helpers';
-import { useRecordingPlayback } from '@/module/audio/hooks/use-recording-playback';
-import { applyAudioEffects } from '@/module/audio/services/audio-effects.service';
-import type { AudioEffectId } from '@/module/audio/types/effects';
+} from "@/module/audio/domain/audio-effect.helpers";
+import { useRecordingPlayback } from "@/module/audio/hooks/use-recording-playback";
+import { applyAudioEffects } from "@/module/audio/services/audio-effects.service";
+import type { AudioEffectId } from "@/module/audio/types/effects";
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
   playbackUri: string;
   initialAppliedEffects?: AudioEffectId[];
   isSaving?: boolean;
-  onEffectError?: (message: string) => void;
+  onEffectError?: (error: EffectErrorPresentation) => void;
 };
 
 export function useRecordingEditorSession({
@@ -25,8 +30,12 @@ export function useRecordingEditorSession({
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
   const [workingUri, setWorkingUri] = useState(playbackUri);
-  const [selectedEffectIds, setSelectedEffectIds] = useState<AudioEffectId[]>(initialAppliedEffects);
-  const [appliedEffectIds, setAppliedEffectIds] = useState<AudioEffectId[]>(initialAppliedEffects);
+  const [selectedEffectIds, setSelectedEffectIds] = useState<AudioEffectId[]>(
+    initialAppliedEffects,
+  );
+  const [appliedEffectIds, setAppliedEffectIds] = useState<AudioEffectId[]>(
+    initialAppliedEffects,
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingLabel, setProcessingLabel] = useState<string | undefined>();
 
@@ -68,8 +77,9 @@ export function useRecordingEditorSession({
           setAppliedEffectIds(nextEffectIds);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not apply effects.';
-        onEffectError?.(message);
+        const presentation = toEffectErrorPresentation(error, nextEffectIds);
+        console.warn('Effect processing failed:', getEffectErrorDebugDetails(error));
+        onEffectError?.(presentation);
         setSelectedEffectIds(appliedEffectIds);
       } finally {
         setIsProcessing(false);

@@ -1,4 +1,3 @@
-import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   EffectChipRow,
   IconButton,
@@ -6,6 +5,7 @@ import {
   RecordingTimer,
   WaveformDisplay,
 } from '@/module/audio/components';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { useRecordingEditorSession } from '@/module/audio/hooks/use-recording-editor-session';
 import type { AudioEffectId } from '@/module/audio/types/effects';
@@ -42,7 +42,9 @@ export function RecordingEditor({
     playbackUri, 
     initialAppliedEffects, 
     isSaving, 
-    onEffectError: (message) => Alert.alert("Effect failed", message),
+    onEffectError: ({ title, message }) => {
+      Alert.alert(title, message);
+    },
   });
 
   const handleDiscard = async () => {

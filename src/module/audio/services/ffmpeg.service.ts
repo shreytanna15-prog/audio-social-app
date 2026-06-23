@@ -1,6 +1,7 @@
 import { FFmpegKit, ReturnCode } from '@wokcito/ffmpeg-kit-react-native';
 import { File } from 'expo-file-system';
 
+import { FfmpegProcessingError } from '@/module/audio/domain/audio-effect-errors';
 import { assertFfmpegAvailable } from '@/module/audio/utils/ffmpeg-availability';
 import { toFfmpegPath, toFileUri } from '@/module/audio/utils/ffmpeg-path';
 
@@ -48,10 +49,9 @@ export async function runFfmpegAudioFilter({
   if (!ReturnCode.isSuccess(returnCode)) {
     const output = await session.getOutput();
     const failStackTrace = await session.getFailStackTrace();
+    const rawOutput = failStackTrace || output || 'FFmpeg could not process this recording.';
 
-    throw new Error(
-      failStackTrace || output || 'FFmpeg could not process this recording.',
-    );
+    throw new FfmpegProcessingError(rawOutput);
   }
 
   const outputFile = new File(outputUri);

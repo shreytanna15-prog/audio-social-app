@@ -22,6 +22,11 @@ export function getAudioEffectFilter(effectId: AudioEffectId): string {
 
 export function getCombinedAudioEffectFilter(effectIds: AudioEffectId[]): string {
   const orderedIds = EFFECT_APPLICATION_ORDER.filter((id) => effectIds.includes(id));
+  const filters = orderedIds.map((id) => getAudioEffectFilter(id)).join(',');
 
-  return orderedIds.map((id) => getAudioEffectFilter(id)).join(',');
+  if (!filters) {
+    return filters;
+  }
+
+  return `${filters},alimiter=limit=0.95:level=false`;
 }
