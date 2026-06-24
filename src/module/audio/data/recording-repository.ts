@@ -1,34 +1,36 @@
-import { File } from 'expo-file-system';
-import { deleteAsync } from 'expo-file-system/legacy';
-import * as Crypto from 'expo-crypto';
+import * as Crypto from "expo-crypto";
+import { File } from "expo-file-system";
+import { deleteAsync } from "expo-file-system/legacy";
 
+import {
+  deleteRecordingFiles,
+  ensureRecordingsRoot,
+  readIndex,
+  writeIndex,
+} from "@/module/audio/data/recording-storage";
+import { normalizeAppliedEffects } from "@/module/audio/domain/effect-definitions";
+import type { AppliedEffect } from "@/module/audio/types/applied-effects";
 import {
   getPendingRecordingUri,
   getRecordingFileUri,
   getRecordingRelativePath,
   getRecordingSourceFileUri,
   getRecordingSourceRelativePath,
-} from '@/module/audio/data/recording-paths';
-import {
-  deleteRecordingFiles,
-  ensureRecordingsRoot,
-  readIndex,
-  writeIndex,
-} from '@/module/audio/data/recording-storage';
-import type { AudioEffectId } from '@/module/audio/types/effects';
-import type { AudioRecording } from '@/types/audio';
+  PENDING_FOLDER,
+} from "@/module/audio/utils/recording-paths";
+import type { AudioRecording } from "@/types/audio";
 
 type SaveRecordingInput = {
   sourceUri: string;
   durationSeconds: number;
-  appliedEffects?: AudioEffectId[];
+  appliedEffects?: AppliedEffect[];
 };
 
 type UpdateRecordingInput = {
   id: string;
   sourceUri: string;
   durationSeconds: number;
-  appliedEffects: AudioEffectId[];
+  appliedEffects: AppliedEffect[];
 };
 
 async function readRecordingBytes(sourceUri: string): Promise<Uint8Array> {
@@ -46,7 +48,10 @@ async function readRecordingBytes(sourceUri: string): Promise<Uint8Array> {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-async function persistRecordingFile(sourceUri: string, destinationUri: string): Promise<void> {
+async function persistRecordingFile(
+  sourceUri: string,
+  destinationUri: string,
+): Promise<void> {
   const destination = new File(destinationUri);
   const parent = destination.parentDirectory;
 
@@ -59,7 +64,10 @@ async function persistRecordingFile(sourceUri: string, destinationUri: string): 
   destination.write(bytes);
 }
 
-async function ensureSourceBackup(id: string, currentOriginalUri: string): Promise<void> {
+async function ensureSourceBackup(
+  id: string,
+  currentOriginalUri: string,
+): Promise<void> {
   const sourceUri = getRecordingSourceFileUri(id);
   const source = new File(sourceUri);
 
@@ -68,12 +76,18 @@ async function ensureSourceBackup(id: string, currentOriginalUri: string): Promi
   }
 }
 
-async function cleanupTemporarySourceUri(sourceUri: string, destinationUri: string): Promise<void> {
+async function cleanupTemporarySourceUri(
+  sourceUri: string,
+  destinationUri: string,
+): Promise<void> {
   if (sourceUri === destinationUri) {
     return;
   }
 
-  if (!sourceUri.includes('/_processed/') && !sourceUri.includes('/_pending/')) {
+  if (
+    !sourceUri.includes("/_processed/") &&
+    !sourceUri.includes(PENDING_FOLDER)
+  ) {
     return;
   }
 
@@ -84,7 +98,9 @@ async function cleanupTemporarySourceUri(sourceUri: string, destinationUri: stri
   }
 }
 
-export async function stagePreviewRecording(sourceUri: string): Promise<string> {
+export async function stagePreviewRecording(
+  sourceUri: string,
+): Promise<string> {
   const pendingUri = getPendingRecordingUri(Crypto.randomUUID());
 
   await ensureRecordingsRoot();
@@ -93,8 +109,10 @@ export async function stagePreviewRecording(sourceUri: string): Promise<string> 
   return pendingUri;
 }
 
-export async function discardPreviewRecording(previewUri: string): Promise<void> {
-  if (!previewUri.includes('/_pending/')) {
+export async function discardPreviewRecording(
+  previewUri: string,
+): Promise<void> {
+  if (!previewUri.includes(PENDING_FOLDER)) {
     return;
   }
 
@@ -108,9 +126,16 @@ export async function discardPreviewRecording(previewUri: string): Promise<void>
 export async function listRecordings(): Promise<AudioRecording[]> {
   const recordings = await readIndex();
 
-  return recordings.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  return recordings
+    .map((recording) => ({
+      ...recording,
+      appliedEffects: recording.appliedEffects
+        ? normalizeAppliedEffects(recording.appliedEffects)
+        : undefined,
+    }))
+    .sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 }
 
 export async function saveRecording({
@@ -127,7 +152,10 @@ export async function saveRecording({
   await persistRecordingFile(sourceUri, destinationUri);
   await persistRecordingFile(sourceUri, pristineUri);
 
-  if (sourceUri.includes('/_pending/') || sourceUri.includes('/_processed/')) {
+  if (
+    sourceUri.includes(PENDING_FOLDER) ||
+    sourceUri.includes("/_processed/")
+  ) {
     try {
       await deleteAsync(sourceUri, { idempotent: true });
     } catch {
@@ -140,7 +168,7 @@ export async function saveRecording({
     uri: destinationUri,
     path: getRecordingRelativePath(id),
     sourcePath: getRecordingSourceRelativePath(id),
-    type: 'draft',
+    type: "draft",
     duration: durationSeconds,
     appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
     createdAt: now,

@@ -1,6 +1,12 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { deleteProcessedRecording } from "@/module/audio/data/processed-recording.repository";
+import {
+  createAppliedEffect,
+  effectHasSettingsDrawer,
+  getDefaultEffectParams,
+  normalizeAppliedEffects,
+} from "@/module/audio/domain/effect-definitions";
 import {
   getEffectErrorDebugDetails,
   toEffectErrorPresentation,
@@ -12,13 +18,14 @@ import {
 } from "@/module/audio/domain/audio-effect.helpers";
 import { useRecordingPlayback } from "@/module/audio/hooks/use-recording-playback";
 import { applyAudioEffects } from "@/module/audio/services/audio-effects.service";
+import type { AppliedEffect, EffectParamValues } from "@/module/audio/types/applied-effects";
 import type { AudioEffectId } from "@/module/audio/types/effects";
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
   playbackUri: string;
-  initialAppliedEffects?: AudioEffectId[];
-  isSaving?: boolean;
+  initialAppliedEffects?: AudioEffectId[] | AppliedEffect[];
+  isSaving: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
 };
 
@@ -30,72 +37,134 @@ export function useRecordingEditorSession({
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
   const [workingUri, setWorkingUri] = useState(playbackUri);
-  const [selectedEffectIds, setSelectedEffectIds] = useState<AudioEffectId[]>(
-    initialAppliedEffects,
-  );
-  const [appliedEffectIds, setAppliedEffectIds] = useState<AudioEffectId[]>(
-    initialAppliedEffects,
+  const [appliedEffects, setAppliedEffects] = useState<AppliedEffect[]>(() =>
+    normalizeAppliedEffects(initialAppliedEffects),
   );
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingLabel, setProcessingLabel] = useState<string | undefined>();
+  const [drawerEffectId, setDrawerEffectId] = useState<AudioEffectId | null>(null);
+  const pendingAppliedEffectsRef = useRef<AppliedEffect[] | null>(null);
 
   const playback = useRecordingPlayback(workingUri);
 
-  const canReset = appliedEffectIds.length > 0 && !isProcessing && !isSaving;
-  const appliedEffectLabel = getAppliedEffectsLabel(appliedEffectIds);
+  const canReset = appliedEffects.length > 0 && !isProcessing && !isSaving;
+  const effectLabel = getAppliedEffectsLabel(appliedEffects);
   const isPlaybackDisabled = isProcessing || isSaving;
+  const processingLabel =
+    isProcessing && pendingAppliedEffectsRef.current
+      ? getEffectsProcessingLabel(pendingAppliedEffectsRef.current)
+      : undefined;
 
-  const toggleEffect = useCallback(
-    async (effectId: AudioEffectId) => {
-      if (isProcessing || isSaving) {
-        return;
-      }
+  const activeDrawerEffect = drawerEffectId
+    ? appliedEffects.find((effect) => effect.id === drawerEffectId)
+    : undefined;
 
-      const isSelected = selectedEffectIds.includes(effectId);
-      const nextEffectIds = isSelected
-        ? selectedEffectIds.filter((id) => id !== effectId)
-        : [...selectedEffectIds, effectId];
-
-      setSelectedEffectIds(nextEffectIds);
+  const processEffects = useCallback(
+    async (nextAppliedEffects: AppliedEffect[]) => {
+      pendingAppliedEffectsRef.current = nextAppliedEffects;
       setIsProcessing(true);
-      setProcessingLabel(getEffectsProcessingLabel(nextEffectIds));
       playback.pause();
 
       try {
         const previousUri = workingUri;
 
-        if (nextEffectIds.length === 0) {
+        if (nextAppliedEffects.length === 0) {
           await deleteProcessedRecording(previousUri, pristineUri);
           setWorkingUri(pristineUri);
-          setAppliedEffectIds([]);
+          setAppliedEffects([]);
         } else {
-          const nextUri = await applyAudioEffects(nextEffectIds, pristineUri);
+          const nextUri = await applyAudioEffects(nextAppliedEffects, pristineUri);
 
           await deleteProcessedRecording(previousUri, pristineUri);
 
           setWorkingUri(nextUri);
-          setAppliedEffectIds(nextEffectIds);
+          setAppliedEffects(nextAppliedEffects);
         }
       } catch (error) {
-        const presentation = toEffectErrorPresentation(error, nextEffectIds);
-        console.warn('Effect processing failed:', getEffectErrorDebugDetails(error));
+        const presentation = toEffectErrorPresentation(error, nextAppliedEffects);
+        console.warn("Effect processing failed:", getEffectErrorDebugDetails(error));
         onEffectError?.(presentation);
-        setSelectedEffectIds(appliedEffectIds);
       } finally {
+        pendingAppliedEffectsRef.current = null;
         setIsProcessing(false);
-        setProcessingLabel(undefined);
       }
     },
-    [
-      appliedEffectIds,
-      isProcessing,
-      isSaving,
-      onEffectError,
-      playback,
-      pristineUri,
-      selectedEffectIds,
-      workingUri,
-    ],
+    [onEffectError, playback, pristineUri, workingUri],
+  );
+
+  const openEffectDrawer = useCallback(
+    (effectId: AudioEffectId) => {
+      if (isProcessing || isSaving || !effectHasSettingsDrawer(effectId)) {
+        return;
+      }
+
+      setDrawerEffectId(effectId);
+    },
+    [isProcessing, isSaving],
+  );
+
+  const pressEffect = useCallback(
+    (effectId: AudioEffectId) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
+
+      if (effectHasSettingsDrawer(effectId)) {
+        openEffectDrawer(effectId);
+        return;
+      }
+
+      const isSelected = appliedEffects.some((effect) => effect.id === effectId);
+      const nextAppliedEffects = isSelected
+        ? appliedEffects.filter((effect) => effect.id !== effectId)
+        : [...appliedEffects, createAppliedEffect(effectId)];
+
+      void processEffects(nextAppliedEffects);
+    },
+    [appliedEffects, isProcessing, isSaving, openEffectDrawer, processEffects],
+  );
+
+  const toggleEffect = useCallback(
+    async (effectId: AudioEffectId) => {
+      pressEffect(effectId);
+    },
+    [pressEffect],
+  );
+
+  const closeEffectDrawer = useCallback(() => {
+    if (isProcessing) {
+      return;
+    }
+
+    setDrawerEffectId(null);
+  }, [isProcessing]);
+
+  const applyEffectFromDrawer = useCallback(
+    async (effectId: AudioEffectId, params: EffectParamValues) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
+
+      const withoutCurrent = appliedEffects.filter((effect) => effect.id !== effectId);
+      const nextAppliedEffects = [...withoutCurrent, { id: effectId, params }];
+
+      setDrawerEffectId(null);
+      await processEffects(nextAppliedEffects);
+    },
+    [appliedEffects, isProcessing, isSaving, processEffects],
+  );
+
+  const removeEffectFromDrawer = useCallback(
+    async (effectId: AudioEffectId) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
+
+      const nextAppliedEffects = appliedEffects.filter((effect) => effect.id !== effectId);
+
+      setDrawerEffectId(null);
+      await processEffects(nextAppliedEffects);
+    },
+    [appliedEffects, isProcessing, isSaving, processEffects],
   );
 
   const resetEffects = useCallback(async () => {
@@ -106,8 +175,8 @@ export function useRecordingEditorSession({
     playback.pause();
     await deleteProcessedRecording(workingUri, pristineUri);
     setWorkingUri(pristineUri);
-    setSelectedEffectIds([]);
-    setAppliedEffectIds([]);
+    setAppliedEffects([]);
+    setDrawerEffectId(null);
   }, [canReset, playback, pristineUri, workingUri]);
 
   const cleanupWorkingFile = useCallback(async () => {
@@ -116,9 +185,9 @@ export function useRecordingEditorSession({
 
   return {
     workingUri,
-    selectedEffectIds,
-    appliedEffectIds,
-    appliedEffectLabel,
+    appliedEffects,
+    selectedEffectIds: appliedEffects.map((effect) => effect.id),
+    effectLabel,
     isProcessing,
     processingLabel,
     canReset,
@@ -126,6 +195,20 @@ export function useRecordingEditorSession({
     isPlaying: playback.isPlaying,
     togglePlayback: playback.togglePlayback,
     toggleEffect,
+    pressEffect,
+    openEffectDrawer,
+    closeEffectDrawer,
+    drawerEffectId,
+    activeDrawerEffect,
+    drawerInitialParams:
+      drawerEffectId === null
+        ? undefined
+        : activeDrawerEffect?.params ?? getDefaultEffectParams(drawerEffectId),
+    isDrawerEffectActive: drawerEffectId
+      ? appliedEffects.some((effect) => effect.id === drawerEffectId)
+      : false,
+    applyEffectFromDrawer,
+    removeEffectFromDrawer,
     resetEffects,
     cleanupWorkingFile,
   };

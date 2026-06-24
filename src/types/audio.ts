@@ -1,4 +1,4 @@
-import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { AppliedEffect } from '@/module/audio/types/applied-effects';
 
 export type AudioRecording = {
     id: string;
@@ -7,7 +7,7 @@ export type AudioRecording = {
     duration: number;
     path: string;
     sourcePath?: string;
-    appliedEffects?: AudioEffectId[];
+    appliedEffects?: AppliedEffect[];
     createdAt: string;
     updatedAt: string;
 }

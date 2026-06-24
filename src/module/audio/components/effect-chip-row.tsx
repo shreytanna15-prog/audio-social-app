@@ -1,26 +1,47 @@
 import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { effectHasSettingsDrawer } from '@/module/audio/domain/effect-definitions';
 import { useTheme } from '@/hooks/use-theme';
 import { AUDIO_EFFECTS, type AudioEffectId } from '@/module/audio/types/effects';
 
 type EffectChipRowProps = {
   selectedEffectIds?: AudioEffectId[];
+  onEffectPress?: (effectId: AudioEffectId) => void;
+  /** @deprecated Use onEffectPress instead. */
   onToggleEffect?: (effectId: AudioEffectId) => void;
-  disabled?: boolean;
-  isProcessing?: boolean;
+  /** @deprecated Use onEffectPress instead. */
+  onOpenEffectDrawer?: (effectId: AudioEffectId) => void;
+  disabled: boolean;
+  isProcessing: boolean;
   processingLabel?: string;
 };
 
 export function EffectChipRow({
   selectedEffectIds = [],
+  onEffectPress,
   onToggleEffect,
+  onOpenEffectDrawer,
   disabled = false,
   isProcessing = false,
   processingLabel,
 }: EffectChipRowProps) {
   const theme = useTheme();
   const chipsDisabled = disabled || isProcessing;
+
+  const handlePress = (effectId: AudioEffectId) => {
+    if (onEffectPress) {
+      onEffectPress(effectId);
+      return;
+    }
+
+    if (effectHasSettingsDrawer(effectId)) {
+      onOpenEffectDrawer?.(effectId);
+      return;
+    }
+
+    onToggleEffect?.(effectId);
+  };
 
   return (
     <View style={styles.container}>
@@ -33,7 +54,12 @@ export function EffectChipRow({
           </View>
         ) : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}>
         {AUDIO_EFFECTS.map((effect) => {
           const isSelected = selectedEffectIds.includes(effect.id);
 
@@ -41,7 +67,7 @@ export function EffectChipRow({
             <Pressable
               key={effect.id}
               disabled={chipsDisabled}
-              onPress={() => onToggleEffect?.(effect.id)}
+              onPress={() => handlePress(effect.id)}
               style={[
                 styles.chip,
                 isSelected && styles.chipSelected,
@@ -52,7 +78,9 @@ export function EffectChipRow({
                 size={16}
                 tintColor={isSelected ? '#ffffff' : theme.text}
               />
-              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{effect.label}</Text>
+              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                {effect.label}
+              </Text>
             </Pressable>
           );
         })}

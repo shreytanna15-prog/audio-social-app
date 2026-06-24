@@ -6,6 +6,11 @@ export function toFfmpegPath(uri: string): string {
   return uri;
 }
 
+/** Escape filesystem paths used inside FFmpeg filter expressions. */
+export function escapeFfmpegFilterPath(path: string): string {
+  return toFfmpegPath(path).replace(/\\/g, '/').replace(/:/g, '\\:');
+}
+
 export function toFileUri(path: string): string {
   if (path.startsWith('file://')) {
     return path;

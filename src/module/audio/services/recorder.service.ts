@@ -3,19 +3,19 @@ import {
   RecordingPresets,
   setAudioModeAsync,
   type AudioRecorder,
-} from 'expo-audio';
+} from "expo-audio";
 
 export const RECORDING_OPTIONS = {
   ...RecordingPresets.HIGH_QUALITY,
   isMeteringEnabled: true,
-  directory: 'document' as const,
+  directory: "document" as const,
 };
 
 let recorder: AudioRecorder | null = null;
 
 function getRecorder(): AudioRecorder {
   if (!recorder) {
-    throw new Error('Audio recorder is not initialized.');
+    throw new Error("Audio recorder is not initialized.");
   }
 
   return recorder;
@@ -72,7 +72,7 @@ export const recorderService = {
     try {
       await getRecorder().stop();
     } catch {
-      // Recorder may already be stopped.
+      // recorder may already be stopped
     }
   },
 };

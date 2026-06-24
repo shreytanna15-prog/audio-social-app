@@ -1,5 +1,5 @@
 import { getAppliedEffectsLabel } from '@/module/audio/domain/audio-effect.helpers';
-import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { AppliedEffect } from '@/module/audio/types/applied-effects';
 
 export type EffectErrorPresentation = {
   title: string;
@@ -93,17 +93,17 @@ export function extractFfmpegErrorMessage(rawOutput: string): string {
   return 'Audio processing failed.';
 }
 
-function buildEffectErrorTitle(effectIds: AudioEffectId[]): string {
-  const effectsLabel = getAppliedEffectsLabel(effectIds);
+function buildEffectErrorTitle(appliedEffects: AppliedEffect[]): string {
+  const effectsLabel = getAppliedEffectsLabel(appliedEffects);
 
   return effectsLabel ? `Couldn't apply ${effectsLabel}` : "Couldn't apply effects";
 }
 
 export function toEffectErrorPresentation(
   error: unknown,
-  effectIds: AudioEffectId[],
+  appliedEffects: AppliedEffect[],
 ): EffectErrorPresentation {
-  const title = buildEffectErrorTitle(effectIds);
+  const title = buildEffectErrorTitle(appliedEffects);
 
   if (error instanceof FfmpegProcessingError) {
     return {

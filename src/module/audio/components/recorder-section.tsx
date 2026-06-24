@@ -1,19 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 
 import { RecorderControls, RecorderHeader, WaveformDisplay } from '@/module/audio/components';
-import { useAudioSession } from '@/store';
+import { useAudioSessionStore } from '@/store';
 
 export function RecorderSection() {
-  const {
-    status,
-    timerSeconds,
-    meteringBars,
-    hasActiveSession,
-    isPaused,
-    handleMainAction,
-    handlePauseResume,
-    resetSession,
-  } = useAudioSession();
+  const status = useAudioSessionStore((state) => state.status);
+  const timerSeconds = useAudioSessionStore((state) => state.timerSeconds);
+  const meteringBars = useAudioSessionStore((state) => state.meteringBars);
+  const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
+  const isPaused = useAudioSessionStore((state) => state.isPaused);
+  const handleMainAction = useAudioSessionStore((state) => state.handleMainAction);
+  const handlePauseResume = useAudioSessionStore((state) => state.handlePauseResume);
+  const resetSession = useAudioSessionStore((state) => state.resetSession);
 
   return (
     <View style={styles.container}>

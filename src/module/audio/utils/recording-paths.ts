@@ -6,6 +6,7 @@ const RECORDINGS_FOLDER = 'recordings';
 const INDEX_FILE = 'index.json';
 const ORIGINAL_FILE = 'original.m4a';
 const SOURCE_FILE = 'source.m4a';
+export const PENDING_FOLDER = '_pending';
 
 function requireDocumentDirectory(): string {
   if (!documentDirectory) {
@@ -52,8 +53,6 @@ export function resolvePristineRecordingUri(
 
   return recording.uri;
 }
-
-const PENDING_FOLDER = '_pending';
 
 export function getPendingDirectory(): string {
   return `${getRecordingsRoot()}${PENDING_FOLDER}/`;

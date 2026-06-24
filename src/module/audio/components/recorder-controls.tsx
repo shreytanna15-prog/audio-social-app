@@ -3,12 +3,12 @@ import { StyleSheet, View } from 'react-native';
 import { IconButton } from '@/module/audio/components/icon-button';
 
 type RecorderControlsProps = {
-  isRecording?: boolean;
-  isPaused?: boolean;
-  canReset?: boolean;
-  onPauseResume?: () => void;
-  onMainAction?: () => void;
-  onReset?: () => void;
+  isRecording: boolean;
+  isPaused: boolean;
+  canReset: boolean;
+  onPauseResume: () => void;
+  onMainAction: () => void;
+  onReset: () => void;
 };
 
 export function RecorderControls({

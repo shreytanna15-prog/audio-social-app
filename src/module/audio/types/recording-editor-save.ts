@@ -1,6 +1,6 @@
-import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { AppliedEffect } from '@/module/audio/types/applied-effects';
 
 export type RecordingEditorSavePayload = {
   sourceUri: string;
-  appliedEffects: AudioEffectId[];
+  appliedEffects: AppliedEffect[];
 };

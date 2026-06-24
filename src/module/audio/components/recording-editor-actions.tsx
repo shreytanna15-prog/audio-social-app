@@ -1,9 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { RecordingEditorMode } from '@/module/audio/types/recording-editor-route';
-
 type RecordingEditorActionsProps = {
-  mode: RecordingEditorMode;
+  isPending: boolean;
   canReset: boolean;
   isSaving: boolean;
   onReset: () => void;
@@ -12,7 +10,7 @@ type RecordingEditorActionsProps = {
 };
 
 export function RecordingEditorActions({
-  mode,
+  isPending,
   canReset,
   isSaving,
   onReset,
@@ -28,7 +26,7 @@ export function RecordingEditorActions({
         <Text style={styles.secondaryButtonText}>Reset to original</Text>
       </Pressable>
 
-      {mode === 'pending' ? (
+      {isPending ? (
         <View style={styles.primaryActions}>
           <Pressable
             style={[styles.dangerButton, isSaving && styles.buttonDisabled]}

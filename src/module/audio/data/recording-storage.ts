@@ -3,15 +3,15 @@ import {
   makeDirectoryAsync,
   readAsStringAsync,
   writeAsStringAsync,
-} from 'expo-file-system/legacy';
+} from "expo-file-system/legacy";
 
 import {
   getIndexPath,
   getPendingDirectory,
   getRecordingDirectory,
   getRecordingsRoot,
-} from '@/module/audio/data/recording-paths';
-import type { AudioRecording } from '@/types/audio';
+} from "@/module/audio/utils/recording-paths";
+import type { AudioRecording } from "@/types/audio";
 
 export async function ensureRecordingsRoot(): Promise<void> {
   const root = getRecordingsRoot();

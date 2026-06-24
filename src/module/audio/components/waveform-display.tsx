@@ -3,9 +3,9 @@ import { StyleSheet, View } from 'react-native';
 const DEFAULT_BARS = [0.2, 0.45, 0.7, 0.55, 0.9, 0.35, 0.6, 0.8, 0.5, 0.75, 0.4, 0.65, 0.3, 0.85, 0.5, 0.7, 0.45, 0.6, 0.35, 0.55];
 
 type WaveformDisplayProps = {
-  bars?: number[];
-  active?: boolean;
-  height?: number;
+  bars: number[];
+  active: boolean;
+  height: number;
 };
 
 export function WaveformDisplay({

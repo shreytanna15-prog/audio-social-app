@@ -1,11 +1,28 @@
 import * as Crypto from 'expo-crypto';
 import { deleteAsync } from 'expo-file-system/legacy';
 
-import { getProcessedRecordingUri } from '@/module/audio/data/recording-paths';
-import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { AppliedEffect } from '@/module/audio/types/applied-effects';
+import {
+  getProcessedRecordingUri,
+  PENDING_FOLDER,
+} from '@/module/audio/utils/recording-paths';
 
-export function createProcessedRecordingUri(effectIds: AudioEffectId[]): string {
-  const effectKey = [...effectIds].sort().join('+');
+function buildEffectCacheKey(appliedEffects: AppliedEffect[]): string {
+  return [...appliedEffects]
+    .map((effect) => {
+      const paramKey = Object.entries(effect.params)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => `${key}:${value}`)
+        .join(',');
+
+      return `${effect.id}{${paramKey}}`;
+    })
+    .sort()
+    .join('+');
+}
+
+export function createProcessedRecordingUri(appliedEffects: AppliedEffect[]): string {
+  const effectKey = buildEffectCacheKey(appliedEffects);
 
   return getProcessedRecordingUri(effectKey, Crypto.randomUUID());
 }
@@ -18,7 +35,10 @@ export async function deleteProcessedRecording(
     return;
   }
 
-  if (!processedUri.includes('/_processed/') && !processedUri.includes('/_pending/')) {
+  if (
+    !processedUri.includes('/_processed/') &&
+    !processedUri.includes(PENDING_FOLDER)
+  ) {
     return;
   }
 

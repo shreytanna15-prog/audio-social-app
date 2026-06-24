@@ -3,5 +3,3 @@ export type RecordingEditorRouteParams = {
   uri?: string;
   duration?: string;
 };
-
-export type RecordingEditorMode = 'pending' | 'saved';

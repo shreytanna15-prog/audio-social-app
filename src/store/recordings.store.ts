@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Alert } from 'react-native';
 import { create } from 'zustand';
 
@@ -8,20 +7,20 @@ import {
   saveRecording as saveRecordingToRepository,
   updateRecording as updateRecordingInRepository,
 } from '@/module/audio/data/recording-repository';
-import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { AppliedEffect } from '@/module/audio/types/applied-effects';
 import type { AudioRecording } from '@/types/audio';
 
 export type SaveRecordingParams = {
   sourceUri: string;
   durationSeconds: number;
-  appliedEffects?: AudioEffectId[];
+  appliedEffects?: AppliedEffect[];
 };
 
 export type UpdateRecordingParams = {
   id: string;
   sourceUri: string;
   durationSeconds: number;
-  appliedEffects: AudioEffectId[];
+  appliedEffects: AppliedEffect[];
 };
 
 export type RecordingsState = {
@@ -107,26 +106,3 @@ export const useRecordingsStore = create<RecordingsState>((set) => ({
     }
   },
 }));
-
-export function useRecordings(): RecordingsState {
-  const recordings = useRecordingsStore((state) => state.recordings);
-  const isLoading = useRecordingsStore((state) => state.isLoading);
-  const isSaving = useRecordingsStore((state) => state.isSaving);
-  const refreshRecordings = useRecordingsStore((state) => state.refreshRecordings);
-  const saveRecording = useRecordingsStore((state) => state.saveRecording);
-  const updateRecording = useRecordingsStore((state) => state.updateRecording);
-  const deleteRecording = useRecordingsStore((state) => state.deleteRecording);
-
-  return useMemo(
-    () => ({
-      recordings,
-      isLoading,
-      isSaving,
-      refreshRecordings,
-      saveRecording,
-      updateRecording,
-      deleteRecording,
-    }),
-    [recordings, isLoading, isSaving, refreshRecordings, saveRecording, updateRecording, deleteRecording],
-  );
-}

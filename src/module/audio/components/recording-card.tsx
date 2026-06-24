@@ -1,12 +1,12 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconButton, WaveformDisplay } from '@/module/audio/components';
+import { shareRecording } from '@/module/audio/services/recording-share.service';
 import { createLabel, formatDuration } from '@/module/audio/utils/format';
-import { useRecordings } from '@/store';
+import { useRecordingsStore } from '@/store';
 import type { AudioRecording } from '@/types/audio';
 
 type RecordingCardProps = {
@@ -16,7 +16,7 @@ type RecordingCardProps = {
 
 export function RecordingCard({ recording, index }: RecordingCardProps) {
   const router = useRouter();
-  const { deleteRecording } = useRecordings();
+  const deleteRecording = useRecordingsStore((state) => state.deleteRecording);
   const player = useAudioPlayer(recording.uri);
   const playerStatus = useAudioPlayerStatus(player);
 
@@ -39,23 +39,11 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
     player.play();
   };
 
-  const handleShare = async () => {
-    try {
-      const canShare = await Sharing.isAvailableAsync();
-
-      if (!canShare) {
-        Alert.alert('Sharing unavailable', 'Sharing is not available on this device.');
-        return;
-      }
-
-      await Sharing.shareAsync(recording.uri, {
-        mimeType: 'audio/mp4',
-        UTI: 'public.m4a-audio',
-        dialogTitle: `Recording ${index + 1}`,
-      });
-    } catch (error) {
-      console.log('Error sharing recording:', error);
-    }
+  const handleShare = () => {
+    void shareRecording({
+      uri: recording.uri,
+      dialogTitle: `Recording ${index + 1}`,
+    });
   };
 
   const handleDelete = () => {
@@ -107,9 +95,7 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
             }}
             size={18}
             style={styles.smallButton}
-            onPress={() => {
-              void handleShare();
-            }}
+            onPress={handleShare}
           />
           <IconButton
             icon={{
@@ -124,7 +110,7 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
           />
         </View>
       </View>
-      <WaveformDisplay height={48} bars={[0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.45, 0.75, 0.55, 0.65]} />
+      <WaveformDisplay height={48} bars={[0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.45, 0.75, 0.55, 0.65]} active={false} />
     </Pressable>
   );
 }

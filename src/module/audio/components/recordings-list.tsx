@@ -1,10 +1,11 @@
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { RecordingCard } from '@/module/audio/components/recording-card';
-import { useRecordings } from '@/store';
+import { useRecordingsStore } from '@/store';
 
 export function RecordingsList() {
-  const { recordings, isLoading } = useRecordings();
+  const recordings = useRecordingsStore((state) => state.recordings);
+  const isLoading = useRecordingsStore((state) => state.isLoading);
 
   return (
     <View style={styles.container}>

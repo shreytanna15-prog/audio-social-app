@@ -1,5 +1,6 @@
 import { AUDIO_EFFECTS, type AudioEffectId } from '@/module/audio/types/effects';
-import { EFFECT_APPLICATION_ORDER } from '@/module/audio/domain/audio-effect-filters';
+import { EFFECT_APPLICATION_ORDER } from '@/module/audio/domain/effect-definitions';
+import type { AppliedEffect } from '@/module/audio/types/applied-effects';
 
 export function getEffectLabel(effectId: AudioEffectId): string {
   const effect = AUDIO_EFFECTS.find((item) => item.id === effectId);
@@ -14,7 +15,7 @@ export function getEffectLabel(effectId: AudioEffectId): string {
 export function getEffectProcessingLabel(effectId: AudioEffectId): string {
   const labels: Record<AudioEffectId, string> = {
     enhance: 'Enhancing audio…',
-    denoise: 'Applying denoise…',
+    denoise: 'Cleaning background noise…',
     reverb: 'Applying reverb…',
     echo: 'Applying echo…',
     modulate: 'Applying modulation…',
@@ -23,24 +24,32 @@ export function getEffectProcessingLabel(effectId: AudioEffectId): string {
   return labels[effectId];
 }
 
-export function getAppliedEffectsLabel(effectIds: AudioEffectId[]): string | null {
-  if (effectIds.length === 0) {
+export function getAppliedEffectsLabel(appliedEffects: AppliedEffect[]): string | null {
+  if (appliedEffects.length === 0) {
     return null;
   }
 
-  const orderedIds = EFFECT_APPLICATION_ORDER.filter((id) => effectIds.includes(id));
+  const orderedEffects = EFFECT_APPLICATION_ORDER.flatMap((effectId) => {
+    const applied = appliedEffects.find((effect) => effect.id === effectId);
 
-  return orderedIds.map((id) => getEffectLabel(id)).join(' + ');
+    if (!applied) {
+      return [];
+    }
+
+    return [applied];
+  });
+
+  return orderedEffects.map((effect) => getEffectLabel(effect.id)).join(' + ');
 }
 
-export function getEffectsProcessingLabel(effectIds: AudioEffectId[]): string {
-  if (effectIds.length === 0) {
+export function getEffectsProcessingLabel(appliedEffects: AppliedEffect[]): string {
+  if (appliedEffects.length === 0) {
     return 'Resetting effects…';
   }
 
-  if (effectIds.length === 1) {
-    return getEffectProcessingLabel(effectIds[0]);
+  if (appliedEffects.length === 1) {
+    return getEffectProcessingLabel(appliedEffects[0].id);
   }
 
-  return `Applying ${effectIds.length} effects…`;
+  return `Applying ${appliedEffects.length} effects…`;
 }

@@ -1,28 +1,17 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 
-import { resolvePristineRecordingUri } from "@/module/audio/data/recording-paths";
 import { discardPreviewRecording } from "@/module/audio/data/recording-repository";
+import { resolvePristineRecordingUri } from "@/module/audio/utils/recording-paths";
 
-import type {
-  RecordingEditorMode,
-  RecordingEditorRouteParams,
-} from "@/module/audio/types/recording-editor-route";
+import type { RecordingEditorRouteParams } from "@/module/audio/types/recording-editor-route";
+import type { RecordingEditorProps } from "@/module/audio/types/recording-editor";
 import type { RecordingEditorSavePayload } from "@/module/audio/types/recording-editor-save";
-import { useRecordings } from "@/store";
+import { useRecordingsStore } from "@/store";
 
 type RecordingEditorReadyState = {
   status: "ready";
-  mode: RecordingEditorMode;
-  pristineUri: string;
-  playbackUri: string;
-  initialAppliedEffects: RecordingEditorSavePayload["appliedEffects"];
-  durationSeconds: number;
-  screenTitle: string;
-  contentTitle: string;
-  isSaving: boolean;
-  onSave: (payload: RecordingEditorSavePayload) => Promise<void>;
-  onDiscard: () => Promise<void>;
+  editor: RecordingEditorProps;
 };
 
 export type RecordingEditorRouteState =
@@ -35,8 +24,11 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const { id, uri, duration } =
     useLocalSearchParams<RecordingEditorRouteParams>();
 
-  const { recordings, isLoading, isSaving, saveRecording, updateRecording } =
-    useRecordings();
+  const recordings = useRecordingsStore((state) => state.recordings);
+  const isLoading = useRecordingsStore((state) => state.isLoading);
+  const isSaving = useRecordingsStore((state) => state.isSaving);
+  const saveRecording = useRecordingsStore((state) => state.saveRecording);
+  const updateRecording = useRecordingsStore((state) => state.updateRecording);
   const isPending = id === "new";
 
   const savedRecording = useMemo(() => {
@@ -108,17 +100,20 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
 
   return {
     status: "ready",
-    mode: isPending ? "pending" : "saved",
-    pristineUri,
-    playbackUri,
-    initialAppliedEffects,
-    durationSeconds,
-    screenTitle: isPending ? "New recording" : "Edit recording",
-    contentTitle: isPending
-      ? "Review your recording"
-      : `Recording ${recordingIndex + 1}`,
-    isSaving,
-    onSave: handleSave,
-    onDiscard: handleDiscard,
+    editor: {
+      source: {
+        pristineUri,
+        playbackUri,
+        initialAppliedEffects,
+      },
+      title: isPending
+        ? "Review your recording"
+        : `Recording ${recordingIndex + 1}`,
+      durationSeconds,
+      isPending,
+      isSaving,
+      onSave: handleSave,
+      onDiscard: handleDiscard,
+    },
   };
 }

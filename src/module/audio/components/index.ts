@@ -1,4 +1,6 @@
 export { EffectChipRow } from '@/module/audio/components/effect-chip-row';
+export { EffectParamField } from '@/module/audio/components/effect-param-field';
+export { EffectSettingsDrawer } from '@/module/audio/components/effect-settings-drawer';
 export { IconButton } from '@/module/audio/components/icon-button';
 export { RecorderControls } from '@/module/audio/components/recorder-controls';
 export { RecorderHeader } from '@/module/audio/components/recorder-header';
