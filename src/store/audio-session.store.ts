@@ -62,7 +62,7 @@ const stopRecording = async (): Promise<{
   if (uri) {
     try {
       const stagedUri = await stagePreviewRecording(uri);
-      
+
       return { frozenDurationMillis, stagedUri };
     } catch (error) {
       console.log("Error staging preview recording:", error);
@@ -72,7 +72,7 @@ const stopRecording = async (): Promise<{
   }
 
   return null;
-}
+};
 
 export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
   status: "idle",
@@ -144,6 +144,17 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
     const { hasActiveSession, previewUri } = get();
 
     if (hasActiveSession) {
+      set({
+        hasActiveSession: false,
+        isPaused: false,
+        status: "optimizing",
+      });
+
+      // Let the optimizing overlay paint before heavy FFmpeg work starts.
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+
       const result = await stopRecording();
 
       if (result) {

@@ -1,15 +1,16 @@
 import type { EffectParamValues } from '@/module/audio/types/applied-effects';
 import type { AudioEffectId } from '@/module/audio/types/effects';
+import { escapeFfmpegFilterPath } from '@/module/audio/utils/ffmpeg-path';
 
 import { getDefaultEffectParams } from './effect-definitions';
 
-export type DenoiseProfileId = 'crowd' | 'voices' | 'steady';
+export type DenoiseStrength = 'light' | 'medium' | 'strong';
 
-type DenoiseParams = {
-  strength: number;
-  profile: DenoiseProfileId;
-  reduceRumble: boolean;
-  reduceHiss: boolean;
+export type DenoiseStrategy = 'arnndn-with-mix' | 'arnndn' | 'afftdn';
+
+type BuildDenoiseOptions = {
+  strategy?: DenoiseStrategy;
+  arnndnModelPath?: string | null;
 };
 
 const STATIC_EFFECT_FILTERS: Record<Exclude<AudioEffectId, 'denoise'>, string> = {
@@ -20,100 +21,133 @@ const STATIC_EFFECT_FILTERS: Record<Exclude<AudioEffectId, 'denoise'>, string> =
     'loudnorm=I=-14:TP=-1.5:LRA=11,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,equalizer=f=3000:width_type=o:gain=2',
 };
 
-const PROFILE_SETTINGS: Record<
-  DenoiseProfileId,
-  { noiseFloor: number; gainSmooth: number; adaptivity: number }
-> = {
-  crowd: { noiseFloor: -38, gainSmooth: 12, adaptivity: 0.35 },
-  voices: { noiseFloor: -40, gainSmooth: 10, adaptivity: 0.4 },
-  steady: { noiseFloor: -45, gainSmooth: 8, adaptivity: 0.5 },
+const AFFTDN_SETTINGS = {
+  noiseFloor: -50,
+  gainSmooth: 14,
+  adaptivity: 0.6,
+  residualFloor: -45,
 };
 
-const STRENGTH_TO_NR: Record<number, number> = {
-  1: 14,
-  2: 18,
-  3: 22,
-  4: 26,
-  5: 30,
+const STRENGTH_TO_NR: Record<DenoiseStrength, number> = {
+  light: 26,
+  medium: 30,
+  strong: 34,
 };
 
-const VALID_PROFILES = new Set<DenoiseProfileId>(['crowd', 'voices', 'steady']);
+const STRENGTH_TO_MIX: Record<DenoiseStrength, number> = {
+  light: 0.75,
+  medium: 0.8,
+  strong: 0.85,
+};
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
+function normalizeStrength(value: EffectParamValues[string]): DenoiseStrength {
+  if (value === 'light' || value === 'medium' || value === 'strong') {
+    return value;
+  }
 
-function normalizeStrength(value: number): number {
-  if (value <= 5) {
-    return clamp(Math.round(value), 1, 5);
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return 'medium';
+  }
+
+  if (numericValue <= 5) {
+    if (numericValue <= 2) {
+      return 'light';
+    }
+
+    if (numericValue >= 4) {
+      return 'strong';
+    }
+
+    return 'medium';
   }
 
   // Legacy saves used 40–100 percent strength.
-  return clamp(Math.round(1 + ((clamp(value, 40, 100) - 40) / 60) * 4), 1, 5);
-}
-
-function parseOnOff(value: EffectParamValues[string], defaultOn = true): boolean {
-  if (value === 'on' || value === true || value === 1) {
-    return true;
+  if (numericValue <= 55) {
+    return 'light';
   }
 
-  if (value === 'off' || value === false || value === 0) {
-    return false;
+  if (numericValue >= 80) {
+    return 'strong';
   }
 
-  return defaultOn;
+  return 'medium';
 }
 
-function parseDenoiseParams(params: EffectParamValues): DenoiseParams {
-  const rawProfile = String(params.profile ?? 'crowd');
-  const profile = VALID_PROFILES.has(rawProfile as DenoiseProfileId)
-    ? (rawProfile as DenoiseProfileId)
-    : 'crowd';
-
-  return {
-    strength: normalizeStrength(Number(params.strength ?? 3)),
-    profile,
-    reduceRumble: parseOnOff(params.reduceRumble, true),
-    reduceHiss: parseOnOff(params.reduceHiss, true),
-  };
+function parseDenoiseStrength(params: EffectParamValues): DenoiseStrength {
+  return normalizeStrength(params.strength ?? 'medium');
 }
 
 /**
- * Denoise via FFmpeg: mono mix → optional highpass → afftdn → optional lowpass → light compression.
+ * Speech denoise via arnndn (RNNoise): highpass → arnndn → loudnorm.
+ * Kept intentionally minimal so the neural denoiser effect is easier to judge.
+ *
+ * @see https://ffmpeg.org/ffmpeg-filters.html#arnndn
+ */
+function buildArnndnDenoiseAudioFilter(
+  modelPath: string,
+  params: EffectParamValues,
+  includeMix: boolean,
+): string {
+  const strength = parseDenoiseStrength(params);
+  const mix = STRENGTH_TO_MIX[strength];
+  const escapedModelPath = escapeFfmpegFilterPath(modelPath);
+  const stages: string[] = ['highpass=f=80'];
+
+  stages.push(
+    includeMix
+      ? `arnndn=m=${escapedModelPath}:mix=${mix}`
+      : `arnndn=m=${escapedModelPath}`,
+  );
+
+  stages.push('loudnorm=I=-16:TP=-1.5:LRA=11');
+
+  return stages.join(',');
+}
+
+/**
+ * FFT denoise fallback: highpass → afftdn.
  *
  * @see https://ffmpeg.org/ffmpeg-filters.html#afftdn
  */
-export function buildDenoiseAudioFilter(params: EffectParamValues): string {
-  const denoise = parseDenoiseParams(params);
-  const profile = PROFILE_SETTINGS[denoise.profile];
-  const noiseReduction = STRENGTH_TO_NR[denoise.strength] ?? 22;
-  const stages: string[] = [];
+function buildAfftdnDenoiseAudioFilter(params: EffectParamValues): string {
+  const strength = parseDenoiseStrength(params);
+  const noiseReduction = STRENGTH_TO_NR[strength];
 
-  stages.push('pan=mono|c0=0.5*c0+0.5*c1');
+  return [
+    'highpass=f=85',
+    `afftdn=nr=${noiseReduction}:nf=${AFFTDN_SETTINGS.noiseFloor}:tn=1:tr=1:gs=${AFFTDN_SETTINGS.gainSmooth}:ad=${AFFTDN_SETTINGS.adaptivity}:rf=${AFFTDN_SETTINGS.residualFloor}`,
+  ].join(',');
+}
 
-  if (denoise.reduceRumble) {
-    stages.push('highpass=f=85:poles=2');
+export function buildDenoiseAudioFilter(
+  params: EffectParamValues,
+  options: BuildDenoiseOptions = {},
+): string {
+  const strategy = options.strategy ?? (options.arnndnModelPath ? 'arnndn-with-mix' : 'afftdn');
+
+  if (
+    (strategy === 'arnndn-with-mix' || strategy === 'arnndn') &&
+    options.arnndnModelPath
+  ) {
+    return buildArnndnDenoiseAudioFilter(
+      options.arnndnModelPath,
+      params,
+      strategy === 'arnndn-with-mix',
+    );
   }
 
-  stages.push(
-    `afftdn=nr=${noiseReduction}:nf=${profile.noiseFloor}:tn=1:tr=1:gs=${profile.gainSmooth}:ad=${profile.adaptivity}:rf=-42`,
-  );
-
-  if (denoise.reduceHiss) {
-    stages.push('lowpass=f=12500:poles=1');
-  }
-
-  stages.push('acompressor=threshold=-22dB:ratio=2:attack=8:release=100');
-
-  return stages.join(',');
+  return buildAfftdnDenoiseAudioFilter(params);
 }
 
 export function buildEffectAudioFilter(
   effectId: AudioEffectId,
   params: EffectParamValues,
+  denoiseOptions?: BuildDenoiseOptions,
 ): string {
   if (effectId === 'denoise') {
-    return buildDenoiseAudioFilter(params);
+    return buildDenoiseAudioFilter(params, denoiseOptions);
   }
 
   return STATIC_EFFECT_FILTERS[effectId];

@@ -32,6 +32,7 @@ export function deriveStatus(
 }
 
 type SyncSessionState = {
+  status: RecorderStatus;
   hasActiveSession: boolean;
   isPaused: boolean;
   previewUri: string | null;
@@ -47,7 +48,7 @@ export function buildRecorderSyncPatch(
   meteringBars: number[];
   status: RecorderStatus;
 } {
-  const { hasActiveSession, isPaused, previewUri, meteringBars } = session;
+  const { status, hasActiveSession, isPaused, previewUri, meteringBars } = session;
 
   let nextMeteringBars = meteringBars;
   if (hasActiveSession && !isPaused) {
@@ -56,13 +57,16 @@ export function buildRecorderSyncPatch(
 
   const timerSeconds = hasActiveSession
     ? Math.floor(recorderState.durationMillis / 1000)
-    : previewUri
+    : status === 'optimizing' || previewUri
       ? Math.floor(frozenDurationMillis / 1000)
       : 0;
 
   return {
     timerSeconds,
     meteringBars: nextMeteringBars,
-    status: deriveStatus(hasActiveSession, isPaused, previewUri),
+    status:
+      status === 'optimizing'
+        ? 'optimizing'
+        : deriveStatus(hasActiveSession, isPaused, previewUri),
   };
 }

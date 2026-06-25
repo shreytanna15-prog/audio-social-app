@@ -24,7 +24,19 @@ export type EffectParamSelect = {
   defaultValue: string;
 };
 
-export type EffectParamDefinition = EffectParamSlider | EffectParamSelect;
+export type EffectParamSegmented = {
+  kind: 'segmented';
+  id: string;
+  label: string;
+  description?: string;
+  options: { value: string; label: string }[];
+  defaultValue: string;
+};
+
+export type EffectParamDefinition =
+  | EffectParamSlider
+  | EffectParamSelect
+  | EffectParamSegmented;
 
 export type EffectDefinition = {
   id: AudioEffectId;
@@ -38,71 +50,19 @@ export const EFFECT_DEFINITIONS: Record<AudioEffectId, EffectDefinition> = {
   denoise: {
     id: 'denoise',
     label: 'Denoise',
-    description: 'Remove background noise from your recording. Adjust settings, then tap Apply.',
+    description: '',
     hasSettingsDrawer: true,
     params: [
       {
-        kind: 'slider',
+        kind: 'segmented',
         id: 'strength',
-        label: 'Cleanup strength',
-        description: 'How much background noise to remove. Start with Medium.',
-        min: 1,
-        max: 5,
-        step: 1,
-        defaultValue: 3,
-        valueLabels: {
-          1: 'Mild',
-          2: 'Light',
-          3: 'Medium',
-          4: 'Strong',
-          5: 'Maximum',
-        },
-      },
-      {
-        kind: 'select',
-        id: 'profile',
-        label: 'Background noise type',
-        description: 'Pick what best matches where you recorded.',
-        defaultValue: 'crowd',
+        label: 'How strong should cleanup be?',
         options: [
-          {
-            value: 'crowd',
-            label: 'Crowd & room',
-            description: 'Cafes, streets, general chatter.',
-          },
-          {
-            value: 'voices',
-            label: 'People talking',
-            description: 'Others speaking near you.',
-          },
-          {
-            value: 'steady',
-            label: 'Fan or hum',
-            description: 'AC, computer fan, steady buzzing.',
-          },
+          { value: 'light', label: 'Light' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'strong', label: 'Strong' },
         ],
-      },
-      {
-        kind: 'select',
-        id: 'reduceRumble',
-        label: 'Cut low rumble',
-        description: 'Removes traffic, wind, and deep background noise.',
-        defaultValue: 'on',
-        options: [
-          { value: 'on', label: 'On (recommended)' },
-          { value: 'off', label: 'Off' },
-        ],
-      },
-      {
-        kind: 'select',
-        id: 'reduceHiss',
-        label: 'Reduce hiss',
-        description: 'Softens harsh high-frequency noise after cleanup.',
-        defaultValue: 'on',
-        options: [
-          { value: 'on', label: 'On (recommended)' },
-          { value: 'off', label: 'Off' },
-        ],
+        defaultValue: 'medium',
       },
     ],
   },

@@ -9,5 +9,6 @@ export { RecordingCard } from '@/module/audio/components/recording-card';
 export { RecordingEditor } from '@/module/audio/components/recording-editor';
 export { RecordingEditorActions } from '@/module/audio/components/recording-editor-actions';
 export { RecordingTimer } from '@/module/audio/components/recording-timer';
+export { RecordingOptimizeOverlay } from '@/module/audio/components/recording-optimize-overlay';
 export { RecordingsList } from '@/module/audio/components/recordings-list';
 export { WaveformDisplay } from '@/module/audio/components/waveform-display';

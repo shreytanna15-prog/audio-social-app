@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<RecorderHeaderProps['status'], string> = {
   idle: 'Ready to record',
   recording: 'Recording',
   paused: 'Paused',
+  optimizing: 'Optimizing audio…',
   preview: 'Preview',
 };
 

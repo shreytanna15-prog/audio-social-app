@@ -8,5 +8,3 @@ export type AppliedEffect = {
   id: AudioEffectId;
   params: EffectParamValues;
 };
-
-export type DenoiseProfileId = 'crowd' | 'voices' | 'steady';

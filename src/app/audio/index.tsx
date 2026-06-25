@@ -1,12 +1,14 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RecorderSection, RecordingsList } from '@/module/audio/components';
+import { RecorderSection, RecordingOptimizeOverlay, RecordingsList } from '@/module/audio/components';
 import { useAudioRecorderBinding } from '@/module/audio/hooks/use-audio-recorder-binding';
 import { useOpenEditorOnPreview } from '@/module/audio/hooks/use-open-editor-on-preview';
+import { useAudioSessionStore } from '@/store';
 
 export default function AudioScreen() {
   const insets = useSafeAreaInsets();
+  const isOptimizing = useAudioSessionStore((state) => state.status === 'optimizing');
   useAudioRecorderBinding();
   useOpenEditorOnPreview();
 
@@ -16,6 +18,7 @@ export default function AudioScreen() {
         <RecorderSection />
         <RecordingsList />
       </ScrollView>
+      <RecordingOptimizeOverlay visible={isOptimizing} />
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type {
   EffectParamDefinition,
+  EffectParamSegmented,
   EffectParamSelect,
   EffectParamSlider,
 } from '@/module/audio/domain/effect-definitions';
@@ -124,10 +125,65 @@ function EffectParamSelectField({
   );
 }
 
+function EffectParamSegmentedField({
+  definition,
+  value,
+  disabled = false,
+  onChange,
+}: {
+  definition: EffectParamSegmented;
+  value: EffectParamValue;
+  disabled?: boolean;
+  onChange: (value: EffectParamValue) => void;
+}) {
+  const selectedValue = String(value);
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{definition.label}</Text>
+      {definition.description ? (
+        <Text style={styles.fieldDescription}>{definition.description}</Text>
+      ) : null}
+      <View style={styles.segmentedRow}>
+        {definition.options.map((option) => {
+          const isSelected = option.value === selectedValue;
+
+          return (
+            <Pressable
+              key={option.value}
+              disabled={disabled}
+              onPress={() => onChange(option.value)}
+              style={[
+                styles.segment,
+                isSelected && styles.segmentSelected,
+                disabled && styles.optionDisabled,
+              ]}>
+              <Text style={[styles.segmentLabel, isSelected && styles.segmentLabelSelected]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function EffectParamField({ definition, value, disabled, onChange }: EffectParamFieldProps) {
   if (definition.kind === 'slider') {
     return (
       <EffectParamSliderField
+        definition={definition}
+        value={value}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (definition.kind === 'segmented') {
+    return (
+      <EffectParamSegmentedField
         definition={definition}
         value={value}
         disabled={disabled}
@@ -240,5 +296,32 @@ const styles = StyleSheet.create({
   },
   optionDescriptionSelected: {
     color: '#4B6CB7',
+  },
+  segmentedRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: '#DADCE0',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  segmentSelected: {
+    borderColor: '#1A73E8',
+    backgroundColor: '#E8F0FE',
+  },
+  segmentLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1D21',
+  },
+  segmentLabelSelected: {
+    color: '#1A73E8',
   },
 });

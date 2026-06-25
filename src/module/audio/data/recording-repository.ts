@@ -9,6 +9,7 @@ import {
   writeIndex,
 } from "@/module/audio/data/recording-storage";
 import { normalizeAppliedEffects } from "@/module/audio/domain/effect-definitions";
+import { optimizeRecordingForPreview } from "@/module/audio/services/recording-optimize.service";
 import type { AppliedEffect } from "@/module/audio/types/applied-effects";
 import {
   getPendingRecordingUri,
@@ -104,9 +105,14 @@ export async function stagePreviewRecording(
   const pendingUri = getPendingRecordingUri(Crypto.randomUUID());
 
   await ensureRecordingsRoot();
-  await persistRecordingFile(sourceUri, pendingUri);
 
-  return pendingUri;
+  try {
+    return await optimizeRecordingForPreview(sourceUri, pendingUri);
+  } catch (error) {
+    console.warn("[Optimize] Default pipeline failed, using raw recording.", error);
+    await persistRecordingFile(sourceUri, pendingUri);
+    return pendingUri;
+  }
 }
 
 export async function discardPreviewRecording(

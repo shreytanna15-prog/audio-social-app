@@ -6,6 +6,7 @@ type RecorderControlsProps = {
   isRecording: boolean;
   isPaused: boolean;
   canReset: boolean;
+  disabled?: boolean;
   onPauseResume: () => void;
   onMainAction: () => void;
   onReset: () => void;
@@ -15,6 +16,7 @@ export function RecorderControls({
   isRecording = false,
   isPaused = false,
   canReset = false,
+  disabled = false,
   onPauseResume,
   onMainAction,
   onReset,
@@ -27,7 +29,7 @@ export function RecorderControls({
           android: isPaused ? 'play_arrow' : 'pause',
           web: isPaused ? 'play_arrow' : 'pause',
         }}
-        disabled={!isRecording}
+        disabled={disabled || !isRecording}
         onPress={onPauseResume}
       />
 
@@ -39,6 +41,7 @@ export function RecorderControls({
         }}
         variant="primary"
         size={28}
+        disabled={disabled}
         onPress={onMainAction}
       />
 
@@ -48,7 +51,7 @@ export function RecorderControls({
           android: 'refresh',
           web: 'refresh',
         }}
-        disabled={!canReset}
+        disabled={disabled || !canReset}
         onPress={onReset}
       />
     </View>

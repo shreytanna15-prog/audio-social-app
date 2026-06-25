@@ -1,1 +1,1 @@
-export type RecorderStatus = 'idle' | 'recording' | 'paused' | 'preview';
+export type RecorderStatus = 'idle' | 'recording' | 'paused' | 'optimizing' | 'preview';

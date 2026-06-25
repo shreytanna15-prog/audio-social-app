@@ -25,6 +25,7 @@ export function RecorderSection() {
         isRecording={hasActiveSession}
         isPaused={isPaused}
         canReset={hasActiveSession}
+        disabled={status === 'optimizing'}
         onPauseResume={handlePauseResume}
         onMainAction={handleMainAction}
         onReset={resetSession}

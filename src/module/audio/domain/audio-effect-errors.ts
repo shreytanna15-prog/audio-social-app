@@ -139,6 +139,32 @@ export function toEffectErrorPresentation(
   };
 }
 
+function getFfmpegErrorText(error: unknown): string {
+  if (error instanceof FfmpegProcessingError) {
+    return error.rawOutput;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+export function isRecoverableArnndnError(error: unknown): boolean {
+  const message = getFfmpegErrorText(error);
+
+  return (
+    /arnndn/i.test(message) &&
+    (/No such filter/i.test(message) ||
+      /Invalid argument/i.test(message) ||
+      /Option 'mix' not found/i.test(message) ||
+      /Error opening input/i.test(message) ||
+      /Could not open file/i.test(message) ||
+      /model/i.test(message))
+  );
+}
+
 export function getEffectErrorDebugDetails(error: unknown): string | undefined {
   if (error instanceof AudioEffectsError) {
     return error.debugDetails ?? error.userMessage;

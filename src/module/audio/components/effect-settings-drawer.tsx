@@ -80,7 +80,9 @@ export function EffectSettingsDrawer({
             <View style={styles.header}>
               <View style={styles.headerText}>
                 <Text style={styles.title}>{definition.label}</Text>
-                <Text style={styles.subtitle}>{definition.description}</Text>
+                {definition.description ? (
+                  <Text style={styles.subtitle}>{definition.description}</Text>
+                ) : null}
               </View>
               <Pressable onPress={onClose} style={styles.closeButton}>
                 <Text style={styles.closeButtonText}>Close</Text>
