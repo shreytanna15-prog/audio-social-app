@@ -14,6 +14,10 @@ function joinStages(stages: string[]): string {
   return stages.join(',');
 }
 
+export function buildDefaultPolishOnlyFilter(): string {
+  return joinStages(['highpass=f=80', ...VOCAL_POLISH_STAGES]);
+}
+
 export function buildDefaultArnndnOptimizeFilter(
   modelPath: string,
   includeMix = true,

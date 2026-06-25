@@ -41,3 +41,16 @@ example
 # generated native folders
 /ios
 /android
+
+# ML model weights (downloaded/cached at runtime — commit assets/model/*.json only)
+*.ort
+*.onnx
+assets/model/*.ort
+
+# Android build outputs (if generated outside /android)
+*.apk
+*.aab
+
+# Android local SDK paths
+local.properties
+**/local.properties
