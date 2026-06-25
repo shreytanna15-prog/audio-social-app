@@ -53,7 +53,7 @@ export function RecordingEditor({
         {session.effectLabel ? (
           <Text style={styles.appliedEffect}>Applied: {session.effectLabel}</Text>
         ) : (
-          <Text style={styles.hint}>Tap Denoise, choose strength, then Apply.</Text>
+          <Text style={styles.hint}>Tap an effect below to add it or open its settings.</Text>
         )}
         <View style={styles.playRow}>
           <IconButton

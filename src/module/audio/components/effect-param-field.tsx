@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import type {
   EffectParamDefinition,
@@ -6,7 +8,7 @@ import type {
   EffectParamSelect,
   EffectParamSlider,
 } from '@/module/audio/domain/effect-definitions';
-import type { EffectParamValue, EffectParamValues } from '@/module/audio/types/applied-effects';
+import type { EffectParamValue } from '@/module/audio/types/applied-effects';
 
 type EffectParamFieldProps = {
   definition: EffectParamDefinition;
@@ -14,6 +16,8 @@ type EffectParamFieldProps = {
   disabled?: boolean;
   onChange: (value: EffectParamValue) => void;
 };
+
+const SLIDER_THUMB_SIZE = 22;
 
 function formatSliderValue(definition: EffectParamSlider, value: number): string {
   if (definition.valueLabels?.[value]) {
@@ -27,6 +31,28 @@ function formatSliderValue(definition: EffectParamSlider, value: number): string
   return String(value);
 }
 
+function snapSliderValue(definition: EffectParamSlider, raw: number): number {
+  const steps = Math.round((raw - definition.min) / definition.step);
+  const snapped = definition.min + steps * definition.step;
+
+  return Math.min(definition.max, Math.max(definition.min, snapped));
+}
+
+function positionToValue(
+  x: number,
+  trackWidth: number,
+  definition: EffectParamSlider,
+): number {
+  if (trackWidth <= 0) {
+    return definition.min;
+  }
+
+  const ratio = Math.min(1, Math.max(0, x / trackWidth));
+  const raw = definition.min + ratio * (definition.max - definition.min);
+
+  return snapSliderValue(definition, raw);
+}
+
 function EffectParamSliderField({
   definition,
   value,
@@ -38,19 +64,33 @@ function EffectParamSliderField({
   disabled?: boolean;
   onChange: (value: EffectParamValue) => void;
 }) {
-  const numericValue = Number(value);
+  const numericValue = snapSliderValue(definition, Number(value));
+  const [trackWidth, setTrackWidth] = useState(0);
+
   const progress =
     definition.max === definition.min
       ? 0
       : (numericValue - definition.min) / (definition.max - definition.min);
 
-  const decrease = () => {
-    onChange(Math.max(definition.min, numericValue - definition.step));
+  const thumbOffset = trackWidth > 0 ? progress * Math.max(0, trackWidth - SLIDER_THUMB_SIZE) : 0;
+
+  const setValueFromPosition = useCallback(
+    (x: number) => {
+      onChange(positionToValue(x, trackWidth, definition));
+    },
+    [definition, onChange, trackWidth],
+  );
+
+  const handleTrackLayout = (event: LayoutChangeEvent) => {
+    setTrackWidth(event.nativeEvent.layout.width);
   };
 
-  const increase = () => {
-    onChange(Math.min(definition.max, numericValue + definition.step));
-  };
+  const panGesture = Gesture.Pan()
+    .enabled(!disabled && trackWidth > 0)
+    .hitSlop({ horizontal: 12, vertical: 20 })
+    .onUpdate((event) => {
+      setValueFromPosition(event.x);
+    });
 
   return (
     <View style={styles.field}>
@@ -61,23 +101,43 @@ function EffectParamSliderField({
       {definition.description ? (
         <Text style={styles.fieldDescription}>{definition.description}</Text>
       ) : null}
-      <View style={styles.sliderRow}>
-        <Pressable
-          disabled={disabled || numericValue <= definition.min}
-          onPress={decrease}
-          style={[styles.stepButton, disabled && styles.stepButtonDisabled]}>
-          <Text style={styles.stepButtonText}>−</Text>
-        </Pressable>
-        <View style={styles.track}>
-          <View style={[styles.trackFill, { width: `${Math.round(progress * 100)}%` }]} />
+      <GestureDetector gesture={panGesture}>
+        <View style={styles.sliderTrackContainer} onLayout={handleTrackLayout}>
+          <Pressable
+            disabled={disabled || trackWidth <= 0}
+            onPress={(event) => setValueFromPosition(event.nativeEvent.locationX)}
+            style={styles.sliderTrackPressable}>
+            <View style={styles.track}>
+              <View style={[styles.trackFill, { width: `${Math.round(progress * 100)}%` }]} />
+            </View>
+            <View
+              pointerEvents="none"
+              style={[
+                styles.thumb,
+                {
+                  transform: [{ translateX: thumbOffset }],
+                },
+              ]}
+            />
+          </Pressable>
         </View>
-        <Pressable
-          disabled={disabled || numericValue >= definition.max}
-          onPress={increase}
-          style={[styles.stepButton, disabled && styles.stepButtonDisabled]}>
-          <Text style={styles.stepButtonText}>+</Text>
-        </Pressable>
-      </View>
+      </GestureDetector>
+      {definition.min !== definition.max && definition.step === 1 && definition.max - definition.min <= 4 ? (
+        <View style={styles.sliderTicks}>
+          {Array.from({ length: definition.max - definition.min + 1 }, (_, index) => {
+            const tickValue = definition.min + index;
+            const isActive = tickValue === numericValue;
+
+            return (
+              <Text
+                key={tickValue}
+                style={[styles.sliderTickLabel, isActive && styles.sliderTickLabelActive]}>
+                {definition.valueLabels?.[tickValue] ?? String(tickValue)}
+              </Text>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -228,31 +288,15 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: '#7A7F87',
   },
-  sliderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  sliderTrackContainer: {
+    paddingVertical: 10,
   },
-  stepButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
+  sliderTrackPressable: {
     justifyContent: 'center',
-    backgroundColor: '#E8EAED',
-  },
-  stepButtonDisabled: {
-    opacity: 0.45,
-  },
-  stepButtonText: {
-    fontSize: 20,
-    lineHeight: 22,
-    fontWeight: '600',
-    color: '#1A1D21',
+    minHeight: SLIDER_THUMB_SIZE,
   },
   track: {
-    flex: 1,
-    height: 8,
+    height: 6,
     borderRadius: 999,
     backgroundColor: '#E8EAED',
     overflow: 'hidden',
@@ -261,6 +305,36 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 999,
     backgroundColor: '#1A73E8',
+  },
+  thumb: {
+    position: 'absolute',
+    top: 4,
+    left: 0,
+    width: SLIDER_THUMB_SIZE,
+    height: SLIDER_THUMB_SIZE,
+    borderRadius: SLIDER_THUMB_SIZE / 2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#1A73E8',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  sliderTicks: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  sliderTickLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9AA0A6',
+  },
+  sliderTickLabelActive: {
+    color: '#1A73E8',
+    fontWeight: '700',
   },
   optionList: {
     gap: 8,

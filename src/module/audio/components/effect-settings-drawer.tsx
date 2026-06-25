@@ -121,7 +121,7 @@ export function EffectSettingsDrawer({
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    {isActive ? 'Apply changes' : 'Apply denoise'}
+                    {isActive ? 'Apply changes' : `Apply ${definition.label.toLowerCase()}`}
                   </Text>
                 )}
               </Pressable>
