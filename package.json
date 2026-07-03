@@ -39,14 +39,18 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "cross-env": "^7.0.3",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "cross-env APP_VARIANT=development expo start --dev-client",
+    "start:dev": "cross-env APP_VARIANT=development expo start --dev-client",
+    "android": "npm run android:dev",
+    "android:dev": "cross-env APP_VARIANT=development expo prebuild --platform android --clean && cross-env APP_VARIANT=development expo run:android --device",
+    "android:prod": "cross-env APP_VARIANT=production expo prebuild --platform android --clean && cross-env APP_VARIANT=production expo run:android --variant release --device",
     "postinstall": "patch-package",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
