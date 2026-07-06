@@ -1,3 +1,4 @@
+import type { RecordingMode } from '@/module/audio/types/recording-mode';
 import { Platform } from 'react-native';
 
 import {
@@ -9,6 +10,15 @@ import {
   buildDefaultArnndnOptimizeFilter,
   buildDefaultPolishOnlyFilter,
 } from '@/module/audio/domain/default-audio-optimize';
+import { buildInstrumentLightPolishFilter } from '@/module/audio/domain/instrument-audio-optimize';
+import { buildMixedLightPolishFilter } from '@/module/audio/domain/mixed-audio-optimize';
+import { ENABLE_LEGACY_DENOISE_FALLBACK } from '@/module/audio/config/recording-optimize.config';
+import {
+  logChosenOptimizeStrategy,
+  logFfmpegDenoiseFilterAvailability,
+  logOptimizeDuration,
+  resolveFfmpegDenoiseFilterAvailability,
+} from '@/module/audio/domain/recording-optimize-log';
 import { isRecoverableArnndnError } from '@/module/audio/domain/audio-effect-errors';
 import {
   deleteFileIfExists,
@@ -76,6 +86,7 @@ async function tryOptimizeWithDeepFilter(
       }
     });
     await polishAndEncodeWav(denoisedWavUri, outputUri, buildDefaultPolishOnlyFilter());
+    logChosenOptimizeStrategy('speech', 'deepfilter-net');
     console.info('[Optimize] Applied DeepFilterNet + polish.');
     return resolveProcessedFileUri(outputUri);
   } catch (error) {
@@ -86,15 +97,12 @@ async function tryOptimizeWithDeepFilter(
   }
 }
 
-export async function optimizeRecordingForPreview(
+async function optimizeSpeechRecordingForPreview(
   inputUri: string,
   outputUri: string,
 ): Promise<string> {
-  if (Platform.OS === 'web') {
-    throw new Error('Recording optimization is only available on iOS and Android.');
-  }
-
-  assertFfmpegAvailable();
+  const filterAvailability = await resolveFfmpegDenoiseFilterAvailability();
+  logFfmpegDenoiseFilterAvailability(filterAvailability);
 
   const deepFilterResult = await tryOptimizeWithDeepFilter(inputUri, outputUri);
   if (deepFilterResult) {
@@ -119,6 +127,7 @@ export async function optimizeRecordingForPreview(
         try {
           console.info(`[Optimize] Trying strategy="${strategy}" model="${modelLabel}"`);
           await runOptimizeWithFilter(inputUri, outputUri, audioFilter);
+          logChosenOptimizeStrategy('speech', strategy);
           console.info(`[Optimize] Applied strategy="${strategy}" model="${modelLabel}"`);
           return resolveProcessedFileUri(outputUri);
         } catch (error) {
@@ -142,6 +151,116 @@ export async function optimizeRecordingForPreview(
   const afftdnFilter = buildOptimizeFilter('afftdn', null);
   console.info('[Optimize] Applying afftdn fallback.');
   await runOptimizeWithFilter(inputUri, outputUri, afftdnFilter);
+  logChosenOptimizeStrategy('speech', 'afftdn');
 
   return resolveProcessedFileUri(outputUri);
+}
+
+type ChunkedRecordingMode = 'instrument' | 'mixed';
+
+async function optimizeChunkedModeRecordingForPreview(
+  inputUri: string,
+  outputUri: string,
+  durationSeconds: number | undefined,
+  mode: ChunkedRecordingMode,
+  polishFallbackFilter: string,
+): Promise<string> {
+  const startedAt = Date.now();
+
+  try {
+    const { optimizeChunkedRecordingForPreview } = await import(
+      '@/module/audio/domain/chunked-audio-optimize'
+    );
+    const result = await optimizeChunkedRecordingForPreview({
+      inputUri,
+      outputUri,
+      durationSeconds,
+      mode,
+    });
+
+    logChosenOptimizeStrategy(mode, result.strategy);
+    logOptimizeDuration(mode, result.strategy, Date.now() - startedAt);
+    console.info(`[Optimize] Applied ${mode} pipeline strategy="${result.strategy}"`);
+
+    return result.uri;
+  } catch (error) {
+    console.warn(
+      `[Optimize] ${mode} pipeline failed. Falling back to ${ENABLE_LEGACY_DENOISE_FALLBACK ? 'legacy afftdn' : 'polish-only'}.`,
+      error,
+    );
+
+    if (ENABLE_LEGACY_DENOISE_FALLBACK) {
+      const legacyFilter =
+        mode === 'instrument'
+          ? (await import('@/module/audio/domain/instrument-audio-optimize'))
+              .buildInstrumentAfftdnOptimizeFilter()
+          : (await import('@/module/audio/domain/mixed-audio-optimize'))
+              .buildMixedAfftdnOptimizeFilter();
+
+      await runOptimizeWithFilter(inputUri, outputUri, legacyFilter);
+      logChosenOptimizeStrategy(mode, 'legacy-afftdn');
+      logOptimizeDuration(mode, 'legacy-afftdn', Date.now() - startedAt);
+      console.info(`[Optimize] Applied ${mode} legacy-afftdn fallback.`);
+
+      return resolveProcessedFileUri(outputUri);
+    }
+
+    await runOptimizeWithFilter(inputUri, outputUri, polishFallbackFilter);
+    logChosenOptimizeStrategy(mode, 'polish-only');
+    logOptimizeDuration(mode, 'polish-only', Date.now() - startedAt);
+    console.info(`[Optimize] Applied ${mode} polish-only fallback.`);
+
+    return resolveProcessedFileUri(outputUri);
+  }
+}
+
+async function optimizeInstrumentRecordingForPreview(
+  inputUri: string,
+  outputUri: string,
+  durationSeconds?: number,
+): Promise<string> {
+  return optimizeChunkedModeRecordingForPreview(
+    inputUri,
+    outputUri,
+    durationSeconds,
+    'instrument',
+    buildInstrumentLightPolishFilter(),
+  );
+}
+
+async function optimizeMixedRecordingForPreview(
+  inputUri: string,
+  outputUri: string,
+  durationSeconds?: number,
+): Promise<string> {
+  return optimizeChunkedModeRecordingForPreview(
+    inputUri,
+    outputUri,
+    durationSeconds,
+    'mixed',
+    buildMixedLightPolishFilter(),
+  );
+}
+
+export async function optimizeRecordingForPreview(
+  inputUri: string,
+  outputUri: string,
+  mode: RecordingMode = 'speech',
+  durationSeconds?: number,
+): Promise<string> {
+  if (Platform.OS === 'web') {
+    throw new Error('Recording optimization is only available on iOS and Android.');
+  }
+
+  assertFfmpegAvailable();
+
+  if (mode === 'instrument') {
+    return optimizeInstrumentRecordingForPreview(inputUri, outputUri, durationSeconds);
+  }
+
+  if (mode === 'mixed') {
+    return optimizeMixedRecordingForPreview(inputUri, outputUri, durationSeconds);
+  }
+
+  return optimizeSpeechRecordingForPreview(inputUri, outputUri);
 }

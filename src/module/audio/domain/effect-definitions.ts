@@ -1,5 +1,6 @@
 import type { AppliedEffect, EffectParamValues } from '@/module/audio/types/applied-effects';
 import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { RecordingMode } from '@/module/audio/types/recording-mode';
 
 export type EffectParamSlider = {
   kind: 'slider';
@@ -209,7 +210,24 @@ export function effectHasSettingsDrawer(effectId: AudioEffectId): boolean {
   return EFFECT_DEFINITIONS[effectId].hasSettingsDrawer;
 }
 
-export function getDefaultEffectParams(effectId: AudioEffectId): EffectParamValues {
+export type DefaultEffectParamsContext = {
+  recordingMode?: RecordingMode | null;
+};
+
+function resolveDenoiseDefaultStrength(
+  recordingMode?: RecordingMode | null,
+): 'light' | 'medium' | 'strong' {
+  if (recordingMode === 'instrument' || recordingMode === 'mixed') {
+    return 'light';
+  }
+
+  return 'medium';
+}
+
+export function getDefaultEffectParams(
+  effectId: AudioEffectId,
+  context?: DefaultEffectParamsContext,
+): EffectParamValues {
   const definition = getEffectDefinition(effectId);
   const params: EffectParamValues = {};
 
@@ -217,14 +235,22 @@ export function getDefaultEffectParams(effectId: AudioEffectId): EffectParamValu
     params[param.id] = param.defaultValue;
   }
 
+  if (effectId === 'denoise') {
+    params.strength = resolveDenoiseDefaultStrength(context?.recordingMode);
+  }
+
   return params;
 }
 
 export function createAppliedEffect(
   effectId: AudioEffectId,
-  params: EffectParamValues = getDefaultEffectParams(effectId),
+  params?: EffectParamValues,
+  context?: DefaultEffectParamsContext,
 ): AppliedEffect {
-  return { id: effectId, params };
+  return {
+    id: effectId,
+    params: params ?? getDefaultEffectParams(effectId, context),
+  };
 }
 
 export function normalizeAppliedEffects(

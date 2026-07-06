@@ -10,6 +10,7 @@ import {
   type RecorderTick,
 } from "@/module/audio/domain/recorder-session.helpers";
 import type { RecorderStatus } from "@/module/audio/types/recorder";
+import type { RecordingMode } from "@/module/audio/types/recording-mode";
 export { METERING_BAR_COUNT } from "@/module/audio/domain/recorder-session.helpers";
 
 let frozenDurationMillis = 0;
@@ -21,7 +22,9 @@ export type AudioSessionState = {
   previewUri: string | null;
   hasActiveSession: boolean;
   isPaused: boolean;
+  recordingMode: RecordingMode | null;
   handleMainAction: () => Promise<void>;
+  startRecording: (mode: RecordingMode) => Promise<void>;
   handlePauseResume: () => void;
   resetSession: () => Promise<void>;
   handoffToEditor: () => void;
@@ -50,9 +53,12 @@ const IDEL_RECORDING_STATE: Partial<AudioSessionState> = {
   previewUri: null,
   status: "idle",
   timerSeconds: 0,
+  recordingMode: null,
 };
 
-const stopRecording = async (): Promise<{
+const stopRecording = async (
+  mode: RecordingMode,
+): Promise<{
   frozenDurationMillis: number;
   stagedUri: string;
 } | null> => {
@@ -61,7 +67,8 @@ const stopRecording = async (): Promise<{
 
   if (uri) {
     try {
-      const stagedUri = await stagePreviewRecording(uri);
+      const durationSeconds = durationMillis / 1000;
+      const stagedUri = await stagePreviewRecording(uri, mode, durationSeconds);
 
       return { frozenDurationMillis, stagedUri };
     } catch (error) {
@@ -81,6 +88,7 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
   previewUri: null,
   hasActiveSession: false,
   isPaused: false,
+  recordingMode: null,
 
   initialize: async () => {
     const granted = await recorderService.initialize();
@@ -141,41 +149,51 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
   },
 
   handleMainAction: async () => {
-    const { hasActiveSession, previewUri } = get();
+    const { hasActiveSession, recordingMode } = get();
 
-    if (hasActiveSession) {
-      set({
-        hasActiveSession: false,
-        isPaused: false,
-        status: "optimizing",
-      });
-
-      // Let the optimizing overlay paint before heavy FFmpeg work starts.
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      });
-
-      const result = await stopRecording();
-
-      if (result) {
-        set({
-          previewUri: result.stagedUri,
-          hasActiveSession: false,
-          isPaused: false,
-          status: "preview",
-          timerSeconds: Math.floor(result.frozenDurationMillis / 1000),
-        });
-        return;
-      }
-      set(IDEL_RECORDING_STATE);
+    if (!hasActiveSession) {
       return;
     }
+
+    const mode = recordingMode ?? "speech";
+
+    set({
+      hasActiveSession: false,
+      isPaused: false,
+      status: "optimizing",
+    });
+
+    // Let the optimizing overlay paint before heavy FFmpeg work starts.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+
+    const result = await stopRecording(mode);
+
+    if (result) {
+      set({
+        previewUri: result.stagedUri,
+        hasActiveSession: false,
+        isPaused: false,
+        status: "preview",
+        timerSeconds: Math.floor(result.frozenDurationMillis / 1000),
+      });
+      return;
+    }
+    set(IDEL_RECORDING_STATE);
+  },
+
+  startRecording: async (mode) => {
+    const { previewUri } = get();
 
     if (previewUri) {
       await discardPreviewRecording(previewUri);
     }
 
-    set(START_RECORDING_STATE);
+    set({
+      ...START_RECORDING_STATE,
+      recordingMode: mode,
+    });
 
     await recorderService.prepareAndRecord();
   },

@@ -1,13 +1,23 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
+import type { RecordingMode } from '@/module/audio/types/recording-mode';
 import { useAudioSessionStore } from '@/store/audio-session.store';
+
+function parseRecordingModeParam(value: RecordingMode | null): RecordingMode | undefined {
+  if (value === 'speech' || value === 'instrument' || value === 'mixed') {
+    return value;
+  }
+
+  return undefined;
+}
 
 export function useOpenEditorOnPreview(): void {
   const router = useRouter();
   const status = useAudioSessionStore((state) => state.status);
   const previewUri = useAudioSessionStore((state) => state.previewUri);
   const timerSeconds = useAudioSessionStore((state) => state.timerSeconds);
+  const recordingMode = useAudioSessionStore((state) => state.recordingMode);
   const handoffToEditor = useAudioSessionStore((state) => state.handoffToEditor);
   const isNavigatingRef = useRef(false);
 
@@ -25,6 +35,7 @@ export function useOpenEditorOnPreview(): void {
 
     const uri = previewUri;
     const duration = String(timerSeconds);
+    const modeParam = parseRecordingModeParam(recordingMode);
 
     handoffToEditor();
 
@@ -34,7 +45,8 @@ export function useOpenEditorOnPreview(): void {
         id: 'new',
         uri,
         duration,
+        ...(modeParam ? { recordingMode: modeParam } : {}),
       },
     });
-  }, [status, previewUri, timerSeconds, handoffToEditor, router]);
+  }, [status, previewUri, timerSeconds, recordingMode, handoffToEditor, router]);
 }

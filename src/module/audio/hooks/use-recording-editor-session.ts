@@ -19,12 +19,14 @@ import {
 import { useRecordingPlayback } from "@/module/audio/hooks/use-recording-playback";
 import { applyAudioEffects } from "@/module/audio/services/audio-effects.service";
 import type { AppliedEffect, EffectParamValues } from "@/module/audio/types/applied-effects";
+import type { RecordingMode } from "@/module/audio/types/recording-mode";
 import type { AudioEffectId } from "@/module/audio/types/effects";
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
   playbackUri: string;
   initialAppliedEffects?: AudioEffectId[] | AppliedEffect[];
+  recordingMode?: RecordingMode | null;
   isSaving: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
 };
@@ -33,9 +35,11 @@ export function useRecordingEditorSession({
   pristineUri,
   playbackUri,
   initialAppliedEffects = [],
+  recordingMode = null,
   isSaving = false,
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
+  const effectDefaultsContext = { recordingMode };
   const [workingUri, setWorkingUri] = useState(playbackUri);
   const [appliedEffects, setAppliedEffects] = useState<AppliedEffect[]>(() =>
     normalizeAppliedEffects(initialAppliedEffects),
@@ -116,11 +120,11 @@ export function useRecordingEditorSession({
       const isSelected = appliedEffects.some((effect) => effect.id === effectId);
       const nextAppliedEffects = isSelected
         ? appliedEffects.filter((effect) => effect.id !== effectId)
-        : [...appliedEffects, createAppliedEffect(effectId)];
+        : [...appliedEffects, createAppliedEffect(effectId, undefined, effectDefaultsContext)];
 
       void processEffects(nextAppliedEffects);
     },
-    [appliedEffects, isProcessing, isSaving, openEffectDrawer, processEffects],
+    [appliedEffects, effectDefaultsContext, isProcessing, isSaving, openEffectDrawer, processEffects],
   );
 
   const toggleEffect = useCallback(
@@ -203,7 +207,8 @@ export function useRecordingEditorSession({
     drawerInitialParams:
       drawerEffectId === null
         ? undefined
-        : activeDrawerEffect?.params ?? getDefaultEffectParams(drawerEffectId),
+        : activeDrawerEffect?.params ??
+          getDefaultEffectParams(drawerEffectId, effectDefaultsContext),
     isDrawerEffectActive: drawerEffectId
       ? appliedEffects.some((effect) => effect.id === drawerEffectId)
       : false,

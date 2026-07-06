@@ -1,11 +1,13 @@
 import type { AppliedEffect } from '@/module/audio/types/applied-effects';
 import type { AudioEffectId } from '@/module/audio/types/effects';
+import type { RecordingMode } from '@/module/audio/types/recording-mode';
 import type { RecordingEditorSavePayload } from '@/module/audio/types/recording-editor-save';
 
 export type RecordingEditorSource = {
   pristineUri: string;
   playbackUri: string;
   initialAppliedEffects?: AppliedEffect[] | AudioEffectId[];
+  recordingMode?: RecordingMode | null;
 };
 
 export type RecordingEditorProps = {

@@ -165,6 +165,31 @@ export function isRecoverableArnndnError(error: unknown): boolean {
   );
 }
 
+export function isRecoverableAnlmdnError(error: unknown): boolean {
+  const message = getFfmpegErrorText(error);
+
+  return (
+    /anlmdn/i.test(message) &&
+    (/No such filter/i.test(message) ||
+      /Invalid argument/i.test(message) ||
+      /Error opening input/i.test(message) ||
+      /Could not open file/i.test(message))
+  );
+}
+
+export function isRecoverableAfftdnProfileError(error: unknown): boolean {
+  const message = getFfmpegErrorText(error);
+
+  return (
+    (/asendcmd/i.test(message) || /afftdn/i.test(message)) &&
+    (/No such filter/i.test(message) ||
+      /Invalid argument/i.test(message) ||
+      /not found/i.test(message) ||
+      /Option/i.test(message) ||
+      /Error binding filtergraph/i.test(message))
+  );
+}
+
 export function getEffectErrorDebugDetails(error: unknown): string | undefined {
   if (error instanceof AudioEffectsError) {
     return error.debugDetails ?? error.userMessage;

@@ -1,17 +1,26 @@
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
 
+import { getOptimizeOverlayCopy } from '@/module/audio/domain/recording-optimize-copy';
+import type { RecordingMode } from '@/module/audio/types/recording-mode';
+
 type RecordingOptimizeOverlayProps = {
   visible: boolean;
+  recordingMode?: RecordingMode | null;
 };
 
-export function RecordingOptimizeOverlay({ visible }: RecordingOptimizeOverlayProps) {
+export function RecordingOptimizeOverlay({
+  visible,
+  recordingMode = null,
+}: RecordingOptimizeOverlayProps) {
+  const { title, subtitle } = getOptimizeOverlayCopy(recordingMode);
+
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <ActivityIndicator size="large" color="#1A73E8" />
-          <Text style={styles.title}>Optimizing your recording</Text>
-          <Text style={styles.subtitle}>Cleaning background noise and enhancing voice…</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
       </View>
     </Modal>

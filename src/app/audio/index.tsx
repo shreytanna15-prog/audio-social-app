@@ -9,6 +9,7 @@ import { useAudioSessionStore } from '@/store';
 export default function AudioScreen() {
   const insets = useSafeAreaInsets();
   const isOptimizing = useAudioSessionStore((state) => state.status === 'optimizing');
+  const recordingMode = useAudioSessionStore((state) => state.recordingMode);
   useAudioRecorderBinding();
   useOpenEditorOnPreview();
 
@@ -18,7 +19,7 @@ export default function AudioScreen() {
         <RecorderSection />
         <RecordingsList />
       </ScrollView>
-      <RecordingOptimizeOverlay visible={isOptimizing} />
+      <RecordingOptimizeOverlay visible={isOptimizing} recordingMode={recordingMode} />
     </View>
   );
 }

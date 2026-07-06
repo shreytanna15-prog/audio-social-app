@@ -21,7 +21,7 @@ export type RecordingEditorRouteState =
 
 export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const router = useRouter();
-  const { id, uri, duration } =
+  const { id, uri, duration, recordingMode } =
     useLocalSearchParams<RecordingEditorRouteParams>();
 
   const recordings = useRecordingsStore((state) => state.recordings);
@@ -98,6 +98,16 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
     return { status: "error" };
   }
 
+  const editorRecordingMode = (() => {
+    const rawMode = Array.isArray(recordingMode) ? recordingMode[0] : recordingMode;
+
+    if (rawMode === 'speech' || rawMode === 'instrument' || rawMode === 'mixed') {
+      return rawMode;
+    }
+
+    return null;
+  })();
+
   return {
     status: "ready",
     editor: {
@@ -105,6 +115,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
         pristineUri,
         playbackUri,
         initialAppliedEffects,
+        recordingMode: editorRecordingMode,
       },
       title: isPending
         ? "Review your recording"

@@ -42,6 +42,20 @@ async function executeFfmpeg(args: string[]): Promise<void> {
   }
 }
 
+function parseDurationFromFfmpegOutput(output: string): number | null {
+  const match = output.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)/);
+
+  if (!match) {
+    return null;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
 async function runSinglePassEncode({
   inputPath,
   outputPath,
@@ -170,5 +184,251 @@ export async function transcodeToMono48kWav(
 
   if (!outputFile.exists) {
     throw new Error('Decoded WAV file was not created.');
+  }
+}
+
+export async function probeAudioDurationSeconds(inputUri: string): Promise<number> {
+  assertFfmpegAvailable();
+
+  const inputPath = toFfmpegPath(inputUri);
+  const session = await FFmpegKit.executeWithArguments([
+    '-hide_banner',
+    '-i',
+    inputPath,
+    '-f',
+    'null',
+    '-',
+  ]);
+
+  const output = [
+    (await session.getOutput()) ?? '',
+    (await session.getFailStackTrace()) ?? '',
+  ].join('\n');
+  const durationSeconds = parseDurationFromFfmpegOutput(output);
+
+  if (durationSeconds == null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error('Could not probe audio duration.');
+  }
+
+  return durationSeconds;
+}
+
+export type VolumeDetectMetrics = {
+  meanVolumeDb: number;
+  maxVolumeDb: number;
+};
+
+function parseVolumeDetectOutput(output: string): VolumeDetectMetrics | null {
+  const meanMatch = output.match(/mean_volume:\s*([-\d.]+)\s*dB/i);
+  const maxMatch = output.match(/max_volume:\s*([-\d.]+)\s*dB/i);
+
+  if (!meanMatch || !maxMatch) {
+    return null;
+  }
+
+  const meanVolumeDb = Number(meanMatch[1]);
+  const maxVolumeDb = Number(maxMatch[1]);
+
+  if (!Number.isFinite(meanVolumeDb) || !Number.isFinite(maxVolumeDb)) {
+    return null;
+  }
+
+  return { meanVolumeDb, maxVolumeDb };
+}
+
+type ProbeVolumedetectInput = {
+  inputUri: string;
+  startSeconds?: number;
+  durationSeconds?: number;
+};
+
+export async function probeVolumedetectMetrics({
+  inputUri,
+  startSeconds,
+  durationSeconds,
+}: ProbeVolumedetectInput): Promise<VolumeDetectMetrics> {
+  assertFfmpegAvailable();
+
+  const inputPath = toFfmpegPath(inputUri);
+  const args = ['-hide_banner', '-y'];
+
+  if (startSeconds != null && durationSeconds != null) {
+    args.push('-ss', String(startSeconds), '-t', String(durationSeconds));
+  }
+
+  args.push('-i', inputPath, '-af', 'volumedetect', '-f', 'null', '-');
+
+  const session = await FFmpegKit.executeWithArguments(args);
+  const output = [
+    (await session.getOutput()) ?? '',
+    (await session.getFailStackTrace()) ?? '',
+  ].join('\n');
+  const metrics = parseVolumeDetectOutput(output);
+
+  if (metrics == null) {
+    throw new Error('Could not parse volumedetect metrics.');
+  }
+
+  return metrics;
+}
+
+type ExtractAudioChunkWavInput = {
+  inputUri: string;
+  outputUri: string;
+  startSeconds: number;
+  durationSeconds: number;
+  sampleRate?: number;
+  channels?: number;
+};
+
+export async function extractAudioChunkWav({
+  inputUri,
+  outputUri,
+  startSeconds,
+  durationSeconds,
+  sampleRate = 48_000,
+  channels = 1,
+}: ExtractAudioChunkWavInput): Promise<void> {
+  assertFfmpegAvailable();
+  ensureParentDirectory(outputUri);
+
+  const inputPath = toFfmpegPath(inputUri);
+  const outputPath = toFfmpegPath(outputUri);
+
+  await executeFfmpeg([
+    '-y',
+    '-i',
+    inputPath,
+    '-ss',
+    String(startSeconds),
+    '-t',
+    String(durationSeconds),
+    '-af',
+    `aresample=${sampleRate},pan=mono|c0=0.5*c0+0.5*c1`,
+    '-c:a',
+    'pcm_s16le',
+    '-ar',
+    String(sampleRate),
+    '-ac',
+    String(channels),
+    outputPath,
+  ]);
+
+  const outputFile = new File(outputUri);
+
+  if (!outputFile.exists) {
+    throw new Error('Chunk WAV file was not created.');
+  }
+}
+
+type ConcatWavChunksInput = {
+  chunkUris: string[];
+  outputUri: string;
+  crossfadeSeconds: number;
+};
+
+export async function concatWavChunksWithCrossfade({
+  chunkUris,
+  outputUri,
+  crossfadeSeconds,
+}: ConcatWavChunksInput): Promise<void> {
+  assertFfmpegAvailable();
+  ensureParentDirectory(outputUri);
+
+  if (chunkUris.length === 0) {
+    throw new Error('No chunks to concatenate.');
+  }
+
+  const outputPath = toFfmpegPath(outputUri);
+
+  if (chunkUris.length === 1) {
+    await runSinglePassEncode({
+      inputPath: toFfmpegPath(chunkUris[0]),
+      outputPath,
+      audioCodec: 'pcm_s16le',
+    });
+    return;
+  }
+
+  const inputArgs = chunkUris.flatMap((uri) => ['-i', toFfmpegPath(uri)]);
+  const filterParts: string[] = [];
+  let previousLabel = '0:a';
+
+  for (let index = 1; index < chunkUris.length; index += 1) {
+    const outputLabel = index === chunkUris.length - 1 ? 'out' : `cf${index}`;
+    filterParts.push(
+      `[${previousLabel}][${index}:a]acrossfade=d=${crossfadeSeconds}:c1=tri:c2=tri[${outputLabel}]`,
+    );
+    previousLabel = outputLabel;
+  }
+
+  await executeFfmpeg([
+    '-y',
+    ...inputArgs,
+    '-filter_complex',
+    filterParts.join(';'),
+    '-map',
+    '[out]',
+    '-c:a',
+    'pcm_s16le',
+    outputPath,
+  ]);
+
+  const outputFile = new File(outputUri);
+
+  if (!outputFile.exists) {
+    throw new Error('Concatenated WAV file was not created.');
+  }
+}
+
+export async function encodeWavToM4a(inputUri: string, outputUri: string): Promise<void> {
+  assertFfmpegAvailable();
+  ensureParentDirectory(outputUri);
+
+  await runSinglePassEncode({
+    inputPath: toFfmpegPath(inputUri),
+    outputPath: toFfmpegPath(outputUri),
+    audioCodec: 'aac',
+    audioBitrate: '192k',
+  });
+
+  const outputFile = new File(outputUri);
+
+  if (!outputFile.exists) {
+    throw new Error('Encoded M4A file was not created.');
+  }
+}
+
+type RunFfmpegWavFilterInput = {
+  inputUri: string;
+  outputUri: string;
+  audioFilter: string;
+  sampleRate?: number;
+  channels?: number;
+};
+
+export async function runFfmpegWavFilter({
+  inputUri,
+  outputUri,
+  audioFilter,
+  sampleRate = 48_000,
+  channels = 1,
+}: RunFfmpegWavFilterInput): Promise<void> {
+  assertFfmpegAvailable();
+  ensureParentDirectory(outputUri);
+
+  await runSinglePassEncode({
+    inputPath: toFfmpegPath(inputUri),
+    outputPath: toFfmpegPath(outputUri),
+    audioFilter,
+    audioCodec: 'pcm_s16le',
+    sampleRate,
+    channels,
+  });
+
+  const outputFile = new File(outputUri);
+
+  if (!outputFile.exists) {
+    throw new Error('Processed WAV file was not created.');
   }
 }

@@ -10,6 +10,7 @@ import {
 } from "@/module/audio/data/recording-storage";
 import { normalizeAppliedEffects } from "@/module/audio/domain/effect-definitions";
 import { optimizeRecordingForPreview } from "@/module/audio/services/recording-optimize.service";
+import type { RecordingMode } from "@/module/audio/types/recording-mode";
 import type { AppliedEffect } from "@/module/audio/types/applied-effects";
 import {
   getPendingRecordingUri,
@@ -101,13 +102,15 @@ async function cleanupTemporarySourceUri(
 
 export async function stagePreviewRecording(
   sourceUri: string,
+  mode: RecordingMode = "speech",
+  durationSeconds?: number,
 ): Promise<string> {
   const pendingUri = getPendingRecordingUri(Crypto.randomUUID());
 
   await ensureRecordingsRoot();
 
   try {
-    return await optimizeRecordingForPreview(sourceUri, pendingUri);
+    return await optimizeRecordingForPreview(sourceUri, pendingUri, mode, durationSeconds);
   } catch (error) {
     console.warn("[Optimize] Default pipeline failed, using raw recording.", error);
     await persistRecordingFile(sourceUri, pendingUri);

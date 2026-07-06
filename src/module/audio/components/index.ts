@@ -6,6 +6,7 @@ export { RecorderControls } from '@/module/audio/components/recorder-controls';
 export { RecorderHeader } from '@/module/audio/components/recorder-header';
 export { RecorderSection } from '@/module/audio/components/recorder-section';
 export { RecordingCard } from '@/module/audio/components/recording-card';
+export { RecordingModePicker } from '@/module/audio/components/recording-mode-picker';
 export { RecordingEditor } from '@/module/audio/components/recording-editor';
 export { RecordingEditorActions } from '@/module/audio/components/recording-editor-actions';
 export { RecordingTimer } from '@/module/audio/components/recording-timer';
