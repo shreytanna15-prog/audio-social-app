@@ -34,6 +34,11 @@ yarn-error.*
 .env
 .env*.local
 
+# Superpowered proprietary SDK binaries (keep headers/README committed)
+# Large binaries stay local after SDK sync — uncomment to force-ignore if needed:
+# native/superpowered/android/*.a
+# native/superpowered/ios/*.xcframework/
+
 # typescript
 *.tsbuildinfo
 

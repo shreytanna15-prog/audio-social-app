@@ -1,44 +1,24 @@
-import { MIXED_DENOISE } from '@/module/audio/domain/recording-denoise.constants';
-import {
-  buildPlainAfftdnOptimizeFilter,
-  buildProfiledAfftdnOptimizeFilter,
-  canUseNoiseProfile,
-} from '@/module/audio/domain/noise-profile-afftdn';
+/**
+ * Mixed (voice + instrument) post-record path: Superpowered only (same bed as instrument).
+ * Native chain: highpass → soft noise gate → EQ → compressor → limiter.
+ * (FFmpeg polish filters here are unused by optimize; kept for reference / tooling.)
+ */
 
 function joinStages(stages: string[]): string {
   return stages.join(',');
 }
 
 const MIXED_POLISH_STAGES = [
-  'acompressor=threshold=-20dB:ratio=2.5:attack=8:release=100',
-  'loudnorm=I=-14:TP=-1.5:LRA=11',
-  'alimiter=limit=0.95:level=false',
+  'highpass=f=55',
+  'equalizer=f=220:t=q:w=1.0:g=-1',
+  'equalizer=f=3200:t=q:w=1.1:g=1',
+  'acompressor=threshold=-19dB:ratio=2.2:attack=18:release=160:makeup=1.5',
+  'alimiter=limit=0.95',
 ] as const;
 
-const { highpassHz, afftdn } = MIXED_DENOISE;
-
-export function buildMixedLightPolishFilter(): string {
+export function buildMixedPolishFilter(): string {
   return joinStages([...MIXED_POLISH_STAGES]);
 }
 
-export function buildMixedAfftdnOptimizeFilter(): string {
-  return buildPlainAfftdnOptimizeFilter({
-    highpassHz,
-    afftdn,
-    polishStages: MIXED_POLISH_STAGES,
-  });
-}
-
-export function buildMixedProfiledAfftdnOptimizeFilter(
-  durationSeconds?: number,
-): string | null {
-  if (!canUseNoiseProfile(durationSeconds)) {
-    return null;
-  }
-
-  return buildProfiledAfftdnOptimizeFilter({
-    highpassHz,
-    afftdn,
-    polishStages: MIXED_POLISH_STAGES,
-  });
-}
+/** @deprecated Use {@link buildMixedPolishFilter}. */
+export const buildMixedLightPolishFilter = buildMixedPolishFilter;

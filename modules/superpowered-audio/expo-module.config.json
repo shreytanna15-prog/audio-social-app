@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["SuperpoweredAudioModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.superpoweredaudio.SuperpoweredAudioModule"]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "superpowered-audio",
+  "version": "0.1.0",
+  "description": "Local Expo module shell for Superpowered offline audio processing",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {},
+  "keywords": ["react-native", "expo", "superpowered", "audio"],
+  "license": "UNLICENSED",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

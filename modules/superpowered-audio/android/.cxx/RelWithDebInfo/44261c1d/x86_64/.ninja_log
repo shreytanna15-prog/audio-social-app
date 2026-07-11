@@ -1,0 +1,8 @@
+# ninja log v5
+2	2260	8054657969370925	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	ba5929023432c197
+23	3032	8054657976953217	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	1ae758b375c85fae
+3034	3345	8054657980269897	../../../../build/intermediates/cxx/RelWithDebInfo/44261c1d/obj/x86_64/libsuperpowered-polish.so	9a8d5e07fdaa18bf
+74	13737	8054722149910492	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	1ae758b375c85fae
+13746	14613	8054722159034869	../../../../build/intermediates/cxx/RelWithDebInfo/44261c1d/obj/x86_64/libsuperpowered-polish.so	9a8d5e07fdaa18bf
+0	28	0	clean	7350498975ca33c0
+0	17	0	clean	7350498975ca33c0

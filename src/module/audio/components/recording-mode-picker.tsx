@@ -10,7 +10,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   RECORDING_MODE_OPTIONS,
-  RECORDING_MODE_QUIET_HINT,
   type RecordingMode,
 } from '@/module/audio/types/recording-mode';
 
@@ -46,9 +45,8 @@ export function RecordingModePicker({
           <View style={styles.header}>
             <Text style={styles.title}>What are you recording?</Text>
             <Text style={styles.subtitle}>
-              Choose a mode so we can process your audio the right way.
+              Choose a mode so we can enhance your audio on this device.
             </Text>
-            <Text style={styles.hint}>{RECORDING_MODE_QUIET_HINT}</Text>
           </View>
 
           <View style={styles.options}>
@@ -146,12 +144,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#7A7F87',
-  },
-  hint: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#1A73E8',
-    marginTop: 4,
   },
   options: {
     gap: 10,

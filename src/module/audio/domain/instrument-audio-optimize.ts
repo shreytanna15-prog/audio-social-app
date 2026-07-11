@@ -1,55 +1,24 @@
-import {
-  INSTRUMENT_DENOISE,
-  MIXED_DENOISE,
-} from '@/module/audio/domain/recording-denoise.constants';
-import {
-  buildPlainAfftdnOptimizeFilter,
-  buildProfiledAfftdnOptimizeFilter,
-  canUseNoiseProfile,
-} from '@/module/audio/domain/noise-profile-afftdn';
+/**
+ * Instrument post-record path: Superpowered only.
+ * Native chain: highpass → soft noise gate → EQ → compressor → limiter.
+ * (FFmpeg polish filters here are unused by optimize; kept for reference / tooling.)
+ */
 
 function joinStages(stages: string[]): string {
   return stages.join(',');
 }
 
 const INSTRUMENT_POLISH_STAGES = [
-  'acompressor=threshold=-20dB:ratio=2.5:attack=10:release=120',
-  'loudnorm=I=-14:TP=-1.5:LRA=11',
-  'alimiter=limit=0.95:level=false',
+  'highpass=f=40',
+  'equalizer=f=250:t=q:w=1.0:g=-1.5',
+  'equalizer=f=3500:t=q:w=1.2:g=1',
+  'acompressor=threshold=-20dB:ratio=2:attack=20:release=180:makeup=1',
+  'alimiter=limit=0.95',
 ] as const;
 
-const { highpassHz, afftdn, anlmdn } = INSTRUMENT_DENOISE;
-
-export function buildInstrumentLightPolishFilter(): string {
+export function buildInstrumentPolishFilter(): string {
   return joinStages([...INSTRUMENT_POLISH_STAGES]);
 }
 
-export function buildInstrumentAfftdnOptimizeFilter(): string {
-  return buildPlainAfftdnOptimizeFilter({
-    highpassHz,
-    afftdn,
-    polishStages: INSTRUMENT_POLISH_STAGES,
-  });
-}
-
-export function buildInstrumentProfiledAfftdnOptimizeFilter(
-  durationSeconds?: number,
-): string | null {
-  if (!canUseNoiseProfile(durationSeconds)) {
-    return null;
-  }
-
-  return buildProfiledAfftdnOptimizeFilter({
-    highpassHz,
-    afftdn,
-    polishStages: INSTRUMENT_POLISH_STAGES,
-  });
-}
-
-export function buildInstrumentAnlmdnOptimizeFilter(): string {
-  return joinStages([
-    `highpass=f=${highpassHz}`,
-    `anlmdn=s=${anlmdn.strength}:p=${anlmdn.patchMs}:r=${anlmdn.researchMs}:m=${anlmdn.smooth}`,
-    ...INSTRUMENT_POLISH_STAGES,
-  ]);
-}
+/** @deprecated Use {@link buildInstrumentPolishFilter}. */
+export const buildInstrumentLightPolishFilter = buildInstrumentPolishFilter;

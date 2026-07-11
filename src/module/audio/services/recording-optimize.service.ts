@@ -1,5 +1,6 @@
-import type { RecordingMode } from '@/module/audio/types/recording-mode';
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
+import { documentDirectory } from 'expo-file-system/legacy';
 
 import {
   getArnndnModelLabel,
@@ -10,47 +11,64 @@ import {
   buildDefaultArnndnOptimizeFilter,
   buildDefaultPolishOnlyFilter,
 } from '@/module/audio/domain/default-audio-optimize';
-import { buildInstrumentLightPolishFilter } from '@/module/audio/domain/instrument-audio-optimize';
-import { buildMixedLightPolishFilter } from '@/module/audio/domain/mixed-audio-optimize';
-import { ENABLE_LEGACY_DENOISE_FALLBACK } from '@/module/audio/config/recording-optimize.config';
+import { isRecoverableArnndnError } from '@/module/audio/domain/audio-effect-errors';
+import {
+  isShortClip,
+  SHORT_CLIP_MAX_SECONDS,
+} from '@/module/audio/domain/recording-optimize.constants';
 import {
   logChosenOptimizeStrategy,
   logFfmpegDenoiseFilterAvailability,
   logOptimizeDuration,
   resolveFfmpegDenoiseFilterAvailability,
 } from '@/module/audio/domain/recording-optimize-log';
-import { isRecoverableArnndnError } from '@/module/audio/domain/audio-effect-errors';
 import {
   deleteFileIfExists,
   resolveProcessedFileUri,
   runFfmpegAudioFilter,
 } from '@/module/audio/services/ffmpeg.service';
+import {
+  initSuperpowered,
+  isSuperpoweredAvailable,
+} from '@/module/audio/services/superpowered-audio.service';
 import { assertFfmpegAvailable } from '@/module/audio/utils/ffmpeg-availability';
 import { toFileUri } from '@/module/audio/utils/ffmpeg-path';
-import { documentDirectory } from 'expo-file-system/legacy';
+import type { RecordingMode } from '@/module/audio/types/recording-mode';
 
 type OptimizeStrategy = 'arnndn-with-mix' | 'arnndn' | 'afftdn';
 
 const OPTIMIZE_STRATEGIES: OptimizeStrategy[] = ['arnndn-with-mix', 'arnndn', 'afftdn'];
 
-function buildOptimizeFilter(strategy: OptimizeStrategy, modelPath: string | null): string {
+const SPEECH_SUPERPOWERED_STRATEGY = 'deepfilter + superpowered-speech';
+const SPEECH_SHORT_SUPERPOWERED_STRATEGY = 'superpowered-speech-short';
+const INSTRUMENT_SUPERPOWERED_STRATEGY = 'superpowered-instrument';
+const MIXED_SUPERPOWERED_STRATEGY = 'superpowered-mixed';
+
+function buildOptimizeFilter(
+  strategy: OptimizeStrategy,
+  modelPath: string | null,
+  includeLoudnorm: boolean,
+): string {
   if ((strategy === 'arnndn-with-mix' || strategy === 'arnndn') && modelPath) {
-    return buildDefaultArnndnOptimizeFilter(modelPath, strategy === 'arnndn-with-mix');
+    return buildDefaultArnndnOptimizeFilter(modelPath, strategy === 'arnndn-with-mix', {
+      includeLoudnorm,
+    });
   }
 
-  return buildDefaultAfftdnOptimizeFilter();
+  return buildDefaultAfftdnOptimizeFilter({ includeLoudnorm });
 }
 
 async function runOptimizeWithFilter(
   inputUri: string,
   outputUri: string,
   audioFilter: string,
+  useLosslessIntermediate: boolean,
 ): Promise<void> {
   await runFfmpegAudioFilter({
     inputUri,
     outputUri,
     audioFilter,
-    useLosslessIntermediate: true,
+    useLosslessIntermediate,
   });
 }
 
@@ -59,13 +77,61 @@ function createTempDenoisedWavUri(): string {
     throw new Error('Document directory is not available.');
   }
 
-  return toFileUri(`${documentDirectory}temp/deepfilter-denoised-${Date.now()}.wav`);
+  const uri = toFileUri(`${documentDirectory}temp/deepfilter-denoised-${Date.now()}.wav`);
+  const parent = new File(uri).parentDirectory;
+  if (!parent.exists) {
+    parent.create({ intermediates: true, idempotent: true });
+  }
+  return uri;
 }
 
-async function tryOptimizeWithDeepFilter(
+/** Never throws — false when native module missing, init fails, or license missing. */
+async function canUseSuperpowered(): Promise<boolean> {
+  if (!isSuperpoweredAvailable()) {
+    return false;
+  }
+
+  return initSuperpowered();
+}
+
+async function tryPolishWithSuperpowered(input: {
+  inputUri: string;
+  outputUri: string;
+  mode: RecordingMode;
+  preset: 'speech-polish' | 'instrument-polish' | 'mixed-polish';
+}): Promise<string | null> {
+  if (!(await canUseSuperpowered())) {
+    console.info('[Optimize] Superpowered unavailable; skipping native polish.');
+    return null;
+  }
+
+  try {
+    const { polishRecordingWithSuperpowered } = await import(
+      '@/module/audio/services/superpowered-polish.service'
+    );
+
+    await polishRecordingWithSuperpowered({
+      inputUri: input.inputUri,
+      outputUri: input.outputUri,
+      mode: input.mode,
+      preset: input.preset,
+    });
+
+    return resolveProcessedFileUri(input.outputUri);
+  } catch (error) {
+    console.warn('[Optimize] Superpowered polish failed.', error);
+    return null;
+  }
+}
+
+/**
+ * Primary speech path: DeepFilterNet denoise → Superpowered speech polish.
+ * Temp denoised WAV is always removed in `finally`.
+ */
+async function tryOptimizeSpeechWithDeepFilterAndSuperpowered(
   inputUri: string,
   outputUri: string,
-): Promise<string | null> {
+): Promise<{ uri: string; strategy: string } | null> {
   const {
     isDeepFilterDenoiseAvailable,
     denoiseRecordingWithDeepFilter,
@@ -85,32 +151,45 @@ async function tryOptimizeWithDeepFilter(
         console.info(`[Optimize] DeepFilter progress ${progress}%`);
       }
     });
+
+    const superpoweredUri = await tryPolishWithSuperpowered({
+      inputUri: denoisedWavUri,
+      outputUri,
+      mode: 'speech',
+      preset: 'speech-polish',
+    });
+
+    if (superpoweredUri) {
+      logChosenOptimizeStrategy('speech', SPEECH_SUPERPOWERED_STRATEGY);
+      console.info(`[Optimize] Applied ${SPEECH_SUPERPOWERED_STRATEGY}.`);
+      return { uri: superpoweredUri, strategy: SPEECH_SUPERPOWERED_STRATEGY };
+    }
+
+    console.info('[Optimize] Falling back to DeepFilter + FFmpeg polish.');
     await polishAndEncodeWav(denoisedWavUri, outputUri, buildDefaultPolishOnlyFilter());
     logChosenOptimizeStrategy('speech', 'deepfilter-net');
-    console.info('[Optimize] Applied DeepFilterNet + polish.');
-    return resolveProcessedFileUri(outputUri);
+    console.info('[Optimize] Applied DeepFilterNet + FFmpeg polish fallback.');
+    return { uri: resolveProcessedFileUri(outputUri), strategy: 'deepfilter-net' };
   } catch (error) {
-    console.warn('[Optimize] DeepFilterNet failed. Falling back to arnndn.', error);
+    console.warn('[Optimize] DeepFilterNet failed. Falling back to arnndn/afftdn.', error);
     return null;
   } finally {
     await deleteFileIfExists(denoisedWavUri);
   }
 }
 
-async function optimizeSpeechRecordingForPreview(
+async function optimizeSpeechRecordingWithFfmpegFallbacks(
   inputUri: string,
   outputUri: string,
-): Promise<string> {
+  includeLoudnorm: boolean,
+): Promise<{ uri: string; strategy: string }> {
   const filterAvailability = await resolveFfmpegDenoiseFilterAvailability();
   logFfmpegDenoiseFilterAvailability(filterAvailability);
 
-  const deepFilterResult = await tryOptimizeWithDeepFilter(inputUri, outputUri);
-  if (deepFilterResult) {
-    return deepFilterResult;
-  }
-
   const modelPaths = await resolveArnndnModelPaths();
   console.info(`[Optimize] Loaded ${modelPaths.length} RNNoise model(s).`);
+
+  const useLosslessIntermediate = includeLoudnorm;
 
   if (modelPaths.length > 0) {
     let lastError: unknown;
@@ -121,15 +200,20 @@ async function optimizeSpeechRecordingForPreview(
           continue;
         }
 
-        const audioFilter = buildOptimizeFilter(strategy, modelPath);
+        const audioFilter = buildOptimizeFilter(strategy, modelPath, includeLoudnorm);
         const modelLabel = getArnndnModelLabel(modelPath);
 
         try {
           console.info(`[Optimize] Trying strategy="${strategy}" model="${modelLabel}"`);
-          await runOptimizeWithFilter(inputUri, outputUri, audioFilter);
+          await runOptimizeWithFilter(
+            inputUri,
+            outputUri,
+            audioFilter,
+            useLosslessIntermediate,
+          );
           logChosenOptimizeStrategy('speech', strategy);
           console.info(`[Optimize] Applied strategy="${strategy}" model="${modelLabel}"`);
-          return resolveProcessedFileUri(outputUri);
+          return { uri: resolveProcessedFileUri(outputUri), strategy };
         } catch (error) {
           lastError = error;
 
@@ -148,100 +232,96 @@ async function optimizeSpeechRecordingForPreview(
     console.warn('[Optimize] All arnndn attempts failed. Falling back to afftdn.', lastError);
   }
 
-  const afftdnFilter = buildOptimizeFilter('afftdn', null);
+  const afftdnFilter = buildOptimizeFilter('afftdn', null, includeLoudnorm);
   console.info('[Optimize] Applying afftdn fallback.');
-  await runOptimizeWithFilter(inputUri, outputUri, afftdnFilter);
+  await runOptimizeWithFilter(inputUri, outputUri, afftdnFilter, useLosslessIntermediate);
   logChosenOptimizeStrategy('speech', 'afftdn');
 
-  return resolveProcessedFileUri(outputUri);
+  return { uri: resolveProcessedFileUri(outputUri), strategy: 'afftdn' };
 }
 
-type ChunkedRecordingMode = 'instrument' | 'mixed';
-
-async function optimizeChunkedModeRecordingForPreview(
+async function optimizeSpeechRecordingForPreview(
   inputUri: string,
   outputUri: string,
-  durationSeconds: number | undefined,
-  mode: ChunkedRecordingMode,
-  polishFallbackFilter: string,
-): Promise<string> {
-  const startedAt = Date.now();
+  durationSeconds?: number,
+): Promise<{ uri: string; strategy: string }> {
+  const shortClip = isShortClip(durationSeconds);
 
-  try {
-    const { optimizeChunkedRecordingForPreview } = await import(
-      '@/module/audio/domain/chunked-audio-optimize'
+  if (shortClip) {
+    console.info(
+      `[Optimize] Short clip (${durationSeconds?.toFixed(2)}s < ${SHORT_CLIP_MAX_SECONDS}s); skipping DeepFilter/loudnorm.`,
     );
-    const result = await optimizeChunkedRecordingForPreview({
+
+    const superpoweredUri = await tryPolishWithSuperpowered({
       inputUri,
       outputUri,
-      durationSeconds,
-      mode,
+      mode: 'speech',
+      preset: 'speech-polish',
     });
 
-    logChosenOptimizeStrategy(mode, result.strategy);
-    logOptimizeDuration(mode, result.strategy, Date.now() - startedAt);
-    console.info(`[Optimize] Applied ${mode} pipeline strategy="${result.strategy}"`);
-
-    return result.uri;
-  } catch (error) {
-    console.warn(
-      `[Optimize] ${mode} pipeline failed. Falling back to ${ENABLE_LEGACY_DENOISE_FALLBACK ? 'legacy afftdn' : 'polish-only'}.`,
-      error,
-    );
-
-    if (ENABLE_LEGACY_DENOISE_FALLBACK) {
-      const legacyFilter =
-        mode === 'instrument'
-          ? (await import('@/module/audio/domain/instrument-audio-optimize'))
-              .buildInstrumentAfftdnOptimizeFilter()
-          : (await import('@/module/audio/domain/mixed-audio-optimize'))
-              .buildMixedAfftdnOptimizeFilter();
-
-      await runOptimizeWithFilter(inputUri, outputUri, legacyFilter);
-      logChosenOptimizeStrategy(mode, 'legacy-afftdn');
-      logOptimizeDuration(mode, 'legacy-afftdn', Date.now() - startedAt);
-      console.info(`[Optimize] Applied ${mode} legacy-afftdn fallback.`);
-
-      return resolveProcessedFileUri(outputUri);
+    if (superpoweredUri) {
+      logChosenOptimizeStrategy('speech', SPEECH_SHORT_SUPERPOWERED_STRATEGY);
+      return { uri: superpoweredUri, strategy: SPEECH_SHORT_SUPERPOWERED_STRATEGY };
     }
 
-    await runOptimizeWithFilter(inputUri, outputUri, polishFallbackFilter);
-    logChosenOptimizeStrategy(mode, 'polish-only');
-    logOptimizeDuration(mode, 'polish-only', Date.now() - startedAt);
-    console.info(`[Optimize] Applied ${mode} polish-only fallback.`);
-
-    return resolveProcessedFileUri(outputUri);
+    await runOptimizeWithFilter(
+      inputUri,
+      outputUri,
+      buildDefaultPolishOnlyFilter({ includeLoudnorm: false }),
+      false,
+    );
+    logChosenOptimizeStrategy('speech', 'polish-only');
+    return { uri: resolveProcessedFileUri(outputUri), strategy: 'polish-only' };
   }
-}
 
-async function optimizeInstrumentRecordingForPreview(
-  inputUri: string,
-  outputUri: string,
-  durationSeconds?: number,
-): Promise<string> {
-  return optimizeChunkedModeRecordingForPreview(
+  const primaryResult = await tryOptimizeSpeechWithDeepFilterAndSuperpowered(
     inputUri,
     outputUri,
-    durationSeconds,
-    'instrument',
-    buildInstrumentLightPolishFilter(),
   );
+
+  if (primaryResult) {
+    return primaryResult;
+  }
+
+  return optimizeSpeechRecordingWithFfmpegFallbacks(inputUri, outputUri, true);
 }
 
-async function optimizeMixedRecordingForPreview(
+/**
+ * Instrument / mixed: Superpowered only (HPF → adaptive cleaner → EQ → comp → limiter).
+ * No DeepFilter (destroys music). No FFmpeg polish in optimize.
+ */
+async function optimizeNonSpeechWithSuperpowered(
   inputUri: string,
   outputUri: string,
-  durationSeconds?: number,
-): Promise<string> {
-  return optimizeChunkedModeRecordingForPreview(
+  mode: 'instrument' | 'mixed',
+  preset: 'instrument-polish' | 'mixed-polish',
+  strategy: string,
+): Promise<{ uri: string; strategy: string }> {
+  const superpoweredUri = await tryPolishWithSuperpowered({
     inputUri,
     outputUri,
-    durationSeconds,
-    'mixed',
-    buildMixedLightPolishFilter(),
-  );
+    mode,
+    preset,
+  });
+
+  if (!superpoweredUri) {
+    throw new Error(
+      `${mode} optimize requires Superpowered (soft gate + polish). Native module unavailable or failed.`,
+    );
+  }
+
+  logChosenOptimizeStrategy(mode, strategy);
+  console.info(`[Optimize] Applied ${strategy}.`);
+  return { uri: superpoweredUri, strategy };
 }
 
+/**
+ * Post-record enhance for preview/editor.
+ * Speech: DeepFilter → Superpowered (FFmpeg denoise only as last-resort fallback).
+ * Instrument / mixed: Superpowered soft gate + polish only (no FFmpeg, no DeepFilter).
+ * Short clips (<3s): speech skips DeepFilter/loudnorm; instrument/mixed still use Superpowered.
+ * Editor effects (reverb, echo, etc.) stay on FFmpeg via audio-effects.service — unchanged.
+ */
 export async function optimizeRecordingForPreview(
   inputUri: string,
   outputUri: string,
@@ -252,15 +332,60 @@ export async function optimizeRecordingForPreview(
     throw new Error('Recording optimization is only available on iOS and Android.');
   }
 
-  assertFfmpegAvailable();
+  const startedAt = Date.now();
+  const shortClip = isShortClip(durationSeconds);
+  let strategyLabel = String(mode);
 
-  if (mode === 'instrument') {
-    return optimizeInstrumentRecordingForPreview(inputUri, outputUri, durationSeconds);
+  try {
+    console.info(
+      `[Optimize] start mode="${mode}" duration=${durationSeconds?.toFixed(2) ?? 'unknown'}s shortClip=${shortClip}`,
+    );
+
+    if (mode === 'instrument' || mode === 'mixed') {
+      // M4A encode after Superpowered WAV still uses FFmpeg; denoise/polish do not.
+      assertFfmpegAvailable();
+    }
+
+    if (mode === 'instrument') {
+      const result = await optimizeNonSpeechWithSuperpowered(
+        inputUri,
+        outputUri,
+        'instrument',
+        'instrument-polish',
+        INSTRUMENT_SUPERPOWERED_STRATEGY,
+      );
+      strategyLabel = result.strategy;
+      logOptimizeDuration('instrument', strategyLabel, Date.now() - startedAt);
+      return result.uri;
+    }
+
+    if (mode === 'mixed') {
+      const result = await optimizeNonSpeechWithSuperpowered(
+        inputUri,
+        outputUri,
+        'mixed',
+        'mixed-polish',
+        MIXED_SUPERPOWERED_STRATEGY,
+      );
+      strategyLabel = result.strategy;
+      logOptimizeDuration('mixed', strategyLabel, Date.now() - startedAt);
+      return result.uri;
+    }
+
+    // Speech path still uses FFmpeg for encode fallbacks / DeepFilter polish encode.
+    assertFfmpegAvailable();
+
+    const result = await optimizeSpeechRecordingForPreview(
+      inputUri,
+      outputUri,
+      durationSeconds,
+    );
+    strategyLabel = result.strategy;
+    logOptimizeDuration('speech', strategyLabel, Date.now() - startedAt);
+    return result.uri;
+  } catch (error) {
+    logOptimizeDuration(mode, `error:${strategyLabel}`, Date.now() - startedAt);
+    console.warn(`[Optimize] ${mode} enhance failed after ${Date.now() - startedAt}ms.`, error);
+    throw error;
   }
-
-  if (mode === 'mixed') {
-    return optimizeMixedRecordingForPreview(inputUri, outputUri, durationSeconds);
-  }
-
-  return optimizeSpeechRecordingForPreview(inputUri, outputUri);
 }

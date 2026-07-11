@@ -8,35 +8,23 @@ export type FfmpegDenoiseFilterAvailability = {
 
 /** Speech-mode optimize strategies. */
 export type SpeechOptimizeStrategy =
+  | 'deepfilter + superpowered-speech'
+  | 'superpowered-speech-short'
   | 'deepfilter-net'
   | 'arnndn-with-mix'
   | 'arnndn'
-  | 'afftdn';
+  | 'afftdn'
+  | 'ffmpeg-speech-fallback'
+  | 'polish-only';
 
-/** Instrument / mixed chunked or single-pass strategies (dynamic suffix allowed). */
-export type ChunkedOptimizeStrategy =
-  | `chunked-instrument-polish-only`
-  | `chunked-instrument-mild`
-  | `chunked-instrument-medium`
-  | `chunked-instrument-mixed`
-  | `chunked-mixed-polish-only`
-  | `chunked-mixed-mild`
-  | `chunked-mixed-medium`
-  | `chunked-mixed-mixed`
-  | `single-pass-instrument-polish-only`
-  | `single-pass-instrument-mild`
-  | `single-pass-instrument-medium`
-  | `single-pass-mixed-polish-only`
-  | `single-pass-mixed-mild`
-  | `single-pass-mixed-medium`;
-
-/** Fallback when chunked / single-pass processing fails. */
-export type NonSpeechFallbackStrategy = 'polish-only' | 'legacy-afftdn';
+/** Instrument / mixed Superpowered strategies (soft gate + polish; no FFmpeg optimize). */
+export type NonSpeechOptimizeStrategy =
+  | 'superpowered-instrument'
+  | 'superpowered-mixed';
 
 export type OptimizeStrategyName =
   | SpeechOptimizeStrategy
-  | ChunkedOptimizeStrategy
-  | NonSpeechFallbackStrategy
+  | NonSpeechOptimizeStrategy
   | (string & {});
 
 export async function resolveFfmpegDenoiseFilterAvailability(): Promise<FfmpegDenoiseFilterAvailability> {
