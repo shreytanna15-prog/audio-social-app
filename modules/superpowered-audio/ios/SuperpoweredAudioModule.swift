@@ -71,5 +71,53 @@ public class SuperpoweredAudioModule: Module {
         "strategy": strategy,
       ]
     }
+
+    AsyncFunction("spectralCleanProcessFile") { (inputUri: String, outputUri: String) -> [String: String] in
+      guard self.initialized else {
+        throw NotInitializedException()
+      }
+
+      var error: NSError?
+      guard let stats = SuperpoweredPolishBridge.spectralCleanFile(
+        atPath: inputUri,
+        outputWavPath: outputUri,
+        error: &error
+      ) else {
+        throw ProcessFailedException(error?.localizedDescription ?? "Spectral clean failed.")
+      }
+
+      var strategy = "interference-soften"
+      if let range = stats.range(of: "strategy=") {
+        let after = stats[range.upperBound...]
+        strategy = String(after.split(separator: " ").first ?? Substring("interference-soften"))
+      }
+
+      return [
+        "outputUri": outputUri,
+        "strategy": strategy,
+        "params": stats,
+      ]
+    }
+
+    AsyncFunction("processEffectsFile") { (inputUri: String, outputUri: String, effectsJson: String) -> [String: String] in
+      guard self.initialized else {
+        throw NotInitializedException()
+      }
+
+      var error: NSError?
+      guard let strategy = SuperpoweredPolishBridge.processEffectsFile(
+        atPath: inputUri,
+        outputWavPath: outputUri,
+        effectsJson: effectsJson,
+        error: &error
+      ) else {
+        throw ProcessFailedException(error?.localizedDescription ?? "Superpowered effects failed.")
+      }
+
+      return [
+        "outputUri": outputUri,
+        "strategy": strategy,
+      ]
+    }
   }
 }

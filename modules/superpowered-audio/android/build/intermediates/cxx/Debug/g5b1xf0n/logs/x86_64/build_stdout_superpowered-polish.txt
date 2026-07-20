@@ -1,0 +1,2 @@
+ninja: Entering directory `C:\Feels Diffrent\work\audio-social-media-app\modules\superpowered-audio\android\.cxx\Debug\g5b1xf0n\x86_64'
+[1/1] Linking CXX shared library ..\..\..\..\build\intermediates\cxx\Debug\g5b1xf0n\obj\x86_64\libsuperpowered-polish.so

@@ -1,12 +1,12 @@
 # ninja log v5
-2	17498	8054500620217849	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	be42d65d3c539c42
-202	19228	8054500637472765	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	c15f3902649df142
-19230	22239	8054500661989238	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	ce4c88c094a64d16
-110	12682	8054556580017121	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	c15f3902649df142
-12691	17812	8054556632542705	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	ce4c88c094a64d16
-250	12182	8054583204649893	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	c15f3902649df142
-12197	13145	8054583215039746	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	ce4c88c094a64d16
-34	639	8054630317097396	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	ce4c88c094a64d16
-27	535	8054636569425982	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	ce4c88c094a64d16
-1	229	0	clean	7350498975ca33c0
-0	32	0	clean	7350498975ca33c0
+77	3495	8057946308527051	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	be42d65d3c539c42
+25	4448	8057946316871069	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	c15f3902649df142
+22	989	8062274731485415	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	bd0bb29a2cff36e7
+9	1084	8058147644019152	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp.o	e657b8acf60fb68f
+18	1162	8058147644780942	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp.o	fd5a3e4e84fb92c6
+10	1017	8062311356607581	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	be42d65d3c539c42
+19	1273	8062311359146307	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredEffects.cpp.o	481c7499598a76
+1274	1552	8062311361906952	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	96647d727f1452fc
+13	400	8062316861573100	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	96647d727f1452fc
+22	634	8062402475173381	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	96647d727f1452fc
+24	475	8062477562489169	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/x86/libsuperpowered-polish.so	96647d727f1452fc

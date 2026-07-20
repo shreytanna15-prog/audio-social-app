@@ -59,6 +59,26 @@ build CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/module
   TARGET_COMPILE_PDB = CMakeFiles\superpowered-polish.dir\
   TARGET_PDB = ..\..\..\..\build\intermediates\cxx\RelWithDebInfo\44261c1d\obj\x86_64\libsuperpowered-polish.pdb
 
+build CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp.o: CXX_COMPILER__superpowered-polish_RelWithDebInfo C$:/Feels$ Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp || cmake_object_order_depends_target_superpowered-polish
+  DEFINES = -Dsuperpowered_polish_EXPORTS
+  DEP_FILE = CMakeFiles\superpowered-polish.dir\C_\Feels_Diffrent\work\audio-social-media-app\modules\superpowered-audio\cpp\SpectralClean.cpp.o.d
+  FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fexceptions -frtti -O2 -g -DNDEBUG -fPIC
+  INCLUDES = -I"C:/Feels Diffrent/work/audio-social-media-app/modules/superpowered-audio/android/../cpp" -I"C:/Feels Diffrent/work/audio-social-media-app/native/superpowered/include"
+  OBJECT_DIR = CMakeFiles\superpowered-polish.dir
+  OBJECT_FILE_DIR = CMakeFiles\superpowered-polish.dir\C_\Feels_Diffrent\work\audio-social-media-app\modules\superpowered-audio\cpp
+  TARGET_COMPILE_PDB = CMakeFiles\superpowered-polish.dir\
+  TARGET_PDB = ..\..\..\..\build\intermediates\cxx\RelWithDebInfo\44261c1d\obj\x86_64\libsuperpowered-polish.pdb
+
+build CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp.o: CXX_COMPILER__superpowered-polish_RelWithDebInfo C$:/Feels$ Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp || cmake_object_order_depends_target_superpowered-polish
+  DEFINES = -Dsuperpowered_polish_EXPORTS
+  DEP_FILE = CMakeFiles\superpowered-polish.dir\C_\Feels_Diffrent\work\audio-social-media-app\modules\superpowered-audio\cpp\SpectralGate.cpp.o.d
+  FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fexceptions -frtti -O2 -g -DNDEBUG -fPIC
+  INCLUDES = -I"C:/Feels Diffrent/work/audio-social-media-app/modules/superpowered-audio/android/../cpp" -I"C:/Feels Diffrent/work/audio-social-media-app/native/superpowered/include"
+  OBJECT_DIR = CMakeFiles\superpowered-polish.dir
+  OBJECT_FILE_DIR = CMakeFiles\superpowered-polish.dir\C_\Feels_Diffrent\work\audio-social-media-app\modules\superpowered-audio\cpp
+  TARGET_COMPILE_PDB = CMakeFiles\superpowered-polish.dir\
+  TARGET_PDB = ..\..\..\..\build\intermediates\cxx\RelWithDebInfo\44261c1d\obj\x86_64\libsuperpowered-polish.pdb
+
 build CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o: CXX_COMPILER__superpowered-polish_RelWithDebInfo C$:/Feels$ Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp || cmake_object_order_depends_target_superpowered-polish
   DEFINES = -Dsuperpowered_polish_EXPORTS
   DEP_FILE = CMakeFiles\superpowered-polish.dir\db2ad8597969f42f03e576b0b56ac344\modules\superpowered-audio\cpp\SuperpoweredPolishJNI.cpp.o.d
@@ -77,7 +97,7 @@ build CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/module
 #############################################
 # Link the shared library ..\..\..\..\build\intermediates\cxx\RelWithDebInfo\44261c1d\obj\x86_64\libsuperpowered-polish.so
 
-build ../../../../build/intermediates/cxx/RelWithDebInfo/44261c1d/obj/x86_64/libsuperpowered-polish.so: CXX_SHARED_LIBRARY_LINKER__superpowered-polish_RelWithDebInfo CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o | C$:/Users/mauli/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/x86_64-linux-android/24/liblog.so C$:/Users/mauli/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/x86_64-linux-android/24/libandroid.so C$:/Feels$ Diffrent/work/audio-social-media-app/native/superpowered/android/libSuperpoweredAndroidx86_64.a
+build ../../../../build/intermediates/cxx/RelWithDebInfo/44261c1d/obj/x86_64/libsuperpowered-polish.so: CXX_SHARED_LIBRARY_LINKER__superpowered-polish_RelWithDebInfo CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp.o CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp.o CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o | C$:/Users/mauli/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/x86_64-linux-android/24/liblog.so C$:/Users/mauli/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/x86_64-linux-android/24/libandroid.so C$:/Feels$ Diffrent/work/audio-social-media-app/native/superpowered/android/libSuperpoweredAndroidx86_64.a
   LANGUAGE_COMPILE_FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fexceptions -frtti -O2 -g -DNDEBUG
   LINK_FLAGS = -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments  -Wl,--gc-sections
   LINK_LIBRARIES = C:/Users/mauli/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/x86_64-linux-android/24/liblog.so  C:/Users/mauli/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/x86_64-linux-android/24/libandroid.so  "C:/Feels Diffrent/work/audio-social-media-app/native/superpowered/android/libSuperpoweredAndroidx86_64.a"  -latomic -lm

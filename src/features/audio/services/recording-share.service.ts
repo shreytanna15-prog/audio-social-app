@@ -1,0 +1,29 @@
+import * as Sharing from 'expo-sharing';
+import { Alert } from 'react-native';
+
+type ShareRecordingOptions = {
+  uri: string;
+  dialogTitle: string;
+};
+
+export async function shareRecording({
+  uri,
+  dialogTitle,
+}: ShareRecordingOptions): Promise<void> {
+  try {
+    const canShare = await Sharing.isAvailableAsync();
+
+    if (!canShare) {
+      Alert.alert('Sharing unavailable', 'Sharing is not available on this device.');
+      return;
+    }
+
+    await Sharing.shareAsync(uri, {
+      mimeType: 'audio/mpeg',
+      UTI: 'public.mp3',
+      dialogTitle,
+    });
+  } catch (error) {
+    console.log('Error sharing recording:', error);
+  }
+}

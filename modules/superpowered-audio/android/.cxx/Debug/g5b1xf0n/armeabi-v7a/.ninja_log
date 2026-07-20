@@ -1,12 +1,12 @@
 # ninja log v5
-4	4022	8054500185026204	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	8a8763364c831a3a
-75	4116	8054500186021565	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	282a8c1286a2455
-4118	4890	8054500193888874	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	f62aa12b96f0ef3
-41	9230	8054556408998956	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	282a8c1286a2455
-9234	12695	8054556439914650	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	f62aa12b96f0ef3
-41	8948	8054583045292748	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	282a8c1286a2455
-8958	10340	8054583062658919	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	f62aa12b96f0ef3
-46	722	8054630305519014	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	f62aa12b96f0ef3
-28	484	8054636561259189	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	f62aa12b96f0ef3
-1	55	0	clean	7350498975ca33c0
-1	38	0	clean	7350498975ca33c0
+121	3319	8057946227053557	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	8a8763364c831a3a
+41	4244	8057946237525652	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	282a8c1286a2455
+26	585	8062274699046977	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	77fb83ab36e0d9c0
+9	1153	8058147628865019	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp.o	adc1075656c03971
+19	1254	8058147629858793	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp.o	f2f911b9868396a1
+12	1067	8062311333875147	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	8a8763364c831a3a
+22	1414	8062311337353626	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredEffects.cpp.o	fed1d59e156cb2e8
+1415	1722	8062311340446088	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	567b309355c46d55
+20	738	8062316855335434	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	567b309355c46d55
+28	860	8062402466297484	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	567b309355c46d55
+23	478	8062477555610076	../../../../build/intermediates/cxx/Debug/g5b1xf0n/obj/armeabi-v7a/libsuperpowered-polish.so	567b309355c46d55

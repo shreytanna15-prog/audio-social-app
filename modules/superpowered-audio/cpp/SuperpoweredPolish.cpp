@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "Superpowered.h"
-#include "Superpowered3BandEQ.h"
 #include "SuperpoweredCompressor.h"
 #include "SuperpoweredDecoder.h"
 #include "SuperpoweredFilter.h"
@@ -219,20 +218,40 @@ struct InstrumentCleaner {
 };
 
 struct PolishPreset {
-  float eqLow;
-  float eqMid;
-  float eqHigh;
+  // Voloco-Clean style: HPF + 7 parametric bands + hi-shelf.
+  float highpassHz;
+  float eqFreqHz[7];
+  float eqWidthOct[7];
+  float eqGainDb[7];
+  float hiShelfHz;
+  float hiShelfGainDb;
+
+  // Compressor (optional auto-threshold from file loudness).
+  bool useAutoThreshold;
+  float autoThresholdDiffDb; // threshold = avgLoudnessDb + diff
   float compInputGainDb;
-  float compThresholdDb;
+  float compThresholdDb; // fallback / when auto off
   float compRatio;
   float compAttackSec;
   float compReleaseSec;
+  float compWet;
+  float compKeyHpHz;
+
+  // Speech-only de-esser (compressor keyed on highs).
+  bool useDeEsser;
+  float deEssCutoffHz;
+  float deEssRatio;
+  float deEssThresholdDb;
+  float deEssAttackSec;
+  float deEssReleaseSec;
+  float deEssWet;
+
   float limiterCeilingDb;
   float limiterThresholdDb;
   float limiterReleaseSec;
+
+  // Legacy gate (kept off for Clean presets).
   bool useNoiseGate;
-  float highpassHz;
-  // Fallback thresholds if analysis fails; analysis overrides soft/hard.
   float gateSoftThresholdDb;
   float gateHardThresholdDb;
   float gateSoftRangeDb;
@@ -242,47 +261,105 @@ struct PolishPreset {
   float gateWet;
   float gateHfDuck;
   float gateLookAheadSec;
-  float gateNoiseMarginDb; // soft threshold = noiseFloor + margin
+  float gateNoiseMarginDb;
 };
 
+void fillDefaultEqBands(PolishPreset *p) {
+  // Approx Voloco Clean EQ centers: 200 Hz … 8 kHz.
+  const float freqs[7] = {200.0f, 400.0f, 800.0f, 1600.0f, 3200.0f, 5000.0f, 8000.0f};
+  for (int i = 0; i < 7; ++i) {
+    p->eqFreqHz[i] = freqs[i];
+    p->eqWidthOct[i] = 0.7f;
+    p->eqGainDb[i] = 0.0f;
+  }
+  p->hiShelfHz = 12000.0f;
+  p->hiShelfGainDb = 0.0f;
+}
+
 PolishPreset resolvePreset(const char *preset) {
-  PolishPreset speech = {
-    0.92f, 1.08f, 1.18f,
-    2.0f, -18.0f, 3.0f, 0.008f, 0.22f,
-    -1.0f, -2.0f, 0.05f,
-    false, 0.0f,
-    -46.0f, -56.0f, -10.0f, -28.0f,
-    0.004f, 0.35f, 0.88f, 0.55f, 0.010f, 8.0f,
-  };
+  PolishPreset speech = {};
+  fillDefaultEqBands(&speech);
+  speech.highpassHz = 80.0f;
+  speech.eqGainDb[0] = -1.0f;  // 200 Hz mud
+  speech.eqGainDb[1] = -0.5f;
+  speech.eqGainDb[4] = 1.0f;   // presence
+  speech.eqGainDb[5] = 1.5f;
+  speech.hiShelfGainDb = 1.5f;
+  speech.useAutoThreshold = true;
+  speech.autoThresholdDiffDb = -8.0f;
+  speech.compInputGainDb = 1.5f;
+  speech.compThresholdDb = -18.0f;
+  speech.compRatio = 3.0f;
+  speech.compAttackSec = 0.008f;
+  speech.compReleaseSec = 0.22f;
+  speech.compWet = 0.85f;
+  speech.compKeyHpHz = 80.0f;
+  speech.useDeEsser = true;
+  speech.deEssCutoffHz = 5500.0f;
+  speech.deEssRatio = 3.0f;
+  speech.deEssThresholdDb = -22.0f;
+  speech.deEssAttackSec = 0.005f;
+  speech.deEssReleaseSec = 0.08f;
+  speech.deEssWet = 0.75f;
+  speech.limiterCeilingDb = -1.0f;
+  speech.limiterThresholdDb = -2.0f;
+  speech.limiterReleaseSec = 0.05f;
+  speech.useNoiseGate = false;
 
-  // Instrument: aggressive gap cleanup, protect piano via soft knee + look-ahead.
-  PolishPreset instrument = {
-    0.98f, 1.02f, 1.06f,
-    0.5f, -16.0f, 2.0f, 0.010f, 0.28f,
-    -1.2f, -2.5f, 0.06f,
-    false, 0.0f,
-    -42.0f, -54.0f, -12.0f, -34.0f,
-    0.003f, 0.38f, 0.92f, 0.65f, 0.012f, 9.0f,
-  };
+  // Instrument Clean: after hiss-focused soften — tame leftover HF air/hiss.
+  PolishPreset instrument = {};
+  fillDefaultEqBands(&instrument);
+  instrument.highpassHz = 55.0f;
+  instrument.eqGainDb[0] = -1.5f;  // rumble / boom
+  instrument.eqGainDb[1] = -1.0f;  // boxiness
+  instrument.eqGainDb[3] = 0.25f;
+  instrument.eqGainDb[4] = 0.15f;  // almost flat presence
+  instrument.eqGainDb[5] = -1.5f;  // tame hiss / air
+  instrument.eqGainDb[6] = -2.5f;  // more HF hiss cut
+  instrument.hiShelfGainDb = -3.0f;
+  instrument.useAutoThreshold = true;
+  instrument.autoThresholdDiffDb = -10.0f;
+  instrument.compInputGainDb = 0.25f;
+  instrument.compThresholdDb = -18.0f;
+  instrument.compRatio = 1.8f;
+  instrument.compAttackSec = 0.020f;
+  instrument.compReleaseSec = 0.35f;
+  instrument.compWet = 0.55f;
+  instrument.compKeyHpHz = 100.0f;
+  instrument.useDeEsser = false;
+  instrument.limiterCeilingDb = -1.0f;
+  instrument.limiterThresholdDb = -2.0f;
+  instrument.limiterReleaseSec = 0.06f;
+  instrument.useNoiseGate = false;
 
-  PolishPreset mixed = {
-    0.95f, 1.05f, 1.10f,
-    1.0f, -17.0f, 2.5f, 0.010f, 0.25f,
-    -1.0f, -2.2f, 0.055f,
-    false, 0.0f,
-    -40.0f, -52.0f, -10.0f, -28.0f,
-    0.004f, 0.36f, 0.85f, 0.50f, 0.012f, 8.0f,
-  };
+  PolishPreset mixed = instrument;
+  mixed.highpassHz = 65.0f;
+  mixed.eqGainDb[4] = 1.2f;
+  mixed.eqGainDb[5] = 1.2f;
+  mixed.eqGainDb[6] = 0.5f;
+  mixed.hiShelfGainDb = 1.0f;
+  mixed.compWet = 0.70f;
+  mixed.compRatio = 2.0f;
+  mixed.useDeEsser = true; // light de-ess when voice present
+  mixed.deEssCutoffHz = 6000.0f;
+  mixed.deEssRatio = 2.0f;
+  mixed.deEssThresholdDb = -24.0f;
+  mixed.deEssAttackSec = 0.006f;
+  mixed.deEssReleaseSec = 0.10f;
+  mixed.deEssWet = 0.55f;
 
   if (preset == nullptr) {
     return speech;
   }
-  if (std::strcmp(preset, "instrument-polish") == 0) {
+  if (std::strcmp(preset, "instrument-polish") == 0 ||
+      std::strcmp(preset, "instrument-clean") == 0) {
     return instrument;
   }
-  if (std::strcmp(preset, "mixed-polish") == 0) {
+  if (std::strcmp(preset, "mixed-polish") == 0 ||
+      std::strcmp(preset, "mixed-clean") == 0) {
     return mixed;
   }
+  // speech-polish / speech-clean / default
   return speech;
 }
 
@@ -398,6 +475,50 @@ float analyzeNoiseFloorDb(
   return linearToDb(floorLinear);
 }
 
+/** Pass-1 average loudness (dB) for Voloco-style auto-threshold compressor. */
+float analyzeAverageLoudnessDb(const char *inputPath) {
+  Superpowered::Decoder *decoder = new Superpowered::Decoder();
+  if (decoder->open(inputPath) != Superpowered::Decoder::OpenSuccess) {
+    delete decoder;
+    return -20.0f;
+  }
+
+  const unsigned int framesPerChunk = decoder->getFramesPerChunk();
+  short int *intBuffer = (short int *)std::malloc(framesPerChunk * 2 * sizeof(short int) + 16384);
+  float *floatBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
+  if (intBuffer == nullptr || floatBuffer == nullptr) {
+    std::free(intBuffer);
+    std::free(floatBuffer);
+    delete decoder;
+    return -20.0f;
+  }
+
+  double sumSq = 0.0;
+  size_t sampleCount = 0;
+  while (true) {
+    const int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
+    if (framesDecoded < 1) {
+      break;
+    }
+    const unsigned int frames = (unsigned int)framesDecoded;
+    Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
+    for (unsigned int i = 0; i < frames * 2; ++i) {
+      const float s = floatBuffer[i];
+      sumSq += (double)s * (double)s;
+      ++sampleCount;
+    }
+  }
+
+  std::free(intBuffer);
+  std::free(floatBuffer);
+  delete decoder;
+
+  if (sampleCount == 0) {
+    return -20.0f;
+  }
+  return linearToDb((float)std::sqrt(sumSq / (double)sampleCount));
+}
+
 } // namespace
 
 extern "C" int SuperpoweredPolish_initialize(const char *licenseKey) {
@@ -414,6 +535,10 @@ extern "C" int SuperpoweredPolish_initialize(const char *licenseKey) {
   gInitialized = true;
   setError(nullptr);
   return 1;
+}
+
+extern "C" int SuperpoweredPolish_isInitialized(void) {
+  return gInitialized ? 1 : 0;
 }
 
 extern "C" const char *SuperpoweredPolish_lastError(void) {
@@ -442,13 +567,18 @@ extern "C" int SuperpoweredPolish_processFile(
 
   float softThresholdDb = params.gateSoftThresholdDb;
   float hardThresholdDb = params.gateHardThresholdDb;
-
   if (params.useNoiseGate) {
     const float noiseFloorDb = analyzeNoiseFloorDb(input.c_str(), 44100, params.highpassHz);
     if (noiseFloorDb > -85.0f && noiseFloorDb < -10.0f) {
       softThresholdDb = clampf(noiseFloorDb + params.gateNoiseMarginDb, -60.0f, -18.0f);
       hardThresholdDb = clampf(noiseFloorDb + 2.0f, -70.0f, softThresholdDb - 4.0f);
     }
+  }
+
+  float compThresholdDb = params.compThresholdDb;
+  if (params.useAutoThreshold) {
+    const float avgDb = analyzeAverageLoudnessDb(input.c_str());
+    compThresholdDb = clampf(avgDb + params.autoThresholdDiffDb, -40.0f, -6.0f);
   }
 
   Superpowered::Decoder *decoder = new Superpowered::Decoder();
@@ -476,7 +606,7 @@ extern "C" int SuperpoweredPolish_processFile(
   }
 
   Superpowered::Filter *highpass = nullptr;
-  if (params.useNoiseGate && params.highpassHz > 1.0f) {
+  if (params.highpassHz > 1.0f) {
     highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
     highpass->frequency = params.highpassHz;
     highpass->resonance = 0.1f;
@@ -499,21 +629,44 @@ extern "C" int SuperpoweredPolish_processFile(
     );
   }
 
-  Superpowered::ThreeBandEQ *eq = new Superpowered::ThreeBandEQ(samplerate);
-  eq->low = params.eqLow;
-  eq->mid = params.eqMid;
-  eq->high = params.eqHigh;
-  eq->enabled = true;
+  Superpowered::Filter *eqBands[7] = {nullptr};
+  for (int i = 0; i < 7; ++i) {
+    eqBands[i] = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    eqBands[i]->frequency = params.eqFreqHz[i];
+    eqBands[i]->octave = params.eqWidthOct[i];
+    eqBands[i]->decibel = params.eqGainDb[i];
+    eqBands[i]->enabled = std::fabs(params.eqGainDb[i]) > 0.05f;
+  }
+
+  Superpowered::Filter *hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+  hiShelf->frequency = params.hiShelfHz;
+  hiShelf->slope = 0.5f;
+  hiShelf->decibel = params.hiShelfGainDb;
+  hiShelf->enabled = std::fabs(params.hiShelfGainDb) > 0.05f;
+
+  Superpowered::Compressor *deEsser = nullptr;
+  if (params.useDeEsser) {
+    deEsser = new Superpowered::Compressor(samplerate);
+    deEsser->inputGainDb = 0.0f;
+    deEsser->outputGainDb = 0.0f;
+    deEsser->wet = params.deEssWet;
+    deEsser->attackSec = params.deEssAttackSec;
+    deEsser->releaseSec = params.deEssReleaseSec;
+    deEsser->ratio = params.deEssRatio;
+    deEsser->thresholdDb = params.deEssThresholdDb;
+    deEsser->hpCutOffHz = params.deEssCutoffHz;
+    deEsser->enabled = true;
+  }
 
   Superpowered::Compressor *compressor = new Superpowered::Compressor(samplerate);
   compressor->inputGainDb = params.compInputGainDb;
   compressor->outputGainDb = 0.0f;
-  compressor->wet = 1.0f;
+  compressor->wet = params.compWet;
   compressor->attackSec = params.compAttackSec;
   compressor->releaseSec = params.compReleaseSec;
   compressor->ratio = params.compRatio;
-  compressor->thresholdDb = params.compThresholdDb;
-  compressor->hpCutOffHz = 80.0f;
+  compressor->thresholdDb = compThresholdDb;
+  compressor->hpCutOffHz = params.compKeyHpHz;
   compressor->enabled = true;
 
   Superpowered::Limiter *limiter = new Superpowered::Limiter(samplerate);
@@ -532,7 +685,11 @@ extern "C" int SuperpoweredPolish_processFile(
     std::free(floatBuffer);
     delete limiter;
     delete compressor;
-    delete eq;
+    delete deEsser;
+    delete hiShelf;
+    for (int i = 0; i < 7; ++i) {
+      delete eqBands[i];
+    }
     delete highpass;
     Superpowered::closeWAV(destinationFile);
     delete decoder;
@@ -540,10 +697,22 @@ extern "C" int SuperpoweredPolish_processFile(
   }
 
   auto runPolishChain = [&](float *buffer, unsigned int frames) {
-    eq->samplerate = samplerate;
+    for (int i = 0; i < 7; ++i) {
+      if (eqBands[i] != nullptr && eqBands[i]->enabled) {
+        eqBands[i]->samplerate = samplerate;
+        eqBands[i]->process(buffer, buffer, frames);
+      }
+    }
+    if (hiShelf->enabled) {
+      hiShelf->samplerate = samplerate;
+      hiShelf->process(buffer, buffer, frames);
+    }
+    if (deEsser != nullptr) {
+      deEsser->samplerate = samplerate;
+      deEsser->process(buffer, buffer, frames);
+    }
     compressor->samplerate = samplerate;
     limiter->samplerate = samplerate;
-    eq->process(buffer, buffer, frames);
     compressor->process(buffer, buffer, frames);
     limiter->process(buffer, buffer, frames);
   };
@@ -572,7 +741,6 @@ extern "C" int SuperpoweredPolish_processFile(
     Superpowered::writeWAV(destinationFile, intBuffer, frames * 4);
   }
 
-  // Flush look-ahead delay so the tail is not truncated.
   if (params.useNoiseGate) {
     const unsigned int flushCap = framesPerChunk + cleaner.delayLen + 64;
     float *flushBuffer = (float *)std::malloc(flushCap * 2 * sizeof(float));
@@ -594,7 +762,11 @@ extern "C" int SuperpoweredPolish_processFile(
   std::free(floatBuffer);
   delete limiter;
   delete compressor;
-  delete eq;
+  delete deEsser;
+  delete hiShelf;
+  for (int i = 0; i < 7; ++i) {
+    delete eqBands[i];
+  }
   delete highpass;
   delete decoder;
 

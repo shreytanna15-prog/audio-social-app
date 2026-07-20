@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 
-import { useRecordingsHydration } from '@/module/audio/hooks/use-recordings-hydration';
+import { useRecordingsHydration } from '@/features/audio/hooks/use-recordings-hydration';
 
 export default function AudioLayout() {
   useRecordingsHydration();

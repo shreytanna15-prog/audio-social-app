@@ -3,5 +3,17 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/modules/**/android/**",
+    "**/android/.cxx/**",
+    "**/.gradle/**"
+  ],
+  "java.project.resourceFilters": [
+    "node_modules",
+    "\\.git",
+    "\\.cxx",
+    "\\.gradle"
+  ]
 }

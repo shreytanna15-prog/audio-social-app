@@ -1,28 +1,43 @@
 # Superpowered Audio (local Expo module)
 
-Offline polish engine:
+Offline Clean engine (post-record):
 
-- **Speech:** decode → EQ → compressor → limiter → WAV  
-- **Instrument / mixed:** decode → HPF → **adaptive cleaner** → EQ → compressor → limiter → WAV  
+- **Speech (`speech-clean`):** HPF → 7-band EQ → de-esser → auto-threshold compressor → limiter  
+  (DeepFilter runs in JS before this for speech mode)
+- **Instrument (`instrument-clean`):** interference-soften (spectral soft mask) → light HPF / EQ / soft compressor / limiter  
+  (no DeepFilter, no hard gate)
+- **Mixed (`mixed-clean`):** soft polish bed + light de-esser  
+  (no spectral soften by default)
 
-Instrument cleaner (not Superpowered’s rhythmic Gate):
+Editor effects (offline file process):
 
-1. Pass-1 noise-floor estimate (quietest ~12% of 20 ms blocks)  
-2. Look-ahead two-stage expander (deep cut in gaps, soft knee near music)  
-3. HF duck when closed (typing/hiss often brighter than piano body)  
-
-Protects piano; reduces gap noise. Does **not** erase typing under notes.
+- **reverb / echo / modulate / enhance** via `processEffectsFile`
+- **denoise** via DeepFilter in JS, then optional Superpowered chain
+- FFmpeg is used only to encode WAV → M4A when needed
 
 ## JS API
 
 ```ts
 import { polishRecordingWithSuperpowered } from '@/module/audio/services/superpowered-polish.service';
+import { processFileWithSuperpoweredEffects } from '@/module/audio/services/superpowered-audio.service';
 
 await polishRecordingWithSuperpowered({
   inputUri,
   outputUri,
-  mode: 'instrument', // or speech | mixed
+  mode: 'instrument', // resolves to instrument-clean
 });
+
+await processFileWithSuperpoweredEffects(
+  inputUri,
+  outputWavUri,
+  JSON.stringify([{ id: 'reverb', params: { roomSize: 2, amount: 50 } }]),
+);
+```
+
+Instrument optimize (via `recording-optimize.service`) runs:
+
+```text
+record → interference-soften (SpectralClean) → instrument-clean polish → preview
 ```
 
 ## License key

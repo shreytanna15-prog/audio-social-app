@@ -1,6 +1,8 @@
 import { requireNativeModule } from 'expo-modules-core';
 
 import type {
+  SpectralCleanProcessResult,
+  SuperpoweredEffectsProcessResult,
   SuperpoweredProcessOptions,
   SuperpoweredProcessResult,
 } from './SuperpoweredAudio.types';
@@ -13,6 +15,15 @@ type SuperpoweredAudioNativeModule = {
     outputUri: string,
     options: SuperpoweredProcessOptions,
   ): Promise<SuperpoweredProcessResult>;
+  spectralCleanProcessFile(
+    inputUri: string,
+    outputUri: string,
+  ): Promise<SpectralCleanProcessResult>;
+  processEffectsFile(
+    inputUri: string,
+    outputUri: string,
+    effectsJson: string,
+  ): Promise<SuperpoweredEffectsProcessResult>;
 };
 
 export default requireNativeModule<SuperpoweredAudioNativeModule>('SuperpoweredAudio');

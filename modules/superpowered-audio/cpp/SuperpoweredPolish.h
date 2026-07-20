@@ -10,11 +10,15 @@ extern "C" {
  */
 int SuperpoweredPolish_initialize(const char *licenseKey);
 
+/** 1 if SuperpoweredPolish_initialize succeeded, else 0. */
+int SuperpoweredPolish_isInitialized(void);
+
 /**
- * Offline polish: decode input → 3-band EQ → compressor → limiter → WAV.
- * Paths must be filesystem paths (no file:// prefix).
- * preset: "speech-polish" | "instrument-polish" | "mixed-polish"
- * Returns 0 on success, non-zero error code on failure.
+ * Offline Clean polish (Voloco-style Phase 3):
+ * decode → HPF → 7-band parametric EQ + hi-shelf → [speech] de-esser →
+ * auto-threshold compressor → limiter → WAV.
+ * preset: "speech-clean" | "instrument-clean" | "mixed-clean"
+ *         (legacy: "*-polish")
  */
 int SuperpoweredPolish_processFile(
   const char *inputPath,

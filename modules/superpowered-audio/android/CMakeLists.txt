@@ -20,6 +20,9 @@ add_library(
   superpowered-polish
   SHARED
   ${MODULE_ANDROID_DIR}/../cpp/SuperpoweredPolish.cpp
+  ${MODULE_ANDROID_DIR}/../cpp/SuperpoweredEffects.cpp
+  ${MODULE_ANDROID_DIR}/../cpp/SpectralClean.cpp
+  ${MODULE_ANDROID_DIR}/../cpp/SpectralGate.cpp
   ${MODULE_ANDROID_DIR}/../cpp/SuperpoweredPolishJNI.cpp
 )
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expo Clean Architecture"
+  short_description: "Feature-based, domain-driven architecture for Expo Router + React Native apps with clean separation of concerns, one-way dependency flow, and standardized conventions"
+  default_prompt: "Use $expo-clean-architecture to architect, refactor, or restructure the Expo app. Follow the feature-based pattern: thin routes in app/, domain logic in features/, reusable code in shared/, infrastructure in core/. State is owned locally (useState), in feature stores (Zustand), or in a query layer (TanStack Query). Never put business logic in route files. Never hardcode colors. Never import across feature internals without a barrel export. Always use @/ path aliases."

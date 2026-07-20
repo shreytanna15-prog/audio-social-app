@@ -65,6 +65,117 @@ index 41b4359..4b52fd8 100644
    doLast {
      configurations.extractLibs.files.each {
        def file = it.absoluteFile
+diff --git a/node_modules/onnxruntime-react-native/android/src/main/java/ai/onnxruntime/reactnative/OnnxruntimeModule.java b/node_modules/onnxruntime-react-native/android/src/main/java/ai/onnxruntime/reactnative/OnnxruntimeModule.java
+index c362e6a..e35bf10 100644
+--- a/node_modules/onnxruntime-react-native/android/src/main/java/ai/onnxruntime/reactnative/OnnxruntimeModule.java
++++ b/node_modules/onnxruntime-react-native/android/src/main/java/ai/onnxruntime/reactnative/OnnxruntimeModule.java
+@@ -6,6 +6,7 @@ package ai.onnxruntime.reactnative;
+ import java.util.Map;
+ import java.util.HashMap;
+ import android.os.Build;
++import android.util.Log;
+ import androidx.annotation.NonNull;
+ import androidx.annotation.RequiresApi;
+ import com.facebook.react.bridge.JavaScriptContextHolder;
+@@ -13,11 +14,16 @@ import com.facebook.react.bridge.ReactMethod;
+ import com.facebook.react.bridge.ReactApplicationContext;
+ import com.facebook.react.bridge.ReactContextBaseJavaModule;
+ import com.facebook.react.turbomodule.core.CallInvokerHolderImpl;
++import com.facebook.react.turbomodule.core.interfaces.CallInvokerHolder;
+ 
+ @RequiresApi(api = Build.VERSION_CODES.N)
+ public class OnnxruntimeModule extends ReactContextBaseJavaModule {
++  private static final String TAG = "OnnxruntimeModule";
+   private static ReactApplicationContext reactContext;
+ 
++  // nativeCleanup() is only safe after System.loadLibrary("onnxruntimejsi").
++  private boolean nativeLibraryLoaded = false;
++
+   public OnnxruntimeModule(ReactApplicationContext context) {
+     super(context);
+     reactContext = context;
+@@ -36,7 +42,17 @@ public class OnnxruntimeModule extends ReactContextBaseJavaModule {
+   @Override
+   public void invalidate() {
+     super.invalidate();
+-    nativeCleanup();
++    if (!nativeLibraryLoaded) {
++      return;
++    }
++    try {
++      nativeCleanup();
++    } catch (Throwable ignored) {
++      // Never crash React Host teardown / Fast Refresh.
++      Log.w(TAG, "nativeCleanup failed during invalidate", ignored);
++    } finally {
++      nativeLibraryLoaded = false;
++    }
+   }
+ 
+   /**
+@@ -46,12 +62,36 @@ public class OnnxruntimeModule extends ReactContextBaseJavaModule {
+   public boolean install() {
+     try {
+       System.loadLibrary("onnxruntimejsi");
++      nativeLibraryLoaded = true;
++
+       JavaScriptContextHolder jsContext = getReactApplicationContext().getJavaScriptContextHolder();
+-      CallInvokerHolderImpl jsCallInvokerHolder =
+-        (CallInvokerHolderImpl) getReactApplicationContext().getCatalystInstance().getJSCallInvokerHolder();
+-      nativeInstall(jsContext.get(), jsCallInvokerHolder);
++      if (jsContext == null) {
++        Log.w(TAG, "install: JavaScriptContextHolder is null");
++        return false;
++      }
++
++      CallInvokerHolder callInvokerHolder = getReactApplicationContext().getJSCallInvokerHolder();
++      if (!(callInvokerHolder instanceof CallInvokerHolderImpl)) {
++        // Bridgeless fallback via deprecated Catalyst shim.
++        try {
++          callInvokerHolder =
++            getReactApplicationContext().getCatalystInstance().getJSCallInvokerHolder();
++        } catch (Throwable t) {
++          Log.w(TAG, "install: could not resolve CallInvokerHolder", t);
++          return false;
++        }
++      }
++
++      if (!(callInvokerHolder instanceof CallInvokerHolderImpl)) {
++        Log.w(TAG, "install: CallInvokerHolder is not CallInvokerHolderImpl");
++        return false;
++      }
++
++      nativeInstall(jsContext.get(), (CallInvokerHolderImpl) callInvokerHolder);
+       return true;
+-    } catch (Exception e) {
++    } catch (Throwable e) {
++      Log.e(TAG, "install failed", e);
++      nativeLibraryLoaded = false;
+       return false;
+     }
+   }
+diff --git a/node_modules/onnxruntime-react-native/lib/binding.ts b/node_modules/onnxruntime-react-native/lib/binding.ts
+index f5963a0..60e4c14 100644
+--- a/node_modules/onnxruntime-react-native/lib/binding.ts
++++ b/node_modules/onnxruntime-react-native/lib/binding.ts
+@@ -10,8 +10,16 @@ declare global {
+   var OrtApi: OrtApiType; // eslint-disable-line no-var
+ }
+ 
++// Safe install: never crash the JS runtime if the native module is missing or install fails.
++// (Stock package does Module.install() unconditionally, which kills the app on failed loads.)
+ if (typeof globalThis.OrtApi === 'undefined') {
+-  Module.install();
++  try {
++    if (Module != null && typeof Module.install === 'function') {
++      Module.install();
++    }
++  } catch {
++    // OrtApi proxy below will throw a clear error on first use.
++  }
+ }
+ 
+ export const OrtApi =
 diff --git a/node_modules/onnxruntime-react-native/react-native.config.js b/node_modules/onnxruntime-react-native/react-native.config.js
 new file mode 100644
 index 0000000..f2acd0e

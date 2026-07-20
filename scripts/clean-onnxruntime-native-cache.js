@@ -26,6 +26,10 @@ function cleanOnnxRuntimeNativeCache() {
   }
 
   removeIfExists(path.join(onnxAndroidDir, '.cxx'));
+  removeIfExists(path.join(onnxAndroidDir, '.gradle'));
+  removeIfExists(path.join(onnxAndroidDir, '.project'));
+  removeIfExists(path.join(onnxAndroidDir, '.classpath'));
+  removeIfExists(path.join(onnxAndroidDir, '.settings'));
 
   const buildDir = path.join(onnxAndroidDir, 'build');
   if (!fs.existsSync(buildDir)) {

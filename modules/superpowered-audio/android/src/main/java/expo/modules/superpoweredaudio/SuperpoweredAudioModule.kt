@@ -45,6 +45,17 @@ class SuperpoweredAudioModule : Module() {
     preset: String,
   ): String
 
+  private external fun nativeSpectralCleanProcessFile(
+    inputUri: String,
+    outputUri: String,
+  ): String
+
+  private external fun nativeProcessEffectsFile(
+    inputUri: String,
+    outputUri: String,
+    effectsJson: String,
+  ): String
+
   override fun definition() = ModuleDefinition {
     Name("SuperpoweredAudio")
 
@@ -85,6 +96,57 @@ class SuperpoweredAudioModule : Module() {
         )
       } catch (error: Exception) {
         throw ProcessFailedException(error.message ?: "Superpowered polish failed.")
+      }
+    }
+
+    AsyncFunction("spectralCleanProcessFile") { inputUri: String, outputUri: String ->
+      if (!initialized) {
+        throw NotInitializedException()
+      }
+
+      val outputPath = stripFileScheme(outputUri)
+      val parent = File(outputPath).parentFile
+      if (parent != null && !parent.exists()) {
+        parent.mkdirs()
+      }
+
+      try {
+        val stats = nativeSpectralCleanProcessFile(inputUri, outputUri)
+        val strategy = if (stats.contains("strategy=")) {
+          Regex("""strategy=([^\s]+)""").find(stats)?.groupValues?.getOrNull(1)
+            ?: "interference-soften"
+        } else {
+          "interference-soften"
+        }
+        mapOf(
+          "outputUri" to outputUri,
+          "strategy" to strategy,
+          "params" to stats,
+        )
+      } catch (error: Exception) {
+        throw ProcessFailedException(error.message ?: "Spectral clean failed.")
+      }
+    }
+
+    AsyncFunction("processEffectsFile") { inputUri: String, outputUri: String, effectsJson: String ->
+      if (!initialized) {
+        throw NotInitializedException()
+      }
+
+      val outputPath = stripFileScheme(outputUri)
+      val parent = File(outputPath).parentFile
+      if (parent != null && !parent.exists()) {
+        parent.mkdirs()
+      }
+
+      try {
+        val strategy = nativeProcessEffectsFile(inputUri, outputUri, effectsJson)
+        mapOf(
+          "outputUri" to outputUri,
+          "strategy" to strategy,
+        )
+      } catch (error: Exception) {
+        throw ProcessFailedException(error.message ?: "Superpowered effects failed.")
       }
     }
   }

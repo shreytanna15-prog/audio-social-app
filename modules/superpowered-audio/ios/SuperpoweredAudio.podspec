@@ -23,6 +23,9 @@ Pod::Spec.new do |s|
   s.source_files = [
     '**/*.{h,m,mm,swift}',
     '../cpp/SuperpoweredPolish.{h,cpp}',
+    '../cpp/SuperpoweredEffects.{h,cpp}',
+    '../cpp/SpectralClean.{h,cpp}',
+    '../cpp/SpectralGate.{h,cpp}',
   ]
   s.public_header_files = 'SuperpoweredPolishBridge.h'
 
