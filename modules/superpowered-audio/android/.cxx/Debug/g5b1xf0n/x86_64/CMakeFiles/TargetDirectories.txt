@@ -1,3 +1,0 @@
-C:/Feels Diffrent/work/audio-social-media-app/modules/superpowered-audio/android/.cxx/Debug/g5b1xf0n/x86_64/CMakeFiles/superpowered-polish.dir
-C:/Feels Diffrent/work/audio-social-media-app/modules/superpowered-audio/android/.cxx/Debug/g5b1xf0n/x86_64/CMakeFiles/edit_cache.dir
-C:/Feels Diffrent/work/audio-social-media-app/modules/superpowered-audio/android/.cxx/Debug/g5b1xf0n/x86_64/CMakeFiles/rebuild_cache.dir

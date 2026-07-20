@@ -1,6 +1,0 @@
-# ninja log v5
-38	1997	8058189739806846	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o	1a89da4de9e08681
-22	2653	8058189746402939	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp.o	dd17e1a147d64f2f
-53	2834	8058189748192539	CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp.o	899ccc0315ef67d5
-3	2857	8058189748372550	CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o	f633b33b5dced9ad
-2858	3167	8058189751567027	../../../../build/intermediates/cxx/RelWithDebInfo/44261c1d/obj/x86/libsuperpowered-polish.so	1a9399e4f7385236

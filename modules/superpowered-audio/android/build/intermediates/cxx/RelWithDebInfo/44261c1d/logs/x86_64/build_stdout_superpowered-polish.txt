@@ -1,6 +1,0 @@
-ninja: Entering directory `C:\Feels Diffrent\work\audio-social-media-app\modules\superpowered-audio\android\.cxx\RelWithDebInfo\44261c1d\x86_64'
-[1/5] Building CXX object CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolishJNI.cpp.o
-[2/5] Building CXX object CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralGate.cpp.o
-[3/5] Building CXX object CMakeFiles/superpowered-polish.dir/db2ad8597969f42f03e576b0b56ac344/modules/superpowered-audio/cpp/SuperpoweredPolish.cpp.o
-[4/5] Building CXX object CMakeFiles/superpowered-polish.dir/C_/Feels_Diffrent/work/audio-social-media-app/modules/superpowered-audio/cpp/SpectralClean.cpp.o
-[5/5] Linking CXX shared library ..\..\..\..\build\intermediates\cxx\RelWithDebInfo\44261c1d\obj\x86_64\libsuperpowered-polish.so

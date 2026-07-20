@@ -44,9 +44,15 @@ yarn-error.*
 
 example
 
-# generated native folders
+# generated native folders (Expo prebuild only — not local Expo modules)
 /ios
 /android
+
+# Local Expo module Android build junk (keep src/, CMakeLists.txt, build.gradle)
+modules/**/android/.cxx/
+modules/**/android/.gradle/
+modules/**/android/build/
+modules/**/android/.externalNativeBuild/
 
 # ML model weights (downloaded/cached at runtime — commit assets/model/*.json only)
 *.ort
