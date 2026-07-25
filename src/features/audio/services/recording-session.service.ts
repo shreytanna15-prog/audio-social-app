@@ -6,7 +6,6 @@ import {
 import { expoPcmCaptureService } from '@/features/audio/services/expo-pcm-capture.service';
 import { nitroSoundCaptureService } from '@/features/audio/services/nitro-sound-capture.service';
 import { recorderService } from '@/features/audio/services/recorder.service';
-import { swmAudioCaptureService } from '@/features/audio/services/swm-audio-capture.service';
 import { logRecorderMode } from '@/features/audio/domain/recorder-mode-log';
 import type { RecordingMode } from '@/features/audio/types/recording-mode';
 
@@ -15,15 +14,11 @@ export type FinalizeResult = {
   stagedUri: string;
 };
 
-export type CaptureBackend = 'aac' | 'expo-pcm' | 'swm-audio' | 'nitro-sound';
+export type CaptureBackend = 'aac' | 'expo-pcm' | 'nitro-sound';
 
 function captureBackendForMode(mode: RecordingMode): CaptureBackend {
   if (mode === 'raw' || mode === 'gate-lab') {
     return 'expo-pcm';
-  }
-
-  if (mode === 'swm-wav') {
-    return 'swm-audio';
   }
 
   if (mode === 'nitro-m4a') {
@@ -69,11 +64,6 @@ export const recordingSessionService = {
       return;
     }
 
-    if (activeBackend === 'swm-audio') {
-      await swmAudioCaptureService.start();
-      return;
-    }
-
     if (activeBackend === 'nitro-sound') {
       await nitroSoundCaptureService.start();
       return;
@@ -92,10 +82,6 @@ export const recordingSessionService = {
 
       if (backend === 'expo-pcm') {
         const result = await expoPcmCaptureService.stop();
-        uri = result.uri;
-        durationMillis = result.durationMillis;
-      } else if (backend === 'swm-audio') {
-        const result = await swmAudioCaptureService.stop();
         uri = result.uri;
         durationMillis = result.durationMillis;
       } else if (backend === 'nitro-sound') {
@@ -130,8 +116,6 @@ export const recordingSessionService = {
     if (hasActiveSession) {
       if (activeBackend === 'expo-pcm') {
         await expoPcmCaptureService.abort();
-      } else if (activeBackend === 'swm-audio') {
-        await swmAudioCaptureService.abort();
       } else if (activeBackend === 'nitro-sound') {
         await nitroSoundCaptureService.abort();
       } else {
@@ -152,11 +136,6 @@ export const recordingSessionService = {
       return;
     }
 
-    if (activeBackend === 'swm-audio') {
-      swmAudioCaptureService.pause();
-      return;
-    }
-
     if (activeBackend === 'nitro-sound') {
       nitroSoundCaptureService.pause();
       return;
@@ -168,11 +147,6 @@ export const recordingSessionService = {
   resume(): void {
     if (activeBackend === 'expo-pcm') {
       expoPcmCaptureService.resume();
-      return;
-    }
-
-    if (activeBackend === 'swm-audio') {
-      swmAudioCaptureService.resume();
       return;
     }
 

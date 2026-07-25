@@ -59,10 +59,7 @@ async function canUseSuperpowered(): Promise<boolean> {
 async function tryPolishWithSuperpowered(input: {
   inputUri: string;
   outputUri: string;
-  mode: Exclude<
-    RecordingMode,
-    "raw" | "gate-lab" | "swm-wav" | "nitro-m4a"
-  >;
+  mode: Exclude<RecordingMode, "raw" | "gate-lab" | "nitro-m4a">;
   preset: SuperpoweredPolishPreset;
 }): Promise<string | null> {
   if (!(await canUseSuperpowered())) {
@@ -208,7 +205,7 @@ export async function optimizeNsSpectralForPreview(
  * Speech: DeepFilter → speech-clean polish (no FFmpeg denoise fallback).
  * Instrument / mixed: light Superpowered Clean polish only.
  * Raw: SpectralGate only via stagePreviewRecording → optimizeNsSpectralForPreview.
- * Gate Lab / SWM WAV / Nitro M4A: passthrough staging; SpectralGate + pipelines in the editor.
+ * Gate Lab / Nitro M4A: passthrough staging; SpectralGate + pipelines in the editor.
  * Editor effects: Superpowered (+ DeepFilter for denoise) via audio-effects.service.
  */
 export async function optimizeRecordingForPreview(

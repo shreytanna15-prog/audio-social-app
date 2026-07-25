@@ -9,10 +9,6 @@ function optionSuffix(mode?: RecordingMode | string | null): string {
     return ' GateLab';
   }
 
-  if (mode === 'swm-wav') {
-    return ' CaptureSWM';
-  }
-
   if (mode === 'nitro-m4a') {
     return ' CaptureNitro';
   }

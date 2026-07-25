@@ -4,7 +4,6 @@ export type RecordingMode =
   | "mixed"
   | "raw"
   | "gate-lab"
-  | "swm-wav"
   | "nitro-m4a";
 
 export type RecordingModeOption = {
@@ -46,12 +45,6 @@ export const RECORDING_MODE_OPTIONS: RecordingModeOption[] = [
     available: true,
   },
   {
-    id: "swm-wav",
-    label: "Capture SWM: WAV",
-    description: "Software Mansion AudioRecorder → WAV, no auto enhance.",
-    available: true,
-  },
-  {
     id: "nitro-m4a",
     label: "Capture Nitro: M4A",
     description: "Nitro Sound compressed capture, no auto enhance.",
@@ -61,7 +54,7 @@ export const RECORDING_MODE_OPTIONS: RecordingModeOption[] = [
 
 /** Modes that stage without Clean / auto SpectralGate (editor A/B only). */
 export function isPassthroughCaptureMode(mode: RecordingMode | null | undefined): boolean {
-  return mode === "gate-lab" || mode === "swm-wav" || mode === "nitro-m4a";
+  return mode === "gate-lab" || mode === "nitro-m4a";
 }
 
 /** Modes that keep the capture file extension (WAV / M4A / MP4) instead of MP3. */
@@ -78,7 +71,6 @@ export function isKnownRecordingMode(
     value === "mixed" ||
     value === "raw" ||
     value === "gate-lab" ||
-    value === "swm-wav" ||
     value === "nitro-m4a"
   );
 }

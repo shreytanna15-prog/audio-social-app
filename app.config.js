@@ -31,14 +31,6 @@ module.exports = ({ config }) => ({
       },
     ],
     [
-      'react-native-audio-api',
-      {
-        iosMicrophonePermission:
-          'Allow Audio Social Media App to access your microphone.',
-        androidPermissions: ['android.permission.RECORD_AUDIO'],
-      },
-    ],
-    [
       'expo-file-system',
       {
         supportsOpeningDocumentsInPlace: true,

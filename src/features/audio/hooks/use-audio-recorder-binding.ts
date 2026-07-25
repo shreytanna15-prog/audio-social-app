@@ -7,7 +7,6 @@ import { nitroSoundCaptureService } from '@/features/audio/services/nitro-sound-
 import {
   recordingSessionService,
 } from '@/features/audio/services/recording-session.service';
-import { swmAudioCaptureService } from '@/features/audio/services/swm-audio-capture.service';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
 
 const CAPTURE_TICK_MS = 100;
@@ -43,11 +42,9 @@ export function useAudioRecorderBinding(): void {
 
     const interval = setInterval(() => {
       const tick =
-        backend === 'swm-audio'
-          ? swmAudioCaptureService.getTick()
-          : backend === 'nitro-sound'
-            ? nitroSoundCaptureService.getTick()
-            : expoPcmCaptureService.getTick();
+        backend === 'nitro-sound'
+          ? nitroSoundCaptureService.getTick()
+          : expoPcmCaptureService.getTick();
 
       syncRecorderState({
         metering: tick.metering,
