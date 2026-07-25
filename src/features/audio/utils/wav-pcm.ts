@@ -134,6 +134,140 @@ function createWavHeader(
   return new Uint8Array(buffer);
 }
 
+export type StreamingWavWriter = {
+  uri: string;
+  appendInt16Pcm: (pcmBytes: Uint8Array) => void;
+  finalize: (sampleRate: number, channels: number) => void;
+  discard: () => void;
+  getByteLength: () => number;
+};
+
+/**
+ * Creates a WAV file with a placeholder header, then streams int16 PCM chunks.
+ * Call finalize() to rewrite RIFF sizes with the actual PCM length.
+ */
+export function createStreamingWavWriter(uri: string): StreamingWavWriter {
+  const file = new File(uri);
+  const parent = file.parentDirectory;
+
+  if (!parent.exists) {
+    parent.create({ intermediates: true, idempotent: true });
+  }
+
+  if (file.exists) {
+    file.delete();
+  }
+
+  file.create({ overwrite: true });
+  // Placeholder header (sizes updated in finalize).
+  file.write(createWavHeader(0, TARGET_SAMPLE_RATE, 1, 16));
+
+  let pcmByteLength = 0;
+  let closed = false;
+
+  return {
+    uri,
+    appendInt16Pcm(pcmBytes: Uint8Array) {
+      if (closed || pcmBytes.byteLength === 0) {
+        return;
+      }
+
+      const handle = file.open();
+      try {
+        handle.offset = WAV_HEADER_SIZE + pcmByteLength;
+        handle.writeBytes(pcmBytes);
+        pcmByteLength += pcmBytes.byteLength;
+      } finally {
+        handle.close();
+      }
+    },
+    finalize(sampleRate: number, channels: number) {
+      if (closed) {
+        return;
+      }
+
+      const header = createWavHeader(pcmByteLength, sampleRate, channels, 16);
+      const handle = file.open();
+      try {
+        handle.offset = 0;
+        handle.writeBytes(header);
+      } finally {
+        handle.close();
+      }
+      closed = true;
+    },
+    discard() {
+      closed = true;
+      try {
+        if (file.exists) {
+          file.delete();
+        }
+      } catch {
+        // Temp file may already be gone.
+      }
+    },
+    getByteLength() {
+      return pcmByteLength;
+    },
+  };
+}
+
+/** Peak metering helper for int16 PCM (0..1). */
+export function peakLevelFromInt16Pcm(pcmBytes: Uint8Array): number {
+  if (pcmBytes.byteLength < 2) {
+    return 0;
+  }
+
+  const samples = new Int16Array(
+    pcmBytes.buffer,
+    pcmBytes.byteOffset,
+    Math.floor(pcmBytes.byteLength / 2),
+  );
+  let peak = 0;
+
+  for (let index = 0; index < samples.length; index += 1) {
+    const abs = Math.abs(samples[index]);
+    if (abs > peak) {
+      peak = abs;
+    }
+  }
+
+  return Math.min(1, peak / 32_768);
+}
+
+/** Peak metering helper for float32 PCM (0..1). */
+export function peakLevelFromFloat32Pcm(pcmBytes: Uint8Array): number {
+  if (pcmBytes.byteLength < 4) {
+    return 0;
+  }
+
+  const samples = new Float32Array(
+    pcmBytes.buffer,
+    pcmBytes.byteOffset,
+    Math.floor(pcmBytes.byteLength / 4),
+  );
+  let peak = 0;
+
+  for (let index = 0; index < samples.length; index += 1) {
+    const abs = Math.abs(samples[index]);
+    if (abs > peak) {
+      peak = abs;
+    }
+  }
+
+  return Math.min(1, peak);
+}
+
+export function float32PcmToInt16Bytes(pcmBytes: Uint8Array): Uint8Array {
+  const floats = new Float32Array(
+    pcmBytes.buffer,
+    pcmBytes.byteOffset,
+    Math.floor(pcmBytes.byteLength / 4),
+  );
+  const ints = float32ToInt16(floats);
+  return new Uint8Array(ints.buffer, ints.byteOffset, ints.byteLength);
+}
+
 export async function readWavAsFloat32(uri: string): Promise<Float32Array> {
   const file = new File(uri);
 

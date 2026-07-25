@@ -9,10 +9,15 @@ import {
   writeIndex,
 } from "@/features/audio/data/recording-storage";
 import { normalizeAppliedEffects } from "@/features/audio/domain/effect-definitions";
-import { optimizeRecordingForPreview } from "@/features/audio/services/recording-optimize.service";
-import type { RecordingMode } from "@/features/audio/types/recording-mode";
+import { optimizeRecordingForPreview, optimizeNsSpectralForPreview } from "@/features/audio/services/recording-optimize.service";
+import {
+  isPassthroughCaptureMode,
+  keepsSourceExtension,
+  type RecordingMode,
+} from "@/features/audio/types/recording-mode";
 import type { AppliedEffect } from "@/features/audio/types/applied-effects";
 import {
+  extensionFromUri,
   getPendingRecordingUri,
   getRecordingFileUri,
   getRecordingRelativePath,
@@ -70,7 +75,8 @@ async function ensureSourceBackup(
   id: string,
   currentOriginalUri: string,
 ): Promise<void> {
-  const sourceUri = getRecordingSourceFileUri(id);
+  const extension = extensionFromUri(currentOriginalUri);
+  const sourceUri = getRecordingSourceFileUri(id, extension);
   const source = new File(sourceUri);
 
   if (!source.exists) {
@@ -109,23 +115,37 @@ export async function stagePreviewRecording(
     `[Optimize] stagePreviewRecording ENTER mode="${mode}" duration=${durationSeconds?.toFixed(2) ?? "unknown"}s uri=${sourceUri}`,
   );
 
-  const pendingUri = getPendingRecordingUri(Crypto.randomUUID());
+  const sourceExtension = extensionFromUri(sourceUri);
+  const pendingExtension = keepsSourceExtension(mode)
+    ? sourceExtension
+    : "mp3";
+  const pendingUri = getPendingRecordingUri(
+    Crypto.randomUUID(),
+    pendingExtension,
+  );
 
   await ensureRecordingsRoot();
 
-  if (mode === "raw") {
-    console.warn('[Optimize] mode="raw" → passthrough (no processing).');
+  if (isPassthroughCaptureMode(mode)) {
+    console.warn(
+      `[Optimize] mode="${mode}" → passthrough (no auto enhance; editor A/B).`,
+    );
     await persistRecordingFile(sourceUri, pendingUri);
     return pendingUri;
   }
 
-  if (mode === "instrument-3") {
-    console.warn('[Optimize] mode="instrument-3" → passthrough (hidden raw).');
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-    await persistRecordingFile(sourceUri, pendingUri);
-    return pendingUri;
+  if (mode === "raw") {
+    console.warn('[Optimize] mode="raw" → SpectralGate (Capture A Expo WAV).');
+    try {
+      return await optimizeNsSpectralForPreview(sourceUri, pendingUri);
+    } catch (error) {
+      console.warn(
+        "[Optimize] raw SpectralGate failed, using raw capture.",
+        error,
+      );
+      await persistRecordingFile(sourceUri, pendingUri);
+      return pendingUri;
+    }
   }
 
   try {
@@ -138,8 +158,12 @@ export async function stagePreviewRecording(
     );
   } catch (error) {
     console.warn("[Optimize] Default pipeline failed, using raw recording.", error);
-    await persistRecordingFile(sourceUri, pendingUri);
-    return pendingUri;
+    const fallbackUri = getPendingRecordingUri(
+      Crypto.randomUUID(),
+      sourceExtension,
+    );
+    await persistRecordingFile(sourceUri, fallbackUri);
+    return fallbackUri;
   }
 }
 
@@ -179,8 +203,9 @@ export async function saveRecording({
 }: SaveRecordingInput): Promise<AudioRecording> {
   const id = Crypto.randomUUID();
   const now = new Date().toISOString();
-  const destinationUri = getRecordingFileUri(id);
-  const pristineUri = getRecordingSourceFileUri(id);
+  const extension = extensionFromUri(sourceUri);
+  const destinationUri = getRecordingFileUri(id, extension);
+  const pristineUri = getRecordingSourceFileUri(id, extension);
 
   await ensureRecordingsRoot();
   await persistRecordingFile(sourceUri, destinationUri);
@@ -200,8 +225,8 @@ export async function saveRecording({
   const recording: AudioRecording = {
     id,
     uri: destinationUri,
-    path: getRecordingRelativePath(id),
-    sourcePath: getRecordingSourceRelativePath(id),
+    path: getRecordingRelativePath(id, extension),
+    sourcePath: getRecordingSourceRelativePath(id, extension),
     type: "draft",
     duration: durationSeconds,
     appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
@@ -229,7 +254,8 @@ export async function updateRecording({
     throw new Error(`Recording not found: ${id}`);
   }
 
-  const destinationUri = getRecordingFileUri(id);
+  const extension = extensionFromUri(sourceUri);
+  const destinationUri = getRecordingFileUri(id, extension);
 
   await ensureRecordingsRoot();
   await ensureSourceBackup(id, existing.uri);
@@ -243,8 +269,11 @@ export async function updateRecording({
   const now = new Date().toISOString();
   const updated: AudioRecording = {
     ...existing,
+    uri: destinationUri,
+    path: getRecordingRelativePath(id, extension),
     duration: durationSeconds,
-    sourcePath: existing.sourcePath ?? getRecordingSourceRelativePath(id),
+    sourcePath:
+      existing.sourcePath ?? getRecordingSourceRelativePath(id, extension),
     appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
     updatedAt: now,
   };

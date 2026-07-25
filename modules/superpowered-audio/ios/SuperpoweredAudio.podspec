@@ -29,6 +29,8 @@ Pod::Spec.new do |s|
   ]
   s.public_header_files = 'SuperpoweredPolishBridge.h'
 
+  s.frameworks = 'AVFoundation', 'AudioToolbox', 'UIKit'
+
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',

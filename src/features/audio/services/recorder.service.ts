@@ -7,6 +7,13 @@ import {
 
 export const RECORDING_OPTIONS = {
   ...RecordingPresets.HIGH_QUALITY,
+  sampleRate: 48000,
+  numberOfChannels: 1,
+  bitRate: 256000,
+  android: {
+    ...RecordingPresets.HIGH_QUALITY.android,
+    audioSource: "unprocessed" as const,
+  },
   isMeteringEnabled: true,
   directory: "document" as const,
 };

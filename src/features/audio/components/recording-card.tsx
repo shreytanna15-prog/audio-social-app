@@ -6,6 +6,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { IconButton } from '@/features/audio/components/icon-button';
 import { WaveformDisplay } from '@/features/audio/components/waveform-display';
 import { shareRecording } from '@/features/audio/services/recording-share.service';
+import { logRecorderMode } from '@/features/audio/domain/recorder-mode-log';
 import { createLabel, formatDuration } from '@/features/audio/utils/format';
 import { useRecordingsStore } from '@/features/audio/store';
 import type { AudioRecording } from '@/features/audio/types/audio';
@@ -31,6 +32,8 @@ export function RecordingCard({ recording, index }: RecordingCardProps) {
   };
 
   const handlePlay = () => {
+    logRecorderMode('Play', null);
+
     if (playerStatus.playing) {
       player.pause();
       return;

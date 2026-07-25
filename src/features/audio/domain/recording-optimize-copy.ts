@@ -1,4 +1,7 @@
-import type { RecordingMode } from '@/features/audio/types/recording-mode';
+import {
+  isPassthroughCaptureMode,
+  type RecordingMode,
+} from '@/features/audio/types/recording-mode';
 
 export type OptimizeOverlayCopy = {
   title: string;
@@ -12,26 +15,34 @@ const ON_DEVICE_ENHANCING: OptimizeOverlayCopy = {
 
 const INSTRUMENT_CLEAN: OptimizeOverlayCopy = {
   title: 'Cleaning instrument recording…',
-  subtitle: 'Reducing hiss and background interference, then light polish on your device.',
+  subtitle: 'Light polish on your device — tone and level stay close to the original.',
 };
 
-const RAW_PASSTHROUGH: OptimizeOverlayCopy = {
-  title: 'Saving raw recording…',
-  subtitle: 'No enhance — original expo-audio capture only.',
+const SPECTRAL_GATE_DENOISE: OptimizeOverlayCopy = {
+  title: 'Denoising capture…',
+  subtitle: 'SpectralGate denoise on your device — stays on your phone.',
 };
 
-/** Overlay copy while post-record enhance runs (raw skips the pipeline). */
+const LAB_PASSTHROUGH: OptimizeOverlayCopy = {
+  title: 'Saving capture…',
+  subtitle: 'No auto enhance — try SpectralGate, Clean pipelines, or effects in the editor.',
+};
+
+/** Overlay copy while post-record enhance runs (capture modes skip the pipeline). */
 export function getOptimizeOverlayCopy(
   mode?: RecordingMode | null,
 ): OptimizeOverlayCopy {
+  if (isPassthroughCaptureMode(mode)) {
+    return LAB_PASSTHROUGH;
+  }
+
   if (mode === 'raw') {
-    return RAW_PASSTHROUGH;
+    return SPECTRAL_GATE_DENOISE;
   }
 
   if (mode === 'instrument') {
     return INSTRUMENT_CLEAN;
   }
 
-  // instrument-3 shows generic enhancing copy (no hint it's unprocessed)
   return ON_DEVICE_ENHANCING;
 }

@@ -12,6 +12,7 @@ import {
   RECORDING_MODE_OPTIONS,
   type RecordingMode,
 } from '@/features/audio/types/recording-mode';
+import { logRecorderMode } from '@/features/audio/domain/recorder-mode-log';
 
 type RecordingModePickerProps = {
   visible: boolean;
@@ -45,7 +46,7 @@ export function RecordingModePicker({
           <View style={styles.header}>
             <Text style={styles.title}>What are you recording?</Text>
             <Text style={styles.subtitle}>
-              Choose a mode for enhance, or Raw for an unprocessed capture.
+              Enhance modes polish after capture. Capture A auto-gates; Gate Lab lets you A/B Mild / Current / Strong.
             </Text>
           </View>
 
@@ -55,9 +56,7 @@ export function RecordingModePicker({
                 key={option.id}
                 disabled={!option.available}
                 onPress={() => {
-                  console.warn(
-                    `[Recorder] Mode selected: id="${option.id}" label="${option.label}" available=${option.available}`,
-                  );
+                  logRecorderMode('Recorded', option.id);
                   onSelect(option.id);
                 }}
                 style={({ pressed }) => [

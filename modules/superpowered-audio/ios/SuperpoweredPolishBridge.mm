@@ -74,6 +74,7 @@
 
 + (NSString *)spectralCleanFileAtPath:(NSString *)inputPath
                        outputWavPath:(NSString *)outputWavPath
+                           intensity:(NSString *)intensity
                                error:(NSError **)error {
   NSString *input = inputPath;
   if ([input hasPrefix:@"file://"]) {
@@ -85,7 +86,14 @@
     output = [output substringFromIndex:7];
   }
 
-  const int code = SpectralClean_processFile([input UTF8String], [output UTF8String]);
+  NSString *resolvedIntensity =
+    intensity.length > 0 ? intensity : @"current";
+
+  const int code = SpectralClean_processFile(
+    [input UTF8String],
+    [output UTF8String],
+    [resolvedIntensity UTF8String]
+  );
   if (code != 0) {
     if (error) {
       const char *message = SpectralClean_lastError();

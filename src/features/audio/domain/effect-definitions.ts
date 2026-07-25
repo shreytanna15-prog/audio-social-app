@@ -217,11 +217,7 @@ export type DefaultEffectParamsContext = {
 function resolveDenoiseDefaultStrength(
   recordingMode?: RecordingMode | null,
 ): 'light' | 'medium' | 'strong' {
-  if (
-    recordingMode === 'instrument' ||
-    recordingMode === 'instrument-3' ||
-    recordingMode === 'mixed'
-  ) {
+  if (recordingMode === 'instrument' || recordingMode === 'mixed') {
     return 'light';
   }
 

@@ -95,7 +95,16 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
       recordingMode: mode,
     });
 
-    await recordingSessionService.startNewSession(mode, previewUri);
+    try {
+      await recordingSessionService.startNewSession(mode, previewUri);
+    } catch (error) {
+      console.warn('[Recorder] Failed to start capture session.', error);
+      await recordingSessionService.abortSession(true, null);
+      set({
+        meteringBars: Array(METERING_BAR_COUNT).fill(0.15),
+        ...IDLE_RECORDING_STATE,
+      });
+    }
   },
 
   handleMainAction: async () => {

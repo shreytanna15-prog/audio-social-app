@@ -64,7 +64,11 @@ extern "C" const char *SpectralClean_lastStats(void) {
   return gLastStats;
 }
 
-extern "C" int SpectralClean_processFile(const char *inputPath, const char *outputWavPath) {
+extern "C" int SpectralClean_processFile(
+  const char *inputPath,
+  const char *outputWavPath,
+  const char *intensity
+) {
   const auto startedAt = std::chrono::steady_clock::now();
   setStats(nullptr);
 
@@ -143,7 +147,12 @@ extern "C" int SpectralClean_processFile(const char *inputPath, const char *outp
     return 6;
   }
 
-  const SpectralGateParams params = SpectralGate_instrumentDefaults();
+  const SpectralGateParams params = SpectralGate_defaultsForIntensity(intensity);
+  const char *intensityLabel =
+    (intensity != nullptr && std::strcmp(intensity, "mild") == 0) ? "mild"
+    : (intensity != nullptr && std::strcmp(intensity, "strong") == 0) ? "strong"
+    : "current";
+
   SpectralGateStats gateStats = {};
   if (!SpectralGate_processMonoInPlace(mono.data(), mono.size(), samplerate, &params, &gateStats)) {
     setError("Spectral gate failed.");
@@ -181,9 +190,10 @@ extern "C" int SpectralClean_processFile(const char *inputPath, const char *outp
   std::snprintf(
     statsBuffer,
     sizeof(statsBuffer),
-    "strategy=interference-soften prop_decrease=%.2f hiss_prop=%.2f hiss_hz=%.0f-%.0f "
+    "strategy=interference-soften intensity=%s prop_decrease=%.2f hiss_prop=%.2f hiss_hz=%.0f-%.0f "
     "scale=%.1f rise_alpha=%.4f thresh=%.1f peak_target=%.2f gain=%.2f peak_before=%.3f peak_after=%.3f "
     "frames=%u transients=%u duration_ms=%lld",
+    intensityLabel,
     gateStats.propDecrease,
     params.hissPropDecrease,
     params.hissStartHz,

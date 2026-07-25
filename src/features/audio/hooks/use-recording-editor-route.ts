@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react";
 
 import { discardPreviewRecording } from "@/features/audio/data/recording-repository";
 import { resolvePristineRecordingUri } from "@/features/audio/utils/recording-paths";
+import { isKnownRecordingMode } from "@/features/audio/types/recording-mode";
 
 import type { RecordingEditorRouteParams } from "@/features/audio/types/recording-editor-route";
 import type { RecordingEditorProps } from "@/features/audio/types/recording-editor";
@@ -101,13 +102,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const editorRecordingMode = (() => {
     const rawMode = Array.isArray(recordingMode) ? recordingMode[0] : recordingMode;
 
-    if (
-      rawMode === 'speech' ||
-      rawMode === 'instrument' ||
-      rawMode === 'instrument-3' ||
-      rawMode === 'mixed' ||
-      rawMode === 'raw'
-    ) {
+    if (isKnownRecordingMode(rawMode)) {
       return rawMode;
     }
 

@@ -54,8 +54,8 @@ function wantsMp3(outputUri: string): boolean {
  * Shared Superpowered Clean polish (Phase 3).
  * Speech: HPF → 7-band EQ → de-esser → auto-threshold comp → limiter
  *   (DeepFilter runs in JS before this for speech mode).
- * Instrument / mixed: HPF → soft EQ → soft auto-threshold comp → limiter
- *   (Instrument: JS runs interference-soften before this; mixed may use light de-esser).
+ * Instrument / mixed: near-flat HPF → soft auto-threshold comp → limiter
+ *   (mixed may use light de-esser / presence EQ).
  * Delay/reverb: use editor effects after Clean (not auto-applied).
  * If output is .mp3, encodes via FFmpeg. Temp WAV always cleaned in `finally`.
  */

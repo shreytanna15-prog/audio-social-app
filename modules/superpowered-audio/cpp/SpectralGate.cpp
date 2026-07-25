@@ -126,6 +126,38 @@ SpectralGateParams SpectralGate_instrumentDefaults(void) {
   return p;
 }
 
+SpectralGateParams SpectralGate_mildDefaults(void) {
+  SpectralGateParams p = SpectralGate_instrumentDefaults();
+  p.propDecrease = 0.60f;
+  p.scaleFactor = 1.40f;
+  p.hissStartHz = 4000.0f;
+  p.hissPropDecrease = 0.80f;
+  p.transientThreshold = 2.0f;
+  return p;
+}
+
+SpectralGateParams SpectralGate_strongDefaults(void) {
+  SpectralGateParams p = SpectralGate_instrumentDefaults();
+  p.propDecrease = 0.88f;
+  p.scaleFactor = 1.85f;
+  p.hissStartHz = 2500.0f;
+  p.hissPropDecrease = 0.96f;
+  return p;
+}
+
+SpectralGateParams SpectralGate_defaultsForIntensity(const char *intensity) {
+  if (intensity != nullptr) {
+    if (std::strcmp(intensity, "mild") == 0) {
+      return SpectralGate_mildDefaults();
+    }
+    if (std::strcmp(intensity, "strong") == 0) {
+      return SpectralGate_strongDefaults();
+    }
+  }
+  // "current", null, unknown → today's Capture A defaults
+  return SpectralGate_instrumentDefaults();
+}
+
 bool SpectralGate_processMonoInPlace(
   float *samples,
   size_t frameCount,

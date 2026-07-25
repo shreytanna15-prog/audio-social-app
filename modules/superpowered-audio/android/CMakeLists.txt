@@ -6,24 +6,25 @@ project(superpowered-polish)
 get_filename_component(MODULE_ANDROID_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
 get_filename_component(REPO_ROOT "${MODULE_ANDROID_DIR}/../../.." ABSOLUTE)
 set(SUPERPOWERED_DIR "${REPO_ROOT}/native/superpowered")
+set(MODULE_CPP_DIR "${MODULE_ANDROID_DIR}/../cpp")
 
 if(NOT EXISTS "${SUPERPOWERED_DIR}/include/Superpowered.h")
   message(FATAL_ERROR "Superpowered SDK not found at ${SUPERPOWERED_DIR}. See native/superpowered/README.md")
 endif()
 
 include_directories(
-  ${MODULE_ANDROID_DIR}/../cpp
+  ${MODULE_CPP_DIR}
   ${SUPERPOWERED_DIR}/include
 )
 
 add_library(
   superpowered-polish
   SHARED
-  ${MODULE_ANDROID_DIR}/../cpp/SuperpoweredPolish.cpp
-  ${MODULE_ANDROID_DIR}/../cpp/SuperpoweredEffects.cpp
-  ${MODULE_ANDROID_DIR}/../cpp/SpectralClean.cpp
-  ${MODULE_ANDROID_DIR}/../cpp/SpectralGate.cpp
-  ${MODULE_ANDROID_DIR}/../cpp/SuperpoweredPolishJNI.cpp
+  ${MODULE_CPP_DIR}/SuperpoweredPolish.cpp
+  ${MODULE_CPP_DIR}/SuperpoweredEffects.cpp
+  ${MODULE_CPP_DIR}/SpectralClean.cpp
+  ${MODULE_CPP_DIR}/SpectralGate.cpp
+  ${MODULE_CPP_DIR}/SuperpoweredPolishJNI.cpp
 )
 
 find_library(log-lib log)

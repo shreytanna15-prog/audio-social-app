@@ -1,18 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
+import { isKnownRecordingMode } from '@/features/audio/types/recording-mode';
 import type { RecordingMode } from '@/features/audio/types/recording-mode';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
 
 function parseRecordingModeParam(value: RecordingMode | null): RecordingMode | undefined {
-  // All known modes pass through so the editor can adjust defaults.
-  if (
-    value === 'speech' ||
-    value === 'instrument' ||
-    value === 'instrument-3' ||
-    value === 'mixed' ||
-    value === 'raw'
-  ) {
+  if (isKnownRecordingMode(value)) {
     return value;
   }
 

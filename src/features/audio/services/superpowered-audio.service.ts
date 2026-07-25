@@ -27,6 +27,7 @@ type SuperpoweredNativeModule = {
   spectralCleanProcessFile?: (
     inputUri: string,
     outputUri: string,
+    intensity?: string | null,
   ) => Promise<SpectralCleanProcessResult>;
   processEffectsFile?: (
     inputUri: string,
@@ -134,6 +135,7 @@ export async function processFileWithSuperpowered(
 export async function processFileWithSpectralClean(
   inputUri: string,
   outputUri: string,
+  intensity?: string | null,
 ): Promise<SpectralCleanProcessResult> {
   const module = resolveNativeModule();
   if (module == null) {
@@ -153,7 +155,7 @@ export async function processFileWithSpectralClean(
     }
   }
 
-  return module.spectralCleanProcessFile(inputUri, outputUri);
+  return module.spectralCleanProcessFile(inputUri, outputUri, intensity ?? 'current');
 }
 
 export async function processFileWithSuperpoweredEffects(

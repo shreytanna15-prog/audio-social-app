@@ -9,16 +9,21 @@ extern "C" {
  * Instrument JS path runs Superpowered light polish after this.
  * Requires SuperpoweredPolish_initialize first.
  * Paths may include a file:// prefix.
+ * @param intensity Optional: "mild" | "current" | "strong" (null/unknown → current).
  * Returns 0 on success, non-zero error code on failure.
  */
-int SpectralClean_processFile(const char *inputPath, const char *outputWavPath);
+int SpectralClean_processFile(
+  const char *inputPath,
+  const char *outputWavPath,
+  const char *intensity
+);
 
 /** Human-readable last error (valid until next SpectralClean call). */
 const char *SpectralClean_lastError(void);
 
 /**
  * Last successful run summary, e.g.
- * "strategy=interference-soften prop_decrease=0.68 hiss_prop=0.90 hiss_hz=4000-9000 ..."
+ * "strategy=interference-soften intensity=current prop_decrease=0.68 ..."
  * Valid until next SpectralClean_processFile call.
  */
 const char *SpectralClean_lastStats(void);

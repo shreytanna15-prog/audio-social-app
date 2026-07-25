@@ -16,7 +16,7 @@ export const SUPERPOWERED_POLISH_PRESETS: SuperpoweredPolishPreset[] = [
 export function resolvePolishPresetForMode(
   mode: RecordingMode,
 ): SuperpoweredPolishPreset {
-  if (mode === 'instrument' || mode === 'instrument-3') {
+  if (mode === 'instrument') {
     return 'instrument-clean';
   }
   if (mode === 'mixed') {

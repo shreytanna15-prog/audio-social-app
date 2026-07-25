@@ -6,7 +6,7 @@ export type SpeechOptimizeStrategy =
 
 /**
  * Instrument / mixed Clean strategies.
- * Instrument default: interference-soften → instrument-clean polish.
+ * Instrument / mixed default: Superpowered polish only (instrument-clean / mixed-clean).
  */
 export type NonSpeechOptimizeStrategy =
   | 'interference-soften + instrument-clean'

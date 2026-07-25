@@ -306,20 +306,14 @@ PolishPreset resolvePreset(const char *preset) {
   speech.limiterReleaseSec = 0.05f;
   speech.useNoiseGate = false;
 
-  // Instrument Clean: after hiss-focused soften — tame leftover HF air/hiss.
+  // Instrument Clean: near-flat tone, light dynamics (+ make-up into limiter).
   PolishPreset instrument = {};
   fillDefaultEqBands(&instrument);
-  instrument.highpassHz = 55.0f;
-  instrument.eqGainDb[0] = -1.5f;  // rumble / boom
-  instrument.eqGainDb[1] = -1.0f;  // boxiness
-  instrument.eqGainDb[3] = 0.25f;
-  instrument.eqGainDb[4] = 0.15f;  // almost flat presence
-  instrument.eqGainDb[5] = -1.5f;  // tame hiss / air
-  instrument.eqGainDb[6] = -2.5f;  // more HF hiss cut
-  instrument.hiShelfGainDb = -3.0f;
+  instrument.highpassHz = 45.0f;  // rumble only; EQ bands stay flat (0 dB)
+  instrument.hiShelfGainDb = 0.0f;
   instrument.useAutoThreshold = true;
   instrument.autoThresholdDiffDb = -10.0f;
-  instrument.compInputGainDb = 0.25f;
+  instrument.compInputGainDb = 2.0f;
   instrument.compThresholdDb = -18.0f;
   instrument.compRatio = 1.8f;
   instrument.compAttackSec = 0.020f;

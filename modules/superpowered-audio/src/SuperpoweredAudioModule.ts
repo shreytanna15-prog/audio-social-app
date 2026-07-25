@@ -18,6 +18,7 @@ type SuperpoweredAudioNativeModule = {
   spectralCleanProcessFile(
     inputUri: string,
     outputUri: string,
+    intensity?: string | null,
   ): Promise<SpectralCleanProcessResult>;
   processEffectsFile(
     inputUri: string,

@@ -11,9 +11,10 @@ NS_ASSUME_NONNULL_BEGIN
                                  preset:(NSString *)preset
                                   error:(NSError *_Nullable *_Nullable)error;
 
-/** Phase 2: decode → PCM passthrough → WAV (no polish). */
+/** Soft spectral mask → WAV. intensity: mild | current | strong (nil → current). */
 + (NSString *_Nullable)spectralCleanFileAtPath:(NSString *)inputPath
                                 outputWavPath:(NSString *)outputWavPath
+                                    intensity:(NSString *_Nullable)intensity
                                         error:(NSError *_Nullable *_Nullable)error;
 
 /** Editor effects: reverb / echo / modulate / enhance → WAV. */

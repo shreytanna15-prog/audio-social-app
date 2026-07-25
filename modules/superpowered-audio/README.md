@@ -4,40 +4,26 @@ Offline Clean engine (post-record):
 
 - **Speech (`speech-clean`):** HPF → 7-band EQ → de-esser → auto-threshold compressor → limiter  
   (DeepFilter runs in JS before this for speech mode)
-- **Instrument (`instrument-clean`):** interference-soften (spectral soft mask) → light HPF / EQ / soft compressor / limiter  
+- **Instrument (`instrument-clean`):** light HPF / EQ / soft compressor / limiter
   (no DeepFilter, no hard gate)
 - **Mixed (`mixed-clean`):** soft polish bed + light de-esser  
-  (no spectral soften by default)
 
 Editor effects (offline file process):
 
 - **reverb / echo / modulate / enhance** via `processEffectsFile`
 - **denoise** via DeepFilter in JS, then optional Superpowered chain
-- FFmpeg is used only to encode WAV → M4A when needed
+- FFmpeg is used only to encode WAV → MP3 when needed
 
 ## JS API
 
 ```ts
-import { polishRecordingWithSuperpowered } from '@/module/audio/services/superpowered-polish.service';
-import { processFileWithSuperpoweredEffects } from '@/module/audio/services/superpowered-audio.service';
+import { polishRecordingWithSuperpowered } from '@/features/audio/services/superpowered-polish.service';
 
 await polishRecordingWithSuperpowered({
   inputUri,
   outputUri,
   mode: 'instrument', // resolves to instrument-clean
 });
-
-await processFileWithSuperpoweredEffects(
-  inputUri,
-  outputWavUri,
-  JSON.stringify([{ id: 'reverb', params: { roomSize: 2, amount: 50 } }]),
-);
-```
-
-Instrument optimize (via `recording-optimize.service`) runs:
-
-```text
-record → interference-soften (SpectralClean) → instrument-clean polish → preview
 ```
 
 ## License key
@@ -59,5 +45,7 @@ native/superpowered/ios/libSuperpoweredAudio.xcframework
 Native C++ changes need a native rebuild:
 
 ```sh
-npx expo run:android --device
+npm run android:dev
+# or
+npx expo run:ios
 ```

@@ -4,9 +4,9 @@ import type { AudioRecording } from '@/features/audio/types/audio';
 
 const RECORDINGS_FOLDER = 'recordings';
 const INDEX_FILE = 'index.json';
-const ORIGINAL_FILE = 'original.mp3';
-const SOURCE_FILE = 'source.mp3';
 export const PENDING_FOLDER = '_pending';
+
+export type RecordingAudioExtension = 'mp3' | 'wav' | 'm4a';
 
 function requireDocumentDirectory(): string {
   if (!documentDirectory) {
@@ -14,6 +14,28 @@ function requireDocumentDirectory(): string {
   }
 
   return documentDirectory;
+}
+
+export function extensionFromUri(uri: string): RecordingAudioExtension {
+  const lower = uri.toLowerCase().split('?')[0] ?? uri.toLowerCase();
+
+  if (lower.endsWith('.wav')) {
+    return 'wav';
+  }
+
+  if (lower.endsWith('.m4a') || lower.endsWith('.mp4') || lower.endsWith('.aac')) {
+    return 'm4a';
+  }
+
+  return 'mp3';
+}
+
+function originalFileName(extension: RecordingAudioExtension): string {
+  return `original.${extension}`;
+}
+
+function sourceFileName(extension: RecordingAudioExtension): string {
+  return `source.${extension}`;
 }
 
 export function getRecordingsRoot(): string {
@@ -28,20 +50,32 @@ export function getRecordingDirectory(id: string): string {
   return `${getRecordingsRoot()}${id}/`;
 }
 
-export function getRecordingFileUri(id: string): string {
-  return `${getRecordingDirectory(id)}${ORIGINAL_FILE}`;
+export function getRecordingFileUri(
+  id: string,
+  extension: RecordingAudioExtension = 'mp3',
+): string {
+  return `${getRecordingDirectory(id)}${originalFileName(extension)}`;
 }
 
-export function getRecordingRelativePath(id: string): string {
-  return `${RECORDINGS_FOLDER}/${id}/${ORIGINAL_FILE}`;
+export function getRecordingRelativePath(
+  id: string,
+  extension: RecordingAudioExtension = 'mp3',
+): string {
+  return `${RECORDINGS_FOLDER}/${id}/${originalFileName(extension)}`;
 }
 
-export function getRecordingSourceFileUri(id: string): string {
-  return `${getRecordingDirectory(id)}${SOURCE_FILE}`;
+export function getRecordingSourceFileUri(
+  id: string,
+  extension: RecordingAudioExtension = 'mp3',
+): string {
+  return `${getRecordingDirectory(id)}${sourceFileName(extension)}`;
 }
 
-export function getRecordingSourceRelativePath(id: string): string {
-  return `${RECORDINGS_FOLDER}/${id}/${SOURCE_FILE}`;
+export function getRecordingSourceRelativePath(
+  id: string,
+  extension: RecordingAudioExtension = 'mp3',
+): string {
+  return `${RECORDINGS_FOLDER}/${id}/${sourceFileName(extension)}`;
 }
 
 export function resolvePristineRecordingUri(
@@ -58,8 +92,11 @@ export function getPendingDirectory(): string {
   return `${getRecordingsRoot()}${PENDING_FOLDER}/`;
 }
 
-export function getPendingRecordingUri(pendingId: string): string {
-  return `${getPendingDirectory()}${pendingId}.mp3`;
+export function getPendingRecordingUri(
+  pendingId: string,
+  extension: RecordingAudioExtension = 'mp3',
+): string {
+  return `${getPendingDirectory()}${pendingId}.${extension}`;
 }
 
 const PROCESSED_FOLDER = '_processed';

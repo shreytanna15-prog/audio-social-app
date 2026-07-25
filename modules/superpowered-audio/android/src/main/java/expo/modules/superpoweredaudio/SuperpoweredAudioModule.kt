@@ -48,6 +48,7 @@ class SuperpoweredAudioModule : Module() {
   private external fun nativeSpectralCleanProcessFile(
     inputUri: String,
     outputUri: String,
+    intensity: String?,
   ): String
 
   private external fun nativeProcessEffectsFile(
@@ -99,7 +100,7 @@ class SuperpoweredAudioModule : Module() {
       }
     }
 
-    AsyncFunction("spectralCleanProcessFile") { inputUri: String, outputUri: String ->
+    AsyncFunction("spectralCleanProcessFile") { inputUri: String, outputUri: String, intensity: String? ->
       if (!initialized) {
         throw NotInitializedException()
       }
@@ -110,8 +111,10 @@ class SuperpoweredAudioModule : Module() {
         parent.mkdirs()
       }
 
+      val resolvedIntensity = intensity?.takeIf { it.isNotBlank() } ?: "current"
+
       try {
-        val stats = nativeSpectralCleanProcessFile(inputUri, outputUri)
+        val stats = nativeSpectralCleanProcessFile(inputUri, outputUri, resolvedIntensity)
         val strategy = if (stats.contains("strategy=")) {
           Regex("""strategy=([^\s]+)""").find(stats)?.groupValues?.getOrNull(1)
             ?: "interference-soften"

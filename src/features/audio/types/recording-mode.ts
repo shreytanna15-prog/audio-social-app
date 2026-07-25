@@ -1,9 +1,11 @@
 export type RecordingMode =
   | "speech"
   | "instrument"
-  | "instrument-3"
   | "mixed"
-  | "raw";
+  | "raw"
+  | "gate-lab"
+  | "swm-wav"
+  | "nitro-m4a";
 
 export type RecordingModeOption = {
   id: RecordingMode;
@@ -22,14 +24,7 @@ export const RECORDING_MODE_OPTIONS: RecordingModeOption[] = [
   {
     id: "instrument",
     label: "Instrument - Adaptive",
-    description:
-      "Spectral gate with adaptive noise tracking for guitar & piano.",
-    available: true,
-  },
-  {
-    id: "instrument-3",
-    label: "Instrument - Quick",
-    description: "Quick light polish for guitar & piano.",
+    description: "Light Superpowered polish for guitar & piano.",
     available: true,
   },
   {
@@ -38,4 +33,52 @@ export const RECORDING_MODE_OPTIONS: RecordingModeOption[] = [
     description: "Soft Clean polish for voice and instrument together.",
     available: true,
   },
+  {
+    id: "raw",
+    label: "Capture A: Expo WAV",
+    description: "Expo PCM capture, then SpectralGate denoise before preview.",
+    available: true,
+  },
+  {
+    id: "gate-lab",
+    label: "Gate Lab: PCM bake-off",
+    description: "Expo PCM only. In editor, try Mild / Current / Strong SpectralGate.",
+    available: true,
+  },
+  {
+    id: "swm-wav",
+    label: "Capture SWM: WAV",
+    description: "Software Mansion AudioRecorder → WAV, no auto enhance.",
+    available: true,
+  },
+  {
+    id: "nitro-m4a",
+    label: "Capture Nitro: M4A",
+    description: "Nitro Sound compressed capture, no auto enhance.",
+    available: true,
+  },
 ];
+
+/** Modes that stage without Clean / auto SpectralGate (editor A/B only). */
+export function isPassthroughCaptureMode(mode: RecordingMode | null | undefined): boolean {
+  return mode === "gate-lab" || mode === "swm-wav" || mode === "nitro-m4a";
+}
+
+/** Modes that keep the capture file extension (WAV / M4A / MP4) instead of MP3. */
+export function keepsSourceExtension(mode: RecordingMode | null | undefined): boolean {
+  return mode === "raw" || isPassthroughCaptureMode(mode);
+}
+
+export function isKnownRecordingMode(
+  value: string | null | undefined,
+): value is RecordingMode {
+  return (
+    value === "speech" ||
+    value === "instrument" ||
+    value === "mixed" ||
+    value === "raw" ||
+    value === "gate-lab" ||
+    value === "swm-wav" ||
+    value === "nitro-m4a"
+  );
+}

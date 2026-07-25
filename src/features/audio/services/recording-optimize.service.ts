@@ -17,13 +17,15 @@ import {
   isSuperpoweredAvailable,
 } from "@/features/audio/services/superpowered-audio.service";
 import type { RecordingMode } from "@/features/audio/types/recording-mode";
+import {
+  isPassthroughCaptureMode,
+  keepsSourceExtension,
+} from "@/features/audio/types/recording-mode";
 import { assertFfmpegAvailable } from "@/features/audio/utils/ffmpeg-availability";
 import { toFileUri } from "@/features/audio/utils/ffmpeg-path";
 
 const SPEECH_SUPERPOWERED_STRATEGY = "deepfilter + speech-clean";
 const INSTRUMENT_CLEAN_STRATEGY = "instrument-clean";
-const INSTRUMENT_SOFTEN_CLEAN_STRATEGY =
-  "interference-soften + instrument-clean";
 const MIXED_CLEAN_STRATEGY = "mixed-clean";
 
 function createTempUri(prefix: string, extension: string): string {
@@ -57,7 +59,10 @@ async function canUseSuperpowered(): Promise<boolean> {
 async function tryPolishWithSuperpowered(input: {
   inputUri: string;
   outputUri: string;
-  mode: Exclude<RecordingMode, "raw">;
+  mode: Exclude<
+    RecordingMode,
+    "raw" | "gate-lab" | "swm-wav" | "nitro-m4a"
+  >;
   preset: SuperpoweredPolishPreset;
 }): Promise<string | null> {
   if (!(await canUseSuperpowered())) {
@@ -140,9 +145,7 @@ async function optimizeSpeechRecordingForPreview(
 }
 
 /**
- * Instrument Clean: interference-soften → light Superpowered polish.
- * Falls back to polish-only if soften is unavailable or fails.
- * Mixed: polish only (no spectral soften).
+ * Instrument / mixed Clean: Superpowered polish only (no spectral soften).
  */
 async function optimizeNonSpeechClean(
   inputUri: string,
@@ -151,10 +154,6 @@ async function optimizeNonSpeechClean(
   preset: "instrument-clean" | "mixed-clean",
   strategy: string,
 ): Promise<{ uri: string; strategy: string }> {
-  if (mode === "instrument") {
-    return optimizeInstrumentWithInterferenceSoften(inputUri, outputUri);
-  }
-
   const superpoweredUri = await tryPolishWithSuperpowered({
     inputUri,
     outputUri,
@@ -174,80 +173,42 @@ async function optimizeNonSpeechClean(
 }
 
 /**
- * Instrument: soft spectral interference soften → light instrument-clean polish.
- * Soften failures fall back to polish-only so capture still produces a usable file.
+ * SpectralGate denoise only (no Clean polish, no FFmpeg).
+ * Used by Capture A (`raw`) before pending.
  */
-async function optimizeInstrumentWithInterferenceSoften(
+export async function optimizeNsSpectralForPreview(
   inputUri: string,
-  outputUri: string,
-): Promise<{ uri: string; strategy: string }> {
-  const softenedWavUri = createTempUri("interference-soften", "wav");
-
-  try {
-    const { softenInstrumentToWav } =
-      await import("@/features/audio/services/spectral-clean.service");
-
-    console.info(
-      "[Optimize] Instrument: interference-soften → instrument-clean.",
+  outputWavUri: string,
+): Promise<string> {
+  if (Platform.OS === "web") {
+    throw new Error(
+      "NS+Spectral optimize is only available on iOS and Android.",
     );
-    const softenResult = await softenInstrumentToWav(inputUri, softenedWavUri);
-    if (softenResult.params) {
-      console.info(`[Optimize] Soften stats ${softenResult.params}`);
-    }
-
-    const polishedUri = await tryPolishWithSuperpowered({
-      inputUri: softenedWavUri,
-      outputUri,
-      mode: "instrument",
-      preset: "instrument-clean",
-    });
-
-    if (!polishedUri) {
-      throw new Error(
-        "Instrument Clean requires Superpowered polish after interference-soften.",
-      );
-    }
-
-    logChosenOptimizeStrategy("instrument", INSTRUMENT_SOFTEN_CLEAN_STRATEGY);
-    console.info(
-      `[Optimize] Applied ${INSTRUMENT_SOFTEN_CLEAN_STRATEGY} (soften → light polish).`,
-    );
-    return { uri: polishedUri, strategy: INSTRUMENT_SOFTEN_CLEAN_STRATEGY };
-  } catch (error) {
-    console.warn(
-      "[Optimize] Interference-soften failed; falling back to instrument-clean polish only.",
-      error,
-    );
-
-    const polishedUri = await tryPolishWithSuperpowered({
-      inputUri,
-      outputUri,
-      mode: "instrument",
-      preset: "instrument-clean",
-    });
-
-    if (!polishedUri) {
-      throw new Error(
-        "Instrument Clean requires Superpowered (HPF → EQ → comp → limiter). Native module unavailable or failed.",
-      );
-    }
-
-    logChosenOptimizeStrategy("instrument", INSTRUMENT_CLEAN_STRATEGY);
-    console.info(
-      `[Optimize] Applied ${INSTRUMENT_CLEAN_STRATEGY} (polish-only fallback).`,
-    );
-    return { uri: polishedUri, strategy: INSTRUMENT_CLEAN_STRATEGY };
-  } finally {
-    await deleteFileIfExists(softenedWavUri);
   }
+
+  const startedAt = Date.now();
+  console.warn(
+    `[Optimize] Branch=SpectralGate only input="${inputUri}"`,
+  );
+
+  const { softenInstrumentToWav } = await import(
+    "@/features/audio/services/spectral-clean.service"
+  );
+
+  const result = await softenInstrumentToWav(inputUri, outputWavUri);
+  logOptimizeDuration("spectral-gate", result.strategy, Date.now() - startedAt);
+  console.warn(
+    `[Optimize] SpectralGate done strategy="${result.strategy}" uri=${result.uri}`,
+  );
+  return result.uri;
 }
 
 /**
  * Post-record enhance for preview/editor.
  * Speech: DeepFilter → speech-clean polish (no FFmpeg denoise fallback).
- * Instrument: interference-soften → light instrument-clean polish.
- * Instrument-3 / Raw: skip (stagePreviewRecording passthrough).
- * Mixed: soft Superpowered Clean only.
+ * Instrument / mixed: light Superpowered Clean polish only.
+ * Raw: SpectralGate only via stagePreviewRecording → optimizeNsSpectralForPreview.
+ * Gate Lab / SWM WAV / Nitro M4A: passthrough staging; SpectralGate + pipelines in the editor.
  * Editor effects: Superpowered (+ DeepFilter for denoise) via audio-effects.service.
  */
 export async function optimizeRecordingForPreview(
@@ -262,9 +223,9 @@ export async function optimizeRecordingForPreview(
     );
   }
 
-  if (mode === "raw" || mode === "instrument-3") {
+  if (keepsSourceExtension(mode) || isPassthroughCaptureMode(mode)) {
     throw new Error(
-      `${mode} mode must skip optimize; use stagePreviewRecording passthrough.`,
+      `${mode} mode must skip optimizeRecordingForPreview; use stagePreviewRecording.`,
     );
   }
 
@@ -285,7 +246,7 @@ export async function optimizeRecordingForPreview(
         outputUri,
         "instrument",
         "instrument-clean",
-        INSTRUMENT_SOFTEN_CLEAN_STRATEGY,
+        INSTRUMENT_CLEAN_STRATEGY,
       );
       strategyLabel = result.strategy;
       logOptimizeDuration("instrument", strategyLabel, Date.now() - startedAt);

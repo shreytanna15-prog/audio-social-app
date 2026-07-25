@@ -72,7 +72,7 @@ public class SuperpoweredAudioModule: Module {
       ]
     }
 
-    AsyncFunction("spectralCleanProcessFile") { (inputUri: String, outputUri: String) -> [String: String] in
+    AsyncFunction("spectralCleanProcessFile") { (inputUri: String, outputUri: String, intensity: String?) -> [String: String] in
       guard self.initialized else {
         throw NotInitializedException()
       }
@@ -81,6 +81,7 @@ public class SuperpoweredAudioModule: Module {
       guard let stats = SuperpoweredPolishBridge.spectralCleanFile(
         atPath: inputUri,
         outputWavPath: outputUri,
+        intensity: intensity,
         error: &error
       ) else {
         throw ProcessFailedException(error?.localizedDescription ?? "Spectral clean failed.")

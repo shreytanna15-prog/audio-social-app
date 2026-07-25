@@ -35,6 +35,11 @@ struct SpectralGateStats {
 };
 
 SpectralGateParams SpectralGate_instrumentDefaults(void);
+SpectralGateParams SpectralGate_mildDefaults(void);
+SpectralGateParams SpectralGate_strongDefaults(void);
+
+/** Resolve mild / current / strong (or null/unknown → current). */
+SpectralGateParams SpectralGate_defaultsForIntensity(const char *intensity);
 
 /**
  * In-place adaptive spectral gate + peak normalize.

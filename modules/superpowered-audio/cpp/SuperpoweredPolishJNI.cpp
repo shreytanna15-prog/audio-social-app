@@ -53,15 +53,21 @@ Java_expo_modules_superpoweredaudio_SuperpoweredAudioModule_nativeSpectralCleanP
   JNIEnv *env,
   jobject /* thiz */,
   jstring inputUri,
-  jstring outputUri
+  jstring outputUri,
+  jstring intensity
 ) {
   const char *input = env->GetStringUTFChars(inputUri, nullptr);
   const char *output = env->GetStringUTFChars(outputUri, nullptr);
+  const char *intensityChars =
+    intensity != nullptr ? env->GetStringUTFChars(intensity, nullptr) : nullptr;
 
-  const int code = SpectralClean_processFile(input, output);
+  const int code = SpectralClean_processFile(input, output, intensityChars);
 
   env->ReleaseStringUTFChars(inputUri, input);
   env->ReleaseStringUTFChars(outputUri, output);
+  if (intensity != nullptr && intensityChars != nullptr) {
+    env->ReleaseStringUTFChars(intensity, intensityChars);
+  }
 
   if (code != 0) {
     const char *error = SpectralClean_lastError();

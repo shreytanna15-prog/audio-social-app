@@ -23,7 +23,11 @@ export default function RecordingScreen() {
   return (
     <>
       <Stack.Screen options={{ title: routeState.editor.isPending ? "New recording" : "Edit recording" }} />
-      <RecordingEditor {...routeState.editor} />
+      {/* Key by take URI so each new recording remounts editor state (Expo reuses /recording/new). */}
+      <RecordingEditor
+        key={routeState.editor.source.pristineUri}
+        {...routeState.editor}
+      />
     </>
   );
 }
