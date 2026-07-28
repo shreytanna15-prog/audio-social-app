@@ -2,31 +2,9 @@ import { File } from "expo-file-system";
 import { documentDirectory } from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
-import {
-  logChosenOptimizeStrategy,
-  logOptimizeDuration,
-} from "@/features/audio/domain/recording-optimize-log";
-import { isShortClip } from "@/features/audio/domain/recording-optimize.constants";
-import type { SuperpoweredPolishPreset } from "@/features/audio/domain/superpowered-polish-presets";
-import {
-  deleteFileIfExists,
-  resolveProcessedFileUri,
-} from "@/features/audio/services/ffmpeg.service";
-import {
-  initSuperpowered,
-  isSuperpoweredAvailable,
-} from "@/features/audio/services/superpowered-audio.service";
-import type { RecordingMode } from "@/features/audio/types/recording-mode";
-import {
-  isPassthroughCaptureMode,
-  keepsSourceExtension,
-} from "@/features/audio/types/recording-mode";
-import { assertFfmpegAvailable } from "@/features/audio/utils/ffmpeg-availability";
+import { logOptimizeDuration } from "@/features/audio/domain/recording-optimize-log";
+import { deleteFileIfExists } from "@/features/audio/services/ffmpeg.service";
 import { toFileUri } from "@/features/audio/utils/ffmpeg-path";
-
-const SPEECH_SUPERPOWERED_STRATEGY = "deepfilter + speech-clean";
-const INSTRUMENT_CLEAN_STRATEGY = "instrument-clean";
-const MIXED_CLEAN_STRATEGY = "mixed-clean";
 
 function createTempUri(prefix: string, extension: string): string {
   if (!documentDirectory) {
@@ -43,135 +21,8 @@ function createTempUri(prefix: string, extension: string): string {
   return uri;
 }
 
-function createTempDenoisedWavUri(): string {
-  return createTempUri("deepfilter-denoised", "wav");
-}
-
-/** Never throws — false when native module missing, init fails, or license missing. */
-async function canUseSuperpowered(): Promise<boolean> {
-  if (!isSuperpoweredAvailable()) {
-    return false;
-  }
-
-  return initSuperpowered();
-}
-
-async function tryPolishWithSuperpowered(input: {
-  inputUri: string;
-  outputUri: string;
-  mode: Exclude<RecordingMode, "raw" | "gate-lab" | "nitro-m4a">;
-  preset: SuperpoweredPolishPreset;
-}): Promise<string | null> {
-  if (!(await canUseSuperpowered())) {
-    console.info(
-      "[Optimize] Superpowered unavailable; skipping native polish.",
-    );
-    return null;
-  }
-
-  try {
-    const { polishRecordingWithSuperpowered } =
-      await import("@/features/audio/services/superpowered-polish.service");
-
-    await polishRecordingWithSuperpowered({
-      inputUri: input.inputUri,
-      outputUri: input.outputUri,
-      mode: input.mode,
-      preset: input.preset,
-    });
-
-    return resolveProcessedFileUri(input.outputUri);
-  } catch (error) {
-    console.warn("[Optimize] Superpowered polish failed.", error);
-    return null;
-  }
-}
-
 /**
- * Speech path: DeepFilterNet denoise → Superpowered speech polish.
- * No FFmpeg denoise/polish fallback — caller passthroughs raw on failure.
- */
-async function optimizeSpeechRecordingForPreview(
-  inputUri: string,
-  outputUri: string,
-): Promise<{ uri: string; strategy: string }> {
-  const {
-    isDeepFilterDenoiseAvailable,
-    denoiseRecordingWithDeepFilter,
-  } = await import("@/features/audio/services/deepfilter-denoise.service");
-
-  if (!(await isDeepFilterDenoiseAvailable())) {
-    throw new Error(
-      "DeepFilterNet unavailable. Speech optimize requires on-device DeepFilter.",
-    );
-  }
-
-  const denoisedWavUri = createTempDenoisedWavUri();
-
-  try {
-    console.info("[Optimize] Trying DeepFilterNet denoise.");
-    await denoiseRecordingWithDeepFilter(
-      inputUri,
-      denoisedWavUri,
-      (progress) => {
-        if (progress % 25 === 0) {
-          console.info(`[Optimize] DeepFilter progress ${progress}%`);
-        }
-      },
-    );
-
-    const superpoweredUri = await tryPolishWithSuperpowered({
-      inputUri: denoisedWavUri,
-      outputUri,
-      mode: "speech",
-      preset: "speech-clean",
-    });
-
-    if (!superpoweredUri) {
-      throw new Error(
-        "Speech Clean requires Superpowered polish after DeepFilter.",
-      );
-    }
-
-    logChosenOptimizeStrategy("speech", SPEECH_SUPERPOWERED_STRATEGY);
-    console.info(`[Optimize] Applied ${SPEECH_SUPERPOWERED_STRATEGY}.`);
-    return { uri: superpoweredUri, strategy: SPEECH_SUPERPOWERED_STRATEGY };
-  } finally {
-    await deleteFileIfExists(denoisedWavUri);
-  }
-}
-
-/**
- * Instrument / mixed Clean: Superpowered polish only (no spectral soften).
- */
-async function optimizeNonSpeechClean(
-  inputUri: string,
-  outputUri: string,
-  mode: "instrument" | "mixed",
-  preset: "instrument-clean" | "mixed-clean",
-  strategy: string,
-): Promise<{ uri: string; strategy: string }> {
-  const superpoweredUri = await tryPolishWithSuperpowered({
-    inputUri,
-    outputUri,
-    mode,
-    preset,
-  });
-
-  if (!superpoweredUri) {
-    throw new Error(
-      `${mode} Clean requires Superpowered (HPF → EQ → comp → limiter). Native module unavailable or failed.`,
-    );
-  }
-
-  logChosenOptimizeStrategy(mode, strategy);
-  console.info(`[Optimize] Applied ${strategy} (Voloco-Clean soft polish).`);
-  return { uri: superpoweredUri, strategy };
-}
-
-/**
- * SpectralGate denoise only (no Clean polish, no FFmpeg).
- * Used by Capture A (`raw`) before pending.
+ * Soft SpectralGate (mild) denoise for record/import staging.
  */
 export async function optimizeNsSpectralForPreview(
   inputUri: string,
@@ -185,7 +36,7 @@ export async function optimizeNsSpectralForPreview(
 
   const startedAt = Date.now();
   console.warn(
-    `[Optimize] Branch=SpectralGate only input="${inputUri}"`,
+    `[Optimize] Branch=SpectralGate soft/mild input="${inputUri}"`,
   );
 
   const { softenInstrumentToWav } = await import(
@@ -200,19 +51,12 @@ export async function optimizeNsSpectralForPreview(
   return result.uri;
 }
 
-/**
- * Post-record enhance for preview/editor.
- * Speech: DeepFilter → speech-clean polish (no FFmpeg denoise fallback).
- * Instrument / mixed: light Superpowered Clean polish only.
- * Raw: SpectralGate only via stagePreviewRecording → optimizeNsSpectralForPreview.
- * Gate Lab / Nitro M4A: passthrough staging; SpectralGate + pipelines in the editor.
- * Editor effects: Superpowered (+ DeepFilter for denoise) via audio-effects.service.
- */
+/** @deprecated Legacy Clean pipelines — prefer applyEditChain. Kept for any stray callers. */
 export async function optimizeRecordingForPreview(
   inputUri: string,
   outputUri: string,
-  mode: RecordingMode = "speech",
-  durationSeconds?: number,
+  mode: "speech" | "instrument" | "mixed" = "speech",
+  _durationSeconds?: number,
 ): Promise<string> {
   if (Platform.OS === "web") {
     throw new Error(
@@ -220,67 +64,49 @@ export async function optimizeRecordingForPreview(
     );
   }
 
-  if (keepsSourceExtension(mode) || isPassthroughCaptureMode(mode)) {
-    throw new Error(
-      `${mode} mode must skip optimizeRecordingForPreview; use stagePreviewRecording.`,
-    );
+  const {
+    initSuperpowered,
+    isSuperpoweredAvailable,
+  } = await import("@/features/audio/services/superpowered-audio.service");
+
+  if (!isSuperpoweredAvailable() || !(await initSuperpowered())) {
+    throw new Error("Superpowered unavailable for legacy Clean pipeline.");
   }
 
-  const startedAt = Date.now();
-  const shortClip = isShortClip(durationSeconds);
-  let strategyLabel = String(mode);
+  const { polishRecordingWithSuperpowered } = await import(
+    "@/features/audio/services/superpowered-polish.service"
+  );
 
-  try {
-    console.warn(
-      `[Optimize] start mode="${mode}" duration=${durationSeconds?.toFixed(2) ?? "unknown"}s shortClip=${shortClip}`,
-    );
+  if (mode === "speech") {
+    const {
+      isDeepFilterDenoiseAvailable,
+      denoiseRecordingWithDeepFilter,
+    } = await import("@/features/audio/services/deepfilter-denoise.service");
 
-    if (mode === "instrument") {
-      console.warn("[Optimize] Branch=instrument (no DeepFilter)");
-      assertFfmpegAvailable();
-      const result = await optimizeNonSpeechClean(
-        inputUri,
-        outputUri,
-        "instrument",
-        "instrument-clean",
-        INSTRUMENT_CLEAN_STRATEGY,
-      );
-      strategyLabel = result.strategy;
-      logOptimizeDuration("instrument", strategyLabel, Date.now() - startedAt);
-      return result.uri;
+    if (!(await isDeepFilterDenoiseAvailable())) {
+      throw new Error("DeepFilterNet unavailable for speech Clean.");
     }
 
-    if (mode === "mixed") {
-      console.warn("[Optimize] Branch=mixed (no DeepFilter)");
-      assertFfmpegAvailable();
-      const result = await optimizeNonSpeechClean(
-        inputUri,
+    const denoisedWavUri = createTempUri("deepfilter-denoised", "wav");
+    try {
+      await denoiseRecordingWithDeepFilter(inputUri, denoisedWavUri);
+      await polishRecordingWithSuperpowered({
+        inputUri: denoisedWavUri,
         outputUri,
-        "mixed",
-        "mixed-clean",
-        MIXED_CLEAN_STRATEGY,
-      );
-      strategyLabel = result.strategy;
-      logOptimizeDuration("mixed", strategyLabel, Date.now() - startedAt);
-      return result.uri;
+        mode: "speech",
+        preset: "speech-clean",
+      });
+    } finally {
+      await deleteFileIfExists(denoisedWavUri);
     }
-
-    console.warn("[Optimize] Branch=speech → DeepFilter path");
-    assertFfmpegAvailable();
-
-    const result = await optimizeSpeechRecordingForPreview(
+  } else {
+    await polishRecordingWithSuperpowered({
       inputUri,
       outputUri,
-    );
-    strategyLabel = result.strategy;
-    logOptimizeDuration("speech", strategyLabel, Date.now() - startedAt);
-    return result.uri;
-  } catch (error) {
-    logOptimizeDuration(mode, `error:${strategyLabel}`, Date.now() - startedAt);
-    console.warn(
-      `[Optimize] ${mode} enhance failed after ${Date.now() - startedAt}ms.`,
-      error,
-    );
-    throw error;
+      mode,
+      preset: mode === "instrument" ? "instrument-clean" : "mixed-clean",
+    });
   }
+
+  return outputUri;
 }

@@ -99,6 +99,11 @@ export function getPendingRecordingUri(
   return `${getPendingDirectory()}${pendingId}.${extension}`;
 }
 
+/** Pre-soft-gate WAV kept alongside pending for Clean Voice + save source backup. */
+export function getPendingSourceUri(pendingId: string): string {
+  return `${getPendingDirectory()}${pendingId}-source.wav`;
+}
+
 const PROCESSED_FOLDER = '_processed';
 
 export function getProcessedDirectory(): string {
@@ -106,5 +111,5 @@ export function getProcessedDirectory(): string {
 }
 
 export function getProcessedRecordingUri(effectId: string, fileId: string): string {
-  return `${getProcessedDirectory()}${fileId}-${effectId}.mp3`;
+  return `${getProcessedDirectory()}${fileId}-${effectId}.wav`;
 }

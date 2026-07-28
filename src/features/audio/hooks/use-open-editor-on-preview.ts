@@ -1,24 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
-import { isKnownRecordingMode } from '@/features/audio/types/recording-mode';
-import type { RecordingMode } from '@/features/audio/types/recording-mode';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
-
-function parseRecordingModeParam(value: RecordingMode | null): RecordingMode | undefined {
-  if (isKnownRecordingMode(value)) {
-    return value;
-  }
-
-  return undefined;
-}
 
 export function useOpenEditorOnPreview(): void {
   const router = useRouter();
   const status = useAudioSessionStore((state) => state.status);
   const previewUri = useAudioSessionStore((state) => state.previewUri);
+  const sourcePreGateUri = useAudioSessionStore((state) => state.sourcePreGateUri);
   const timerSeconds = useAudioSessionStore((state) => state.timerSeconds);
-  const recordingMode = useAudioSessionStore((state) => state.recordingMode);
   const handoffToEditor = useAudioSessionStore((state) => state.handoffToEditor);
   const isNavigatingRef = useRef(false);
 
@@ -35,8 +25,8 @@ export function useOpenEditorOnPreview(): void {
     isNavigatingRef.current = true;
 
     const uri = previewUri;
+    const sourceUri = sourcePreGateUri ?? '';
     const duration = String(timerSeconds);
-    const modeParam = parseRecordingModeParam(recordingMode);
 
     handoffToEditor();
 
@@ -46,8 +36,15 @@ export function useOpenEditorOnPreview(): void {
         id: 'new',
         uri,
         duration,
-        ...(modeParam ? { recordingMode: modeParam } : {}),
+        ...(sourceUri ? { sourcePreGateUri: sourceUri } : {}),
       },
     });
-  }, [status, previewUri, timerSeconds, recordingMode, handoffToEditor, router]);
+  }, [
+    status,
+    previewUri,
+    sourcePreGateUri,
+    timerSeconds,
+    handoffToEditor,
+    router,
+  ]);
 }

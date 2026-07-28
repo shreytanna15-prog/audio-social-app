@@ -3,10 +3,6 @@ import { useEffect } from 'react';
 
 import { RECORDING_OPTIONS, recorderService } from '@/features/audio/services/recorder.service';
 import { expoPcmCaptureService } from '@/features/audio/services/expo-pcm-capture.service';
-import { nitroSoundCaptureService } from '@/features/audio/services/nitro-sound-capture.service';
-import {
-  recordingSessionService,
-} from '@/features/audio/services/recording-session.service';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
 
 const CAPTURE_TICK_MS = 100;
@@ -18,7 +14,6 @@ export function useAudioRecorderBinding(): void {
   const initialize = useAudioSessionStore((state) => state.initialize);
   const syncRecorderState = useAudioSessionStore((state) => state.syncRecorderState);
   const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
-  const recordingMode = useAudioSessionStore((state) => state.recordingMode);
 
   useEffect(() => {
     recorderService.bind(audioRecorder);
@@ -33,19 +28,13 @@ export function useAudioRecorderBinding(): void {
   }, [initialize]);
 
   useEffect(() => {
-    const backend = recordingSessionService.getActiveBackend();
-
-    if (!hasActiveSession || backend === 'aac') {
+    if (!hasActiveSession) {
       syncRecorderState(recorderState);
       return;
     }
 
     const interval = setInterval(() => {
-      const tick =
-        backend === 'nitro-sound'
-          ? nitroSoundCaptureService.getTick()
-          : expoPcmCaptureService.getTick();
-
+      const tick = expoPcmCaptureService.getTick();
       syncRecorderState({
         metering: tick.metering,
         durationMillis: tick.durationMillis,
@@ -55,10 +44,5 @@ export function useAudioRecorderBinding(): void {
     return () => {
       clearInterval(interval);
     };
-  }, [
-    hasActiveSession,
-    recordingMode,
-    recorderState,
-    syncRecorderState,
-  ]);
+  }, [hasActiveSession, recorderState, syncRecorderState]);
 }

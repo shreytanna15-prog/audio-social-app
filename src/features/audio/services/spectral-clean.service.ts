@@ -114,7 +114,7 @@ export async function cleanInstrumentRecording(
         `input="${inputUri}"`,
     );
 
-    const nativeResult = await processFileWithSpectralClean(inputUri, wavOutputUri);
+    const nativeResult = await processFileWithSpectralClean(inputUri, wavOutputUri, 'mild');
 
     if (writeMp3) {
       await encodeWavToMp3(wavOutputUri, outputUri);
@@ -171,7 +171,7 @@ export async function softenInstrumentToWav(
       `input="${inputUri}"`,
   );
 
-  const nativeResult = await processFileWithSpectralClean(inputUri, outputWavUri);
+  const nativeResult = await processFileWithSpectralClean(inputUri, outputWavUri, 'mild');
   return {
     uri: resolveProcessedFileUri(outputWavUri),
     strategy: SPECTRAL_INSTRUMENT_STRATEGY,

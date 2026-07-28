@@ -1,17 +1,24 @@
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EffectChipRow } from '@/features/audio/components/effect-chip-row';
-import { EffectSettingsDrawer } from '@/features/audio/components/effect-settings-drawer';
-import { GateIntensityChipRow } from '@/features/audio/components/gate-intensity-chip-row';
+import {
+  EditChipRow,
+  EditPresetSheet,
+  compressorSheetOptions,
+  echoSheetOptions,
+  eqSheetOptions,
+  reverbSheetOptions,
+} from '@/features/audio/components/edit-chip-row';
 import { IconButton } from '@/features/audio/components/icon-button';
-import { PipelineChipRow } from '@/features/audio/components/pipeline-chip-row';
 import { RecordingEditorActions } from '@/features/audio/components/recording-editor-actions';
 import { RecordingTimer } from '@/features/audio/components/recording-timer';
 import { WaveformDisplay } from '@/features/audio/components/waveform-display';
 import { useRecordingEditorSession } from '@/features/audio/hooks/use-recording-editor-session';
 import { downloadRecording } from '@/features/audio/services/recording-share.service';
-import { logRecorderMode } from '@/features/audio/domain/recorder-mode-log';
 import type { RecordingEditorProps } from '@/features/audio/types/recording-editor';
+import type { CompressorPresetId } from '@/features/audio/types/edit-chips';
+import type { EchoPresetId } from '@/features/audio/types/edit-chips';
+import type { EqPresetId } from '@/features/audio/types/edit-chips';
+import type { ReverbPresetId } from '@/features/audio/types/edit-chips';
 
 const PLACEHOLDER_BARS = [0.25, 0.4, 0.65, 0.5, 0.8, 0.55, 0.7, 0.45, 0.6, 0.35, 0.75, 0.5];
 
@@ -25,7 +32,14 @@ export function RecordingEditor({
   onDiscard,
 }: RecordingEditorProps) {
   const session = useRecordingEditorSession({
-    ...source,
+    pristineUri: source.pristineUri,
+    playbackUri: source.playbackUri,
+    sourcePreGateUri: source.sourcePreGateUri ?? null,
+    initialAppliedEffects: Array.isArray(source.initialAppliedEffects)
+      ? source.initialAppliedEffects.map((item) =>
+          typeof item === 'string' ? { id: item, params: {} } : item,
+        )
+      : undefined,
     isSaving,
     onEffectError: ({ title: errorTitle, message }) => {
       Alert.alert(errorTitle, message);
@@ -38,10 +52,10 @@ export function RecordingEditor({
   };
 
   const handleSave = async () => {
-    logRecorderMode('Save', source.recordingMode);
     await onSave({
       sourceUri: session.workingUri,
       appliedEffects: session.appliedEffects,
+      sourcePreGateUri: source.sourcePreGateUri ?? null,
     });
 
     await session.cleanupWorkingFile();
@@ -61,7 +75,8 @@ export function RecordingEditor({
           <Text style={styles.appliedEffect}>Applied: {session.effectLabel}</Text>
         ) : (
           <Text style={styles.hint}>
-            Tap SpectralGate, Clean pipeline, or effects to A/B this take.
+            Soft cleanup is already on. Use the tools below for voice denoise, tone, or space.
+            Reset brings back the cleaned take.
           </Text>
         )}
         <View style={styles.playRow}>
@@ -92,28 +107,16 @@ export function RecordingEditor({
             disabled={session.isPlaybackDisabled}
           />
         </View>
-        <EffectChipRow
-          selectedEffectIds={session.selectedEffectIds}
-          onEffectPress={(effectId) => session.pressEffect(effectId)}
+        <EditChipRow
+          selection={session.selection}
           disabled={isSaving}
           isProcessing={session.isProcessing}
           processingLabel={session.processingLabel}
-        />
-        <GateIntensityChipRow
-          selectedIntensityId={session.selectedGateIntensityId}
-          onIntensityPress={(intensityId) => {
-            void session.pressGateIntensity(intensityId);
-          }}
-          disabled={isSaving}
-          isProcessing={session.isProcessing}
-        />
-        <PipelineChipRow
-          selectedPipelineId={session.selectedPipelineId}
-          onPipelinePress={(pipelineId) => {
-            void session.pressPipeline(pipelineId);
-          }}
-          disabled={isSaving}
-          isProcessing={session.isProcessing}
+          onCleanVoicePress={session.toggleCleanVoice}
+          onOpenCompressor={() => session.openPresetSheet('compressor')}
+          onOpenEq={() => session.openPresetSheet('eq')}
+          onOpenEcho={() => session.openPresetSheet('echo')}
+          onOpenReverb={() => session.openPresetSheet('reverb')}
         />
         <RecordingEditorActions
           isPending={isPending}
@@ -125,25 +128,41 @@ export function RecordingEditor({
         />
       </ScrollView>
 
-      <EffectSettingsDrawer
-        visible={session.drawerEffectId !== null}
-        effectId={session.drawerEffectId}
-        initialParams={session.drawerInitialParams}
-        isProcessing={session.isProcessing}
-        isActive={session.isDrawerEffectActive}
-        onClose={session.closeEffectDrawer}
-        onApply={(params) => {
-          if (!session.drawerEffectId) {
-            return;
-          }
-
-          void session.applyEffectFromDrawer(session.drawerEffectId, params);
-        }}
-        onRemove={
-          session.drawerEffectId
-            ? () => void session.removeEffectFromDrawer(session.drawerEffectId!)
-            : undefined
-        }
+      <EditPresetSheet
+        visible={session.presetSheet === 'compressor'}
+        title="Compressor"
+        options={compressorSheetOptions()}
+        selectedId={session.selection.compressor}
+        onSelect={(id) => session.selectCompressor(id as CompressorPresetId)}
+        onClear={() => session.selectCompressor(null)}
+        onClose={session.closePresetSheet}
+      />
+      <EditPresetSheet
+        visible={session.presetSheet === 'eq'}
+        title="EQ"
+        options={eqSheetOptions()}
+        selectedId={session.selection.eq}
+        onSelect={(id) => session.selectEq(id as EqPresetId)}
+        onClear={() => session.selectEq(null)}
+        onClose={session.closePresetSheet}
+      />
+      <EditPresetSheet
+        visible={session.presetSheet === 'echo'}
+        title="Echo"
+        options={echoSheetOptions()}
+        selectedId={session.selection.echo}
+        onSelect={(id) => session.selectEcho(id as EchoPresetId)}
+        onClear={() => session.selectEcho(null)}
+        onClose={session.closePresetSheet}
+      />
+      <EditPresetSheet
+        visible={session.presetSheet === 'reverb'}
+        title="Reverb"
+        options={reverbSheetOptions()}
+        selectedId={session.selection.reverb}
+        onSelect={(id) => session.selectReverb(id as ReverbPresetId)}
+        onClear={() => session.selectReverb(null)}
+        onClose={session.closePresetSheet}
       />
     </>
   );

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Alert } from 'react-native';
 
 import {
   INITIAL_METERING_BARS,
@@ -6,9 +7,10 @@ import {
   buildRecorderSyncPatch,
   type RecorderTick,
 } from '@/features/audio/domain/recorder-session.helpers';
+import { importAudioForPreview } from '@/features/audio/services/audio-import.service';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import type { RecorderStatus } from '@/features/audio/types/recorder';
-import type { RecordingMode } from '@/features/audio/types/recording-mode';
+
 export { METERING_BAR_COUNT } from '@/features/audio/domain/recorder-session.helpers';
 
 export type AudioSessionState = {
@@ -16,9 +18,9 @@ export type AudioSessionState = {
   timerSeconds: number;
   meteringBars: number[];
   previewUri: string | null;
+  sourcePreGateUri: string | null;
   hasActiveSession: boolean;
   isPaused: boolean;
-  recordingMode: RecordingMode | null;
   frozenDurationMillis: number;
 };
 
@@ -27,7 +29,8 @@ export type AudioSessionContextValue = AudioSessionState;
 type AudioSessionActions = {
   initialize: () => Promise<void>;
   syncRecorderState: (recorderState: RecorderTick) => void;
-  startRecording: (mode: RecordingMode) => Promise<void>;
+  startRecording: () => Promise<void>;
+  importAudio: () => Promise<void>;
   handleMainAction: () => Promise<void>;
   handlePauseResume: () => void;
   resetSession: () => Promise<void>;
@@ -38,6 +41,7 @@ type AudioSessionStore = AudioSessionState & AudioSessionActions;
 
 const START_RECORDING_STATE: Partial<AudioSessionState> = {
   previewUri: null,
+  sourcePreGateUri: null,
   isPaused: false,
   hasActiveSession: true,
   meteringBars: Array(METERING_BAR_COUNT).fill(0.15),
@@ -48,9 +52,9 @@ const IDLE_RECORDING_STATE: Partial<AudioSessionState> = {
   isPaused: false,
   hasActiveSession: false,
   previewUri: null,
+  sourcePreGateUri: null,
   status: 'idle',
   timerSeconds: 0,
-  recordingMode: null,
   frozenDurationMillis: 0,
 };
 
@@ -59,9 +63,9 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
   timerSeconds: 0,
   meteringBars: INITIAL_METERING_BARS,
   previewUri: null,
+  sourcePreGateUri: null,
   hasActiveSession: false,
   isPaused: false,
-  recordingMode: null,
   frozenDurationMillis: 0,
 
   initialize: async () => {
@@ -87,16 +91,15 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
     set(patch);
   },
 
-  startRecording: async (mode) => {
-    const { previewUri } = get();
+  startRecording: async () => {
+    const { previewUri, sourcePreGateUri } = get();
 
     set({
       ...START_RECORDING_STATE,
-      recordingMode: mode,
     });
 
     try {
-      await recordingSessionService.startNewSession(mode, previewUri);
+      await recordingSessionService.startNewSession(previewUri, sourcePreGateUri);
     } catch (error) {
       console.warn('[Recorder] Failed to start capture session.', error);
       await recordingSessionService.abortSession(true, null);
@@ -104,17 +107,61 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
         meteringBars: Array(METERING_BAR_COUNT).fill(0.15),
         ...IDLE_RECORDING_STATE,
       });
+      Alert.alert('Error', 'Could not start recording.');
+    }
+  },
+
+  importAudio: async () => {
+    const { hasActiveSession, previewUri, sourcePreGateUri } = get();
+    if (hasActiveSession) {
+      return;
+    }
+
+    set({
+      status: 'optimizing',
+      previewUri: null,
+      sourcePreGateUri: null,
+    });
+
+    try {
+      if (previewUri || sourcePreGateUri) {
+        const { discardPreviewRecording } = await import(
+          '@/features/audio/data/recording-repository'
+        );
+        await discardPreviewRecording(previewUri ?? '', sourcePreGateUri);
+      }
+
+      const staged = await importAudioForPreview();
+      if (!staged) {
+        set(IDLE_RECORDING_STATE);
+        return;
+      }
+
+      set({
+        previewUri: staged.pendingUri,
+        sourcePreGateUri: staged.sourcePreGateUri,
+        frozenDurationMillis: Math.round(staged.durationSeconds * 1000),
+        status: 'preview',
+        timerSeconds: Math.floor(staged.durationSeconds),
+        hasActiveSession: false,
+        isPaused: false,
+      });
+    } catch (error) {
+      console.warn('[Import] Failed to import audio.', error);
+      set(IDLE_RECORDING_STATE);
+      Alert.alert(
+        'Import failed',
+        error instanceof Error ? error.message : 'Could not import that audio file.',
+      );
     }
   },
 
   handleMainAction: async () => {
-    const { hasActiveSession, recordingMode } = get();
+    const { hasActiveSession } = get();
 
     if (!hasActiveSession) {
       return;
     }
-
-    const mode = recordingMode ?? 'speech';
 
     set({
       hasActiveSession: false,
@@ -126,11 +173,12 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
       requestAnimationFrame(() => resolve());
     });
 
-    const result = await recordingSessionService.finalizeRecording(mode);
+    const result = await recordingSessionService.finalizeRecording();
 
     if (result) {
       set({
         previewUri: result.stagedUri,
+        sourcePreGateUri: result.sourcePreGateUri,
         frozenDurationMillis: result.frozenDurationMillis,
         status: 'preview',
         timerSeconds: Math.floor(result.frozenDurationMillis / 1000),
@@ -156,8 +204,15 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
   },
 
   resetSession: async () => {
-    const { hasActiveSession, previewUri } = get();
+    const { hasActiveSession, previewUri, sourcePreGateUri } = get();
     await recordingSessionService.abortSession(hasActiveSession, previewUri);
+
+    if (sourcePreGateUri) {
+      const { discardPreviewRecording } = await import(
+        '@/features/audio/data/recording-repository'
+      );
+      await discardPreviewRecording('', sourcePreGateUri);
+    }
 
     set({
       meteringBars: Array(METERING_BAR_COUNT).fill(0.15),

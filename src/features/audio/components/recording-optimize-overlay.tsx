@@ -1,60 +1,62 @@
-import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { getOptimizeOverlayCopy } from '@/features/audio/domain/recording-optimize-copy';
-import type { RecordingMode } from '@/features/audio/types/recording-mode';
 
 type RecordingOptimizeOverlayProps = {
   visible: boolean;
-  recordingMode?: RecordingMode | null;
 };
 
 export function RecordingOptimizeOverlay({
-  visible,
-  recordingMode = null,
+  visible = false,
 }: RecordingOptimizeOverlayProps) {
-  const { title, subtitle } = getOptimizeOverlayCopy(recordingMode);
+  if (!visible) {
+    return null;
+  }
+
+  const { title, subtitle } = getOptimizeOverlayCopy();
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <ActivityIndicator size="large" color="#1A73E8" />
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
-        </View>
+    <View style={styles.backdrop} pointerEvents="auto">
+      <View style={styles.card}>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(26, 29, 33, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    paddingHorizontal: 32,
+    zIndex: 20,
+    paddingHorizontal: 24,
   },
   card: {
     width: '100%',
     maxWidth: 320,
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
-    paddingVertical: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 8,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#1A1D21',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    lineHeight: 20,
-    color: '#7A7F87',
+    color: '#5C6370',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

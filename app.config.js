@@ -30,6 +30,7 @@ module.exports = ({ config }) => ({
         enableBackgroundRecording: false,
       },
     ],
+    'expo-document-picker',
     [
       'expo-file-system',
       {

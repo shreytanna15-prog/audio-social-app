@@ -1,26 +1,7 @@
-import type { RecordingMode } from '@/features/audio/types/recording-mode';
-
-function optionSuffix(mode?: RecordingMode | string | null): string {
-  if (mode === 'raw') {
-    return ' OptionA';
-  }
-
-  if (mode === 'gate-lab') {
-    return ' GateLab';
-  }
-
-  if (mode === 'nitro-m4a') {
-    return ' CaptureNitro';
-  }
-
-  return '';
-}
-
-/** One-liner bake-off logs: [Recorded] / [Save] / [Play] — always WARN so Metro shows them. */
+/** Bake-off mode logs retired — keep a simple warn helper for editor play/save. */
 export function logRecorderMode(
   tag: 'Recorded' | 'Save' | 'Play',
-  mode?: RecordingMode | string | null,
+  detail?: string | null,
 ): void {
-  const resolved = mode ?? 'unknown';
-  console.warn(`[${tag}] mode='${resolved}'${optionSuffix(resolved)}`);
+  console.warn(`[${tag}]${detail ? ` ${detail}` : ''}`);
 }

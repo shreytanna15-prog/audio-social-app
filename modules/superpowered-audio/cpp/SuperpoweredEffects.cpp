@@ -12,7 +12,6 @@
 #include "SuperpoweredDecoder.h"
 #include "SuperpoweredEcho.h"
 #include "SuperpoweredFilter.h"
-#include "SuperpoweredFlanger.h"
 #include "SuperpoweredJSON.h"
 #include "SuperpoweredLimiter.h"
 #include "SuperpoweredPolish.h"
@@ -78,15 +77,24 @@ float readNumberParam(Superpowered::json *params, const char *key, float fallbac
   return fallback;
 }
 
+std::string readStringParam(Superpowered::json *params, const char *key) {
+  if (params == nullptr) {
+    return {};
+  }
+  Superpowered::json *node = params->stringAtKey(key);
+  if (node == nullptr || node->value.string == nullptr) {
+    return {};
+  }
+  return node->value.string;
+}
+
 struct EffectSpec {
   std::string id;
+  std::string preset;
   float roomSize = 2.0f;
-  float amount = 50.0f;
+  float amount = 25.0f;
   float delay = 2.0f;
-  float intensity = 50.0f;
-  float speed = 2.0f;
-  float strength = 2.0f;
-  float clarity = 50.0f;
+  float intensity = 30.0f;
 };
 
 std::vector<EffectSpec> parseEffects(const char *effectsJson) {
@@ -103,7 +111,6 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
 
   Superpowered::json *arrayRoot = root;
   if (root->type == Superpowered::json::jobject) {
-    // Accept { "effects": [ ... ] } or a bare array.
     Superpowered::json *nested = root->atKey("effects");
     if (nested != nullptr) {
       arrayRoot = nested;
@@ -135,29 +142,145 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
       params = item;
     }
 
+    spec.preset = readStringParam(params, "preset");
+
     if (spec.id == "reverb") {
       spec.roomSize = readNumberParam(params, "roomSize", 2.0f);
-      spec.amount = readNumberParam(params, "amount", 50.0f);
+      spec.amount = clampf(readNumberParam(params, "amount", 25.0f), 0.0f, 30.0f);
+      specs.push_back(spec);
     } else if (spec.id == "echo") {
       spec.delay = readNumberParam(params, "delay", 2.0f);
-      spec.intensity = readNumberParam(params, "intensity", 50.0f);
-    } else if (spec.id == "modulate") {
-      spec.speed = readNumberParam(params, "speed", 2.0f);
-    } else if (spec.id == "enhance") {
-      spec.strength = readNumberParam(params, "strength", 2.0f);
-      spec.clarity = readNumberParam(params, "clarity", 50.0f);
-    } else if (spec.id == "denoise") {
-      // Denoise is handled in JS via DeepFilter before this call.
-      continue;
-    } else {
-      continue;
+      spec.intensity = clampf(readNumberParam(params, "intensity", 30.0f), 0.0f, 35.0f);
+      specs.push_back(spec);
+    } else if (spec.id == "eq" || spec.id == "compressor") {
+      specs.push_back(spec);
     }
-
-    specs.push_back(spec);
   }
 
   root->dealloc();
   return specs;
+}
+
+struct EqBank {
+  Superpowered::Filter *highpass = nullptr;
+  Superpowered::Filter *lowShelf = nullptr;
+  Superpowered::Filter *mudCut = nullptr;
+  Superpowered::Filter *presence = nullptr;
+  Superpowered::Filter *hiShelf = nullptr;
+
+  void destroy() {
+    delete highpass;
+    delete lowShelf;
+    delete mudCut;
+    delete presence;
+    delete hiShelf;
+    highpass = lowShelf = mudCut = presence = hiShelf = nullptr;
+  }
+
+  void process(float *buffer, unsigned int frames, unsigned int samplerate) {
+    if (highpass != nullptr) {
+      highpass->samplerate = samplerate;
+      highpass->process(buffer, buffer, frames);
+    }
+    if (lowShelf != nullptr) {
+      lowShelf->samplerate = samplerate;
+      lowShelf->process(buffer, buffer, frames);
+    }
+    if (mudCut != nullptr) {
+      mudCut->samplerate = samplerate;
+      mudCut->process(buffer, buffer, frames);
+    }
+    if (presence != nullptr) {
+      presence->samplerate = samplerate;
+      presence->process(buffer, buffer, frames);
+    }
+    if (hiShelf != nullptr) {
+      hiShelf->samplerate = samplerate;
+      hiShelf->process(buffer, buffer, frames);
+    }
+  }
+};
+
+EqBank buildEqBank(const std::string &preset, unsigned int samplerate) {
+  EqBank bank;
+
+  if (preset == "warm-bass") {
+    bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
+    bank.lowShelf->frequency = 150.0f;
+    bank.lowShelf->decibel = 3.0f;
+    bank.lowShelf->enabled = true;
+
+    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.mudCut->frequency = 300.0f;
+    bank.mudCut->octave = 0.7f;
+    bank.mudCut->decibel = -2.0f;
+    bank.mudCut->enabled = true;
+  } else if (preset == "clear-notes") {
+    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.mudCut->frequency = 300.0f;
+    bank.mudCut->octave = 0.7f;
+    bank.mudCut->decibel = -2.0f;
+    bank.mudCut->enabled = true;
+
+    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.presence->frequency = 3200.0f;
+    bank.presence->octave = 0.8f;
+    bank.presence->decibel = 1.5f;
+    bank.presence->enabled = true;
+  } else if (preset == "bright") {
+    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.mudCut->frequency = 300.0f;
+    bank.mudCut->octave = 0.7f;
+    bank.mudCut->decibel = -1.0f;
+    bank.mudCut->enabled = true;
+
+    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+    bank.hiShelf->frequency = 5000.0f;
+    bank.hiShelf->decibel = 2.0f;
+    bank.hiShelf->enabled = true;
+  } else {
+    // vocal-presence (default speech-friendly)
+    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+    bank.highpass->frequency = 80.0f;
+    bank.highpass->resonance = 0.1f;
+    bank.highpass->enabled = true;
+
+    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.presence->frequency = 3500.0f;
+    bank.presence->octave = 0.8f;
+    bank.presence->decibel = 2.0f;
+    bank.presence->enabled = true;
+  }
+
+  return bank;
+}
+
+Superpowered::Compressor *buildCompressor(const std::string &preset, unsigned int samplerate) {
+  Superpowered::Compressor *compressor = new Superpowered::Compressor(samplerate);
+  compressor->hpCutOffHz = 80.0f;
+  compressor->attackSec = 0.012f;
+  compressor->releaseSec = 0.25f;
+  compressor->enabled = true;
+
+  if (preset == "punch") {
+    compressor->inputGainDb = 1.5f;
+    compressor->thresholdDb = -18.0f;
+    compressor->ratio = 2.6f;
+    compressor->wet = 0.65f;
+  } else if (preset == "pop") {
+    compressor->inputGainDb = 1.0f;
+    compressor->thresholdDb = -16.0f;
+    compressor->ratio = 2.2f;
+    compressor->wet = 0.55f;
+  } else {
+    // gentle
+    compressor->inputGainDb = 0.5f;
+    compressor->thresholdDb = -14.0f;
+    compressor->ratio = 1.8f;
+    compressor->wet = 0.45f;
+  }
+
+  return compressor;
 }
 
 } // namespace
@@ -174,7 +297,6 @@ extern "C" int SuperpoweredEffects_processFile(
   setError(nullptr);
 
   if (!SuperpoweredPolish_isInitialized()) {
-    // Polish init also initializes Superpowered SDK license.
     setError("Superpowered is not initialized. Call SuperpoweredPolish_initialize first.");
     return 1;
   }
@@ -187,11 +309,12 @@ extern "C" int SuperpoweredEffects_processFile(
   }
 
   std::vector<EffectSpec> specs = parseEffects(effectsJson);
-  if (specs.empty() && (effectsJson == nullptr || std::strstr(effectsJson, "denoise") == nullptr)) {
-    // Allow empty Superpowered chain only when denoise-only was requested (passthrough copy).
+  if (specs.empty()) {
     if (gLastError[0] != '\0') {
       return 3;
     }
+    setError("No supported edit effects in chain.");
+    return 3;
   }
 
   Superpowered::Decoder *decoder = new Superpowered::Decoder();
@@ -218,71 +341,46 @@ extern "C" int SuperpoweredEffects_processFile(
     return 5;
   }
 
-  Superpowered::Reverb *reverb = nullptr;
-  Superpowered::Echo *echo = nullptr;
-  Superpowered::Flanger *flanger = nullptr;
-  Superpowered::Filter *presenceEq = nullptr;
   Superpowered::Compressor *compressor = nullptr;
+  EqBank eqBank;
+  Superpowered::Echo *echo = nullptr;
+  Superpowered::Reverb *reverb = nullptr;
   Superpowered::Limiter *limiter = nullptr;
 
   for (const EffectSpec &spec : specs) {
-    if (spec.id == "reverb" && reverb == nullptr) {
-      reverb = new Superpowered::Reverb(samplerate);
-      const float room = clampf((spec.roomSize - 1.0f) / 2.0f, 0.0f, 1.0f);
-      const float wet = clampf(spec.amount / 100.0f, 0.0f, 1.0f);
-      reverb->roomSize = 0.35f + room * 0.55f;
-      reverb->mix = wet * 0.65f;
-      reverb->damp = 0.45f;
-      reverb->width = 1.0f;
-      reverb->enabled = true;
+    if (spec.id == "compressor" && compressor == nullptr) {
+      compressor = buildCompressor(spec.preset.empty() ? "gentle" : spec.preset, samplerate);
+    } else if (spec.id == "eq" && eqBank.mudCut == nullptr && eqBank.lowShelf == nullptr &&
+               eqBank.presence == nullptr && eqBank.hiShelf == nullptr && eqBank.highpass == nullptr) {
+      eqBank = buildEqBank(spec.preset.empty() ? "clear-notes" : spec.preset, samplerate);
     } else if (spec.id == "echo" && echo == nullptr) {
       echo = new Superpowered::Echo(samplerate);
       const float delayLevel = clampf(spec.delay, 1.0f, 3.0f);
-      const float wet = clampf(spec.intensity / 100.0f, 0.0f, 1.0f);
+      const float wet = clampf(spec.intensity / 100.0f, 0.0f, 0.35f);
       echo->bpm = 120.0f;
-      // 1=quick (~0.25 beat), 2=classic (~0.5), 3=long (~1.0)
-      echo->beats = delayLevel <= 1.5f ? 0.25f : (delayLevel >= 2.5f ? 1.0f : 0.5f);
-      echo->decay = 0.35f + wet * 0.4f;
-      echo->setMix(wet * 0.7f);
+      echo->beats = delayLevel <= 1.5f ? 0.25f : (delayLevel >= 2.5f ? 0.75f : 0.5f);
+      echo->decay = 0.28f + wet * 0.25f;
+      echo->setMix(wet);
       echo->enabled = true;
-    } else if (spec.id == "modulate" && flanger == nullptr) {
-      flanger = new Superpowered::Flanger(samplerate);
-      const float speed = clampf(spec.speed, 1.0f, 3.0f);
-      flanger->bpm = 120.0f;
-      flanger->lfoBeats = speed <= 1.5f ? 32.0f : (speed >= 2.5f ? 4.0f : 12.0f);
-      flanger->wet = 0.45f;
-      flanger->depth = 0.35f;
-      flanger->stereo = true;
-      flanger->enabled = true;
-    } else if (spec.id == "enhance") {
-      const float strength = clampf(spec.strength, 1.0f, 3.0f);
-      const float clarity = clampf(spec.clarity / 100.0f, 0.0f, 1.0f);
-      if (presenceEq == nullptr) {
-        presenceEq = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-        presenceEq->frequency = 3200.0f;
-        presenceEq->octave = 0.8f;
-        presenceEq->decibel = 1.0f + clarity * 3.5f;
-        presenceEq->enabled = true;
-      }
-      if (compressor == nullptr) {
-        compressor = new Superpowered::Compressor(samplerate);
-        compressor->inputGainDb = 0.5f * strength;
-        compressor->thresholdDb = -18.0f - (strength - 1.0f) * 3.0f;
-        compressor->ratio = 1.6f + strength * 0.4f;
-        compressor->attackSec = 0.01f;
-        compressor->releaseSec = 0.22f;
-        compressor->wet = 0.55f + strength * 0.1f;
-        compressor->hpCutOffHz = 80.0f;
-        compressor->enabled = true;
-      }
-      if (limiter == nullptr) {
-        limiter = new Superpowered::Limiter(samplerate);
-        limiter->ceilingDb = -1.0f;
-        limiter->thresholdDb = -2.0f;
-        limiter->releaseSec = 0.05f;
-        limiter->enabled = true;
-      }
+    } else if (spec.id == "reverb" && reverb == nullptr) {
+      reverb = new Superpowered::Reverb(samplerate);
+      const float room = clampf((spec.roomSize - 1.0f) / 2.0f, 0.0f, 1.0f);
+      const float wet = clampf(spec.amount / 100.0f, 0.0f, 0.30f);
+      reverb->roomSize = 0.30f + room * 0.45f;
+      reverb->mix = wet;
+      reverb->damp = 0.50f;
+      reverb->width = 1.0f;
+      reverb->enabled = true;
     }
+  }
+
+  // Light ceiling only when dynamics/tone ran (keeps levels safe, not a Master chip).
+  if (compressor != nullptr || eqBank.presence != nullptr || eqBank.lowShelf != nullptr) {
+    limiter = new Superpowered::Limiter(samplerate);
+    limiter->ceilingDb = -1.0f;
+    limiter->thresholdDb = -2.5f;
+    limiter->releaseSec = 0.06f;
+    limiter->enabled = true;
   }
 
   const unsigned int framesPerChunk = decoder->getFramesPerChunk();
@@ -295,8 +393,7 @@ extern "C" int SuperpoweredEffects_processFile(
     std::free(floatBuffer);
     delete limiter;
     delete compressor;
-    delete presenceEq;
-    delete flanger;
+    eqBank.destroy();
     delete echo;
     delete reverb;
     Superpowered::closeWAV(destinationFile);
@@ -313,25 +410,19 @@ extern "C" int SuperpoweredEffects_processFile(
     const unsigned int frames = (unsigned int)framesDecoded;
     Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
 
-    if (reverb != nullptr) {
-      reverb->samplerate = samplerate;
-      reverb->process(floatBuffer, floatBuffer, frames);
+    // Voloco Free order: Comp → EQ → Echo → Reverb
+    if (compressor != nullptr) {
+      compressor->samplerate = samplerate;
+      compressor->process(floatBuffer, floatBuffer, frames);
     }
+    eqBank.process(floatBuffer, frames, samplerate);
     if (echo != nullptr) {
       echo->samplerate = samplerate;
       echo->process(floatBuffer, floatBuffer, frames);
     }
-    if (flanger != nullptr) {
-      flanger->samplerate = samplerate;
-      flanger->process(floatBuffer, floatBuffer, frames);
-    }
-    if (presenceEq != nullptr && presenceEq->enabled) {
-      presenceEq->samplerate = samplerate;
-      presenceEq->process(floatBuffer, floatBuffer, frames);
-    }
-    if (compressor != nullptr) {
-      compressor->samplerate = samplerate;
-      compressor->process(floatBuffer, floatBuffer, frames);
+    if (reverb != nullptr) {
+      reverb->samplerate = samplerate;
+      reverb->process(floatBuffer, floatBuffer, frames);
     }
     if (limiter != nullptr) {
       limiter->samplerate = samplerate;
@@ -346,8 +437,7 @@ extern "C" int SuperpoweredEffects_processFile(
   std::free(floatBuffer);
   delete limiter;
   delete compressor;
-  delete presenceEq;
-  delete flanger;
+  eqBank.destroy();
   delete echo;
   delete reverb;
   Superpowered::closeWAV(destinationFile);

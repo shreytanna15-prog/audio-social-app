@@ -1,28 +1,27 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 
-import { discardPreviewRecording } from "@/features/audio/data/recording-repository";
-import { resolvePristineRecordingUri } from "@/features/audio/utils/recording-paths";
-import { isKnownRecordingMode } from "@/features/audio/types/recording-mode";
+import { discardPreviewRecording } from '@/features/audio/data/recording-repository';
+import { resolvePristineRecordingUri } from '@/features/audio/utils/recording-paths';
 
-import type { RecordingEditorRouteParams } from "@/features/audio/types/recording-editor-route";
-import type { RecordingEditorProps } from "@/features/audio/types/recording-editor";
-import type { RecordingEditorSavePayload } from "@/features/audio/types/recording-editor-save";
-import { useRecordingsStore } from "@/features/audio/store";
+import type { RecordingEditorRouteParams } from '@/features/audio/types/recording-editor-route';
+import type { RecordingEditorProps } from '@/features/audio/types/recording-editor';
+import type { RecordingEditorSavePayload } from '@/features/audio/types/recording-editor-save';
+import { useRecordingsStore } from '@/features/audio/store';
 
 type RecordingEditorReadyState = {
-  status: "ready";
+  status: 'ready';
   editor: RecordingEditorProps;
 };
 
 export type RecordingEditorRouteState =
-  | { status: "loading" }
-  | { status: "error" }
+  | { status: 'loading' }
+  | { status: 'error' }
   | RecordingEditorReadyState;
 
 export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const router = useRouter();
-  const { id, uri, duration, recordingMode } =
+  const { id, uri, duration, sourcePreGateUri } =
     useLocalSearchParams<RecordingEditorRouteParams>();
 
   const recordings = useRecordingsStore((state) => state.recordings);
@@ -30,7 +29,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const isSaving = useRecordingsStore((state) => state.isSaving);
   const saveRecording = useRecordingsStore((state) => state.saveRecording);
   const updateRecording = useRecordingsStore((state) => state.updateRecording);
-  const isPending = id === "new";
+  const isPending = id === 'new';
 
   const savedRecording = useMemo(() => {
     if (isPending) {
@@ -47,6 +46,17 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       ? resolvePristineRecordingUri(savedRecording)
       : undefined;
 
+  const resolvedSourcePreGateUri = (() => {
+    if (isPending) {
+      const raw = Array.isArray(sourcePreGateUri)
+        ? sourcePreGateUri[0]
+        : sourcePreGateUri;
+      return raw || null;
+    }
+
+    return savedRecording ? resolvePristineRecordingUri(savedRecording) : null;
+  })();
+
   const initialAppliedEffects = savedRecording?.appliedEffects ?? [];
 
   const durationSeconds = isPending
@@ -56,16 +66,26 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const recordingIndex = recordings.findIndex((item) => item.id === id);
 
   const handleSave = useCallback(
-    async ({ sourceUri, appliedEffects }: RecordingEditorSavePayload) => {
+    async ({
+      sourceUri,
+      appliedEffects,
+      sourcePreGateUri: saveSourcePreGateUri,
+    }: RecordingEditorSavePayload) => {
       if (isSaving) return;
 
       const saved = isPending
-        ? await saveRecording({ sourceUri, durationSeconds, appliedEffects })
+        ? await saveRecording({
+            sourceUri,
+            durationSeconds,
+            appliedEffects,
+            sourcePreGateUri: saveSourcePreGateUri ?? resolvedSourcePreGateUri,
+          })
         : await updateRecording({
             id,
             sourceUri,
             durationSeconds,
             appliedEffects,
+            sourcePreGateUri: saveSourcePreGateUri ?? resolvedSourcePreGateUri,
           });
 
       if (saved) {
@@ -77,6 +97,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       id,
       isPending,
       isSaving,
+      resolvedSourcePreGateUri,
       router,
       saveRecording,
       updateRecording,
@@ -85,41 +106,31 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
 
   const handleDiscard = useCallback(async () => {
     if (isPending && playbackUri) {
-      await discardPreviewRecording(playbackUri);
+      await discardPreviewRecording(playbackUri, resolvedSourcePreGateUri);
     }
 
     router.back();
-  }, [isPending, playbackUri, router]);
+  }, [isPending, playbackUri, resolvedSourcePreGateUri, router]);
 
   if (!isPending && isLoading) {
-    return { status: "loading" };
+    return { status: 'loading' };
   }
 
   if (!playbackUri || !pristineUri || Number.isNaN(durationSeconds)) {
-    return { status: "error" };
+    return { status: 'error' };
   }
 
-  const editorRecordingMode = (() => {
-    const rawMode = Array.isArray(recordingMode) ? recordingMode[0] : recordingMode;
-
-    if (isKnownRecordingMode(rawMode)) {
-      return rawMode;
-    }
-
-    return null;
-  })();
-
   return {
-    status: "ready",
+    status: 'ready',
     editor: {
       source: {
         pristineUri,
         playbackUri,
+        sourcePreGateUri: resolvedSourcePreGateUri,
         initialAppliedEffects,
-        recordingMode: editorRecordingMode,
       },
       title: isPending
-        ? "Review your recording"
+        ? 'Review your recording'
         : `Recording ${recordingIndex + 1}`,
       durationSeconds,
       isPending,

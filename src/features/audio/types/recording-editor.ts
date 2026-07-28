@@ -1,13 +1,14 @@
 import type { AppliedEffect } from '@/features/audio/types/applied-effects';
 import type { AudioEffectId } from '@/features/audio/types/effects';
-import type { RecordingMode } from '@/features/audio/types/recording-mode';
 import type { RecordingEditorSavePayload } from '@/features/audio/types/recording-editor-save';
 
 export type RecordingEditorSource = {
+  /** Soft-gated baseline (pending) — Reset target. */
   pristineUri: string;
   playbackUri: string;
+  /** Pre-soft-gate WAV for Clean Voice + save source backup. */
+  sourcePreGateUri?: string | null;
   initialAppliedEffects?: AppliedEffect[] | AudioEffectId[];
-  recordingMode?: RecordingMode | null;
 };
 
 export type RecordingEditorProps = {

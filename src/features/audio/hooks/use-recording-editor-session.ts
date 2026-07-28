@@ -1,369 +1,231 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 
-import { deleteProcessedRecording } from "@/features/audio/data/processed-recording.repository";
-import {
-  createAppliedEffect,
-  effectHasSettingsDrawer,
-  getDefaultEffectParams,
-  normalizeAppliedEffects,
-} from "@/features/audio/domain/effect-definitions";
+import { deleteProcessedRecording } from '@/features/audio/data/processed-recording.repository';
 import {
   getEffectErrorDebugDetails,
   toEffectErrorPresentation,
   type EffectErrorPresentation,
-} from "@/features/audio/domain/audio-effect-errors";
+} from '@/features/audio/domain/audio-effect-errors';
+import { useRecordingPlayback } from '@/features/audio/hooks/use-recording-playback';
+import { applyEditChain } from '@/features/audio/services/apply-edit-chain.service';
 import {
-  getAppliedEffectsLabel,
-  getEffectsProcessingLabel,
-} from "@/features/audio/domain/audio-effect.helpers";
-import { useRecordingPlayback } from "@/features/audio/hooks/use-recording-playback";
-import { applyOptimizePipeline } from "@/features/audio/services/apply-optimize-pipeline.service";
-import { applySpectralGateIntensity } from "@/features/audio/services/apply-spectral-gate-intensity.service";
-import { applyAudioEffects } from "@/features/audio/services/audio-effects.service";
-import { logRecorderMode } from "@/features/audio/domain/recorder-mode-log";
-import type { AppliedEffect, EffectParamValues } from "@/features/audio/types/applied-effects";
-import type { RecordingMode } from "@/features/audio/types/recording-mode";
-import type { AudioEffectId } from "@/features/audio/types/effects";
-import {
-  getOptimizePipelineLabel,
-  getOptimizePipelineProcessingLabel,
-  type OptimizePipelineId,
-} from "@/features/audio/types/optimize-pipeline";
-import {
-  getSpectralGateIntensityLabel,
-  getSpectralGateIntensityProcessingLabel,
-  type SpectralGateIntensityId,
-} from "@/features/audio/types/spectral-gate-intensity";
+  EMPTY_EDIT_CHAIN,
+  getEditChainLabel,
+  getEditChainProcessingLabel,
+  isEditChainEmpty,
+  type CompressorPresetId,
+  type EchoPresetId,
+  type EditChainSelection,
+  type EqPresetId,
+  type ReverbPresetId,
+} from '@/features/audio/types/edit-chips';
+import type { AppliedEffect } from '@/features/audio/types/applied-effects';
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
   playbackUri: string;
-  initialAppliedEffects?: AudioEffectId[] | AppliedEffect[];
-  recordingMode?: RecordingMode | null;
+  sourcePreGateUri?: string | null;
+  initialAppliedEffects?: AppliedEffect[];
   isSaving: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
 };
 
+function selectionFromAppliedEffects(
+  effects: AppliedEffect[] | undefined,
+): EditChainSelection {
+  if (!effects || effects.length === 0) {
+    return { ...EMPTY_EDIT_CHAIN };
+  }
+
+  const next = { ...EMPTY_EDIT_CHAIN };
+  for (const effect of effects) {
+    if (effect.id === 'denoise') {
+      next.cleanVoice = true;
+    }
+  }
+  return next;
+}
+
+function appliedEffectsFromSelection(selection: EditChainSelection): AppliedEffect[] {
+  const effects: AppliedEffect[] = [];
+  if (selection.cleanVoice) {
+    effects.push({ id: 'denoise', params: { strength: 'medium' } });
+  }
+  return effects;
+}
+
 export function useRecordingEditorSession({
   pristineUri,
   playbackUri,
+  sourcePreGateUri = null,
   initialAppliedEffects = [],
-  recordingMode = null,
   isSaving = false,
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
-  const effectDefaultsContext = { recordingMode };
+  const baselineUri = pristineUri;
   const [workingUri, setWorkingUri] = useState(playbackUri);
-  const [appliedEffects, setAppliedEffects] = useState<AppliedEffect[]>(() =>
-    normalizeAppliedEffects(initialAppliedEffects),
+  const [selection, setSelection] = useState<EditChainSelection>(() =>
+    selectionFromAppliedEffects(initialAppliedEffects),
   );
-  const [selectedPipelineId, setSelectedPipelineId] =
-    useState<OptimizePipelineId | null>(null);
-  const [selectedGateIntensityId, setSelectedGateIntensityId] =
-    useState<SpectralGateIntensityId | null>(null);
+  const [presetSheet, setPresetSheet] = useState<
+    'compressor' | 'eq' | 'echo' | 'reverb' | null
+  >(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [drawerEffectId, setDrawerEffectId] = useState<AudioEffectId | null>(null);
-  const pendingAppliedEffectsRef = useRef<AppliedEffect[] | null>(null);
-  const pendingPipelineIdRef = useRef<OptimizePipelineId | null>(null);
-  const pendingGateIntensityIdRef = useRef<SpectralGateIntensityId | null>(null);
-  const activePristineUriRef = useRef(pristineUri);
+  const activeBaselineRef = useRef(baselineUri);
+  const pendingSelectionRef = useRef<EditChainSelection | null>(null);
 
-  // Expo Router reuses /recording/new — reset session when the take URI changes.
   useEffect(() => {
-    if (activePristineUriRef.current === pristineUri) {
+    if (activeBaselineRef.current === baselineUri) {
       return;
     }
 
-    activePristineUriRef.current = pristineUri;
-    pendingAppliedEffectsRef.current = null;
-    pendingPipelineIdRef.current = null;
-    pendingGateIntensityIdRef.current = null;
+    activeBaselineRef.current = baselineUri;
+    pendingSelectionRef.current = null;
     setWorkingUri(playbackUri);
-    setAppliedEffects(normalizeAppliedEffects(initialAppliedEffects));
-    setSelectedPipelineId(null);
-    setSelectedGateIntensityId(null);
+    setSelection(selectionFromAppliedEffects(initialAppliedEffects));
+    setPresetSheet(null);
     setIsProcessing(false);
-    setDrawerEffectId(null);
-    console.warn(`[Editor] reset session for new take uri=${pristineUri}`);
-  }, [initialAppliedEffects, playbackUri, pristineUri]);
+    console.warn(`[Editor] reset session for new take uri=${baselineUri}`);
+  }, [baselineUri, initialAppliedEffects, playbackUri]);
 
   const playback = useRecordingPlayback(workingUri);
 
-  const canReset =
-    (appliedEffects.length > 0 ||
-      selectedPipelineId !== null ||
-      selectedGateIntensityId !== null) &&
-    !isProcessing &&
-    !isSaving;
-  const effectLabel =
-    selectedGateIntensityId !== null
-      ? `${getSpectralGateIntensityLabel(selectedGateIntensityId)} SpectralGate`
-      : selectedPipelineId !== null
-        ? getOptimizePipelineLabel(selectedPipelineId)
-        : getAppliedEffectsLabel(appliedEffects);
+  const canReset = !isEditChainEmpty(selection) && !isProcessing && !isSaving;
+  const effectLabel = getEditChainLabel(selection);
   const isPlaybackDisabled = isProcessing || isSaving;
   const processingLabel = isProcessing
-    ? pendingGateIntensityIdRef.current
-      ? getSpectralGateIntensityProcessingLabel(pendingGateIntensityIdRef.current)
-      : pendingPipelineIdRef.current
-        ? getOptimizePipelineProcessingLabel(pendingPipelineIdRef.current)
-        : pendingAppliedEffectsRef.current
-          ? getEffectsProcessingLabel(pendingAppliedEffectsRef.current)
-          : undefined
+    ? getEditChainProcessingLabel(pendingSelectionRef.current ?? selection)
     : undefined;
 
-  const activeDrawerEffect = drawerEffectId
-    ? appliedEffects.find((effect) => effect.id === drawerEffectId)
-    : undefined;
-
-  const processEffects = useCallback(
-    async (nextAppliedEffects: AppliedEffect[]) => {
-      pendingAppliedEffectsRef.current = nextAppliedEffects;
-      pendingPipelineIdRef.current = null;
-      pendingGateIntensityIdRef.current = null;
-      setSelectedPipelineId(null);
-      setSelectedGateIntensityId(null);
+  const rebuildChain = useCallback(
+    async (nextSelection: EditChainSelection) => {
+      pendingSelectionRef.current = nextSelection;
       setIsProcessing(true);
       playback.pause();
 
       try {
         const previousUri = workingUri;
 
-        if (nextAppliedEffects.length === 0) {
-          await deleteProcessedRecording(previousUri, pristineUri);
-          setWorkingUri(pristineUri);
-          setAppliedEffects([]);
-        } else {
-          const nextUri = await applyAudioEffects(nextAppliedEffects, pristineUri);
-
-          await deleteProcessedRecording(previousUri, pristineUri);
-
-          setWorkingUri(nextUri);
-          setAppliedEffects(nextAppliedEffects);
+        if (isEditChainEmpty(nextSelection)) {
+          await deleteProcessedRecording(previousUri, baselineUri);
+          setWorkingUri(baselineUri);
+          setSelection(nextSelection);
+          return;
         }
+
+        const nextUri = await applyEditChain({
+          baselineUri,
+          sourcePreGateUri,
+          selection: nextSelection,
+        });
+
+        await deleteProcessedRecording(previousUri, baselineUri);
+        setWorkingUri(nextUri);
+        setSelection(nextSelection);
       } catch (error) {
-        const presentation = toEffectErrorPresentation(error, nextAppliedEffects);
-        console.warn("Effect processing failed:", getEffectErrorDebugDetails(error));
+        const presentation = toEffectErrorPresentation(error, []);
+        presentation.title = "Couldn't apply edit";
+        console.warn('Edit chain failed:', getEffectErrorDebugDetails(error));
         onEffectError?.(presentation);
       } finally {
-        pendingAppliedEffectsRef.current = null;
+        pendingSelectionRef.current = null;
         setIsProcessing(false);
       }
     },
-    [onEffectError, playback, pristineUri, workingUri],
+    [baselineUri, onEffectError, playback, sourcePreGateUri, workingUri],
   );
 
-  const pressPipeline = useCallback(
-    async (pipelineId: OptimizePipelineId) => {
+  const toggleCleanVoice = useCallback(() => {
+    if (isProcessing || isSaving) {
+      return;
+    }
+
+    if (selection.cleanVoice) {
+      void rebuildChain({
+        ...selection,
+        cleanVoice: false,
+      });
+      return;
+    }
+
+    Alert.alert(
+      'Clean Voice',
+      'Clean Voice is made for speech and singing — not instruments. On guitar, piano, or other instruments it can make the sound worse or remove musical detail.\n\nProcessing can take a little while. Please wait until it finishes.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            void rebuildChain({
+              ...selection,
+              cleanVoice: true,
+            });
+          },
+        },
+      ],
+    );
+  }, [isProcessing, isSaving, rebuildChain, selection]);
+
+  const openPresetSheet = useCallback(
+    (kind: 'compressor' | 'eq' | 'echo' | 'reverb') => {
       if (isProcessing || isSaving) {
         return;
       }
-
-      playback.pause();
-      setDrawerEffectId(null);
-      setSelectedGateIntensityId(null);
-
-      if (selectedPipelineId === pipelineId) {
-        setIsProcessing(true);
-        pendingPipelineIdRef.current = null;
-        try {
-          const previousUri = workingUri;
-          await deleteProcessedRecording(previousUri, pristineUri);
-          setWorkingUri(pristineUri);
-          setSelectedPipelineId(null);
-          setAppliedEffects([]);
-        } catch (error) {
-          const presentation = toEffectErrorPresentation(error, []);
-          console.warn("Pipeline clear failed:", getEffectErrorDebugDetails(error));
-          onEffectError?.(presentation);
-        } finally {
-          setIsProcessing(false);
-        }
-        return;
-      }
-
-      pendingPipelineIdRef.current = pipelineId;
-      pendingAppliedEffectsRef.current = null;
-      pendingGateIntensityIdRef.current = null;
-      setIsProcessing(true);
-
-      try {
-        const previousUri = workingUri;
-        const nextUri = await applyOptimizePipeline(pristineUri, pipelineId);
-
-        await deleteProcessedRecording(previousUri, pristineUri);
-
-        setWorkingUri(nextUri);
-        setSelectedPipelineId(pipelineId);
-        setAppliedEffects([]);
-      } catch (error) {
-        const presentation = toEffectErrorPresentation(error, []);
-        presentation.title = `Couldn't apply ${getOptimizePipelineLabel(pipelineId)}`;
-        console.warn("Pipeline processing failed:", getEffectErrorDebugDetails(error));
-        onEffectError?.(presentation);
-      } finally {
-        pendingPipelineIdRef.current = null;
-        setIsProcessing(false);
-      }
-    },
-    [
-      isProcessing,
-      isSaving,
-      onEffectError,
-      playback,
-      pristineUri,
-      selectedPipelineId,
-      workingUri,
-    ],
-  );
-
-  const pressGateIntensity = useCallback(
-    async (intensityId: SpectralGateIntensityId) => {
-      if (isProcessing || isSaving) {
-        console.warn(
-          `[GateLab] SKIP intensity='${intensityId}' (busy processing=${isProcessing} saving=${isSaving})`,
-        );
-        return;
-      }
-
-      playback.pause();
-      setDrawerEffectId(null);
-      setSelectedPipelineId(null);
-
-      if (selectedGateIntensityId === intensityId) {
-        setIsProcessing(true);
-        pendingGateIntensityIdRef.current = null;
-        try {
-          const previousUri = workingUri;
-          await deleteProcessedRecording(previousUri, pristineUri);
-          setWorkingUri(pristineUri);
-          setSelectedGateIntensityId(null);
-          setAppliedEffects([]);
-          console.warn(`[GateLab] OK cleared intensity='${intensityId}' → pristine`);
-        } catch (error) {
-          const presentation = toEffectErrorPresentation(error, []);
-          console.warn(
-            `[GateLab] ERROR clear intensity='${intensityId}': ${getEffectErrorDebugDetails(error)}`,
-          );
-          onEffectError?.(presentation);
-        } finally {
-          setIsProcessing(false);
-        }
-        return;
-      }
-
-      pendingGateIntensityIdRef.current = intensityId;
-      pendingPipelineIdRef.current = null;
-      pendingAppliedEffectsRef.current = null;
-      setIsProcessing(true);
-
-      try {
-        const previousUri = workingUri;
-        const nextUri = await applySpectralGateIntensity(pristineUri, intensityId);
-
-        await deleteProcessedRecording(previousUri, pristineUri);
-
-        setWorkingUri(nextUri);
-        setSelectedGateIntensityId(intensityId);
-        setAppliedEffects([]);
-        console.warn(`[GateLab] OK playing intensity='${intensityId}'`);
-      } catch (error) {
-        const presentation = toEffectErrorPresentation(error, []);
-        presentation.title = `Couldn't apply ${getSpectralGateIntensityLabel(intensityId)} SpectralGate`;
-        console.warn(
-          `[GateLab] ERROR intensity='${intensityId}': ${getEffectErrorDebugDetails(error)}`,
-        );
-        onEffectError?.(presentation);
-      } finally {
-        pendingGateIntensityIdRef.current = null;
-        setIsProcessing(false);
-      }
-    },
-    [
-      isProcessing,
-      isSaving,
-      onEffectError,
-      playback,
-      pristineUri,
-      selectedGateIntensityId,
-      workingUri,
-    ],
-  );
-
-  const openEffectDrawer = useCallback(
-    (effectId: AudioEffectId) => {
-      if (isProcessing || isSaving || !effectHasSettingsDrawer(effectId)) {
-        return;
-      }
-
-      setDrawerEffectId(effectId);
+      setPresetSheet(kind);
     },
     [isProcessing, isSaving],
   );
 
-  const pressEffect = useCallback(
-    (effectId: AudioEffectId) => {
-      if (isProcessing || isSaving) {
-        return;
-      }
-
-      if (effectHasSettingsDrawer(effectId)) {
-        openEffectDrawer(effectId);
-        return;
-      }
-
-      const isSelected = appliedEffects.some((effect) => effect.id === effectId);
-      const nextAppliedEffects = isSelected
-        ? appliedEffects.filter((effect) => effect.id !== effectId)
-        : [...appliedEffects, createAppliedEffect(effectId, undefined, effectDefaultsContext)];
-
-      void processEffects(nextAppliedEffects);
-    },
-    [appliedEffects, effectDefaultsContext, isProcessing, isSaving, openEffectDrawer, processEffects],
-  );
-
-  const toggleEffect = useCallback(
-    async (effectId: AudioEffectId) => {
-      pressEffect(effectId);
-    },
-    [pressEffect],
-  );
-
-  const closeEffectDrawer = useCallback(() => {
+  const closePresetSheet = useCallback(() => {
     if (isProcessing) {
       return;
     }
-
-    setDrawerEffectId(null);
+    setPresetSheet(null);
   }, [isProcessing]);
 
-  const applyEffectFromDrawer = useCallback(
-    async (effectId: AudioEffectId, params: EffectParamValues) => {
-      if (isProcessing || isSaving) {
-        return;
-      }
-
-      const withoutCurrent = appliedEffects.filter((effect) => effect.id !== effectId);
-      const nextAppliedEffects = [...withoutCurrent, { id: effectId, params }];
-
-      setDrawerEffectId(null);
-      await processEffects(nextAppliedEffects);
+  const selectCompressor = useCallback(
+    (preset: CompressorPresetId | null) => {
+      setPresetSheet(null);
+      void rebuildChain({
+        ...selection,
+        compressor: selection.compressor === preset ? null : preset,
+      });
     },
-    [appliedEffects, isProcessing, isSaving, processEffects],
+    [rebuildChain, selection],
   );
 
-  const removeEffectFromDrawer = useCallback(
-    async (effectId: AudioEffectId) => {
-      if (isProcessing || isSaving) {
-        return;
-      }
-
-      const nextAppliedEffects = appliedEffects.filter((effect) => effect.id !== effectId);
-
-      setDrawerEffectId(null);
-      await processEffects(nextAppliedEffects);
+  const selectEq = useCallback(
+    (preset: EqPresetId | null) => {
+      setPresetSheet(null);
+      void rebuildChain({
+        ...selection,
+        eq: selection.eq === preset ? null : preset,
+      });
     },
-    [appliedEffects, isProcessing, isSaving, processEffects],
+    [rebuildChain, selection],
+  );
+
+  const selectEcho = useCallback(
+    (preset: EchoPresetId | null) => {
+      setPresetSheet(null);
+      void rebuildChain({
+        ...selection,
+        echo: selection.echo === preset ? null : preset,
+      });
+    },
+    [rebuildChain, selection],
+  );
+
+  const selectReverb = useCallback(
+    (preset: ReverbPresetId | null) => {
+      setPresetSheet(null);
+      void rebuildChain({
+        ...selection,
+        reverb: selection.reverb === preset ? null : preset,
+      });
+    },
+    [rebuildChain, selection],
   );
 
   const resetEffects = useCallback(async () => {
@@ -372,29 +234,25 @@ export function useRecordingEditorSession({
     }
 
     playback.pause();
-    await deleteProcessedRecording(workingUri, pristineUri);
-    setWorkingUri(pristineUri);
-    setAppliedEffects([]);
-    setSelectedPipelineId(null);
-    setSelectedGateIntensityId(null);
-    setDrawerEffectId(null);
-  }, [canReset, playback, pristineUri, workingUri]);
+    await deleteProcessedRecording(workingUri, baselineUri);
+    setWorkingUri(baselineUri);
+    setSelection({ ...EMPTY_EDIT_CHAIN });
+    setPresetSheet(null);
+  }, [baselineUri, canReset, playback, workingUri]);
 
   const cleanupWorkingFile = useCallback(async () => {
-    await deleteProcessedRecording(workingUri, pristineUri);
-  }, [pristineUri, workingUri]);
+    await deleteProcessedRecording(workingUri, baselineUri);
+  }, [baselineUri, workingUri]);
 
   const togglePlayback = useCallback(() => {
-    logRecorderMode('Play', recordingMode);
+    console.warn("[Play] editor workingUri");
     playback.togglePlayback();
-  }, [playback, recordingMode]);
+  }, [playback]);
 
   return {
     workingUri,
-    appliedEffects,
-    selectedEffectIds: appliedEffects.map((effect) => effect.id),
-    selectedPipelineId,
-    selectedGateIntensityId,
+    selection,
+    appliedEffects: appliedEffectsFromSelection(selection),
     effectLabel,
     isProcessing,
     processingLabel,
@@ -402,24 +260,14 @@ export function useRecordingEditorSession({
     isPlaybackDisabled,
     isPlaying: playback.isPlaying,
     togglePlayback,
-    toggleEffect,
-    pressEffect,
-    pressPipeline,
-    pressGateIntensity,
-    openEffectDrawer,
-    closeEffectDrawer,
-    drawerEffectId,
-    activeDrawerEffect,
-    drawerInitialParams:
-      drawerEffectId === null
-        ? undefined
-        : activeDrawerEffect?.params ??
-          getDefaultEffectParams(drawerEffectId, effectDefaultsContext),
-    isDrawerEffectActive: drawerEffectId
-      ? appliedEffects.some((effect) => effect.id === drawerEffectId)
-      : false,
-    applyEffectFromDrawer,
-    removeEffectFromDrawer,
+    toggleCleanVoice,
+    openPresetSheet,
+    closePresetSheet,
+    presetSheet,
+    selectCompressor,
+    selectEq,
+    selectEcho,
+    selectReverb,
     resetEffects,
     cleanupWorkingFile,
   };

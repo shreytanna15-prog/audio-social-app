@@ -14,6 +14,7 @@ export type SaveRecordingParams = {
   sourceUri: string;
   durationSeconds: number;
   appliedEffects?: AppliedEffect[];
+  sourcePreGateUri?: string | null;
 };
 
 export type UpdateRecordingParams = {
@@ -21,6 +22,7 @@ export type UpdateRecordingParams = {
   sourceUri: string;
   durationSeconds: number;
   appliedEffects: AppliedEffect[];
+  sourcePreGateUri?: string | null;
 };
 
 export type RecordingsState = {

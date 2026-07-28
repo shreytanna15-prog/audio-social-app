@@ -1,12 +1,12 @@
 export { EffectChipRow } from '@/features/audio/components/effect-chip-row';
 export { EffectParamField } from '@/features/audio/components/effect-param-field';
 export { EffectSettingsDrawer } from '@/features/audio/components/effect-settings-drawer';
+export { EditChipRow } from '@/features/audio/components/edit-chip-row';
 export { IconButton } from '@/features/audio/components/icon-button';
 export { RecorderControls } from '@/features/audio/components/recorder-controls';
 export { RecorderHeader } from '@/features/audio/components/recorder-header';
 export { RecorderSection } from '@/features/audio/components/recorder-section';
 export { RecordingCard } from '@/features/audio/components/recording-card';
-export { RecordingModePicker } from '@/features/audio/components/recording-mode-picker';
 export { RecordingEditor } from '@/features/audio/components/recording-editor';
 export { RecordingEditorActions } from '@/features/audio/components/recording-editor-actions';
 export { RecordingTimer } from '@/features/audio/components/recording-timer';
