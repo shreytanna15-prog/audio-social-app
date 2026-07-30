@@ -17,6 +17,7 @@ export type RecordingEditorProps = {
   durationSeconds: number;
   isPending: boolean;
   isSaving: boolean;
-  onSave: (payload: RecordingEditorSavePayload) => Promise<void>;
+  /** Returns true when the recording was saved successfully. */
+  onSave: (payload: RecordingEditorSavePayload) => Promise<boolean>;
   onDiscard: () => void;
 };

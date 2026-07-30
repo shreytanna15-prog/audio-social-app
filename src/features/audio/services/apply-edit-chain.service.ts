@@ -3,6 +3,8 @@ import { File } from 'expo-file-system';
 
 import { ensureRecordingsRoot } from '@/features/audio/data/recording-storage';
 import {
+  getAutotuneNativeScale,
+  getAutotuneNativeSpeed,
   isEditChainEmpty,
   type EditChainSelection,
 } from '@/features/audio/types/edit-chips';
@@ -43,6 +45,15 @@ function reverbParams(preset: NonNullable<EditChainSelection['reverb']>): Effect
 function buildSuperpoweredEffectsJson(selection: EditChainSelection): string {
   const effects: EffectJsonItem[] = [];
 
+  if (selection.autotune) {
+    effects.push({
+      id: 'autotune',
+      params: {
+        scale: getAutotuneNativeScale(selection.autotune.scale),
+        speed: getAutotuneNativeSpeed(selection.autotune.speed),
+      },
+    });
+  }
   if (selection.compressor) {
     effects.push({
       id: 'compressor',
@@ -135,6 +146,7 @@ export async function applyEditChain(input: {
   }
 
   const hasSuperpoweredFx =
+    selection.autotune != null ||
     selection.compressor != null ||
     selection.eq != null ||
     selection.echo != null ||

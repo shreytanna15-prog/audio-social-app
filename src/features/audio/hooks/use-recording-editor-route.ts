@@ -70,8 +70,10 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       sourceUri,
       appliedEffects,
       sourcePreGateUri: saveSourcePreGateUri,
-    }: RecordingEditorSavePayload) => {
-      if (isSaving) return;
+    }: RecordingEditorSavePayload): Promise<boolean> => {
+      if (isSaving) {
+        return false;
+      }
 
       const saved = isPending
         ? await saveRecording({
@@ -90,7 +92,10 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
 
       if (saved) {
         router.back();
+        return true;
       }
+
+      return false;
     },
     [
       durationSeconds,

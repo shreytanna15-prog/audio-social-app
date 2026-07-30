@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "Superpowered.h"
+#include "SuperpoweredAutomaticVocalPitchCorrection.h"
 #include "SuperpoweredCompressor.h"
 #include "SuperpoweredDecoder.h"
 #include "SuperpoweredEcho.h"
@@ -91,6 +92,8 @@ std::string readStringParam(Superpowered::json *params, const char *key) {
 struct EffectSpec {
   std::string id;
   std::string preset;
+  std::string scale;
+  std::string speed;
   float roomSize = 2.0f;
   float amount = 25.0f;
   float delay = 2.0f;
@@ -143,6 +146,8 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
     }
 
     spec.preset = readStringParam(params, "preset");
+    spec.scale = readStringParam(params, "scale");
+    spec.speed = readStringParam(params, "speed");
 
     if (spec.id == "reverb") {
       spec.roomSize = readNumberParam(params, "roomSize", 2.0f);
@@ -152,7 +157,7 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
       spec.delay = readNumberParam(params, "delay", 2.0f);
       spec.intensity = clampf(readNumberParam(params, "intensity", 30.0f), 0.0f, 35.0f);
       specs.push_back(spec);
-    } else if (spec.id == "eq" || spec.id == "compressor") {
+    } else if (spec.id == "eq" || spec.id == "compressor" || spec.id == "autotune") {
       specs.push_back(spec);
     }
   }
@@ -255,6 +260,77 @@ EqBank buildEqBank(const std::string &preset, unsigned int samplerate) {
   return bank;
 }
 
+Superpowered::AutomaticVocalPitchCorrection::TunerScale parseAutotuneScale(
+  const std::string &scale
+) {
+  using Scale = Superpowered::AutomaticVocalPitchCorrection::TunerScale;
+  if (scale == "CMAJOR" || scale == "AMINOR") {
+    return Scale::CMAJOR;
+  }
+  if (scale == "CSHARPMAJOR" || scale == "ASHARPMINOR") {
+    return Scale::CSHARPMAJOR;
+  }
+  if (scale == "DMAJOR" || scale == "BMINOR") {
+    return Scale::DMAJOR;
+  }
+  if (scale == "DSHARPMAJOR" || scale == "CMINOR") {
+    return Scale::DSHARPMAJOR;
+  }
+  if (scale == "EMAJOR" || scale == "CSHARPMINOR") {
+    return Scale::EMAJOR;
+  }
+  if (scale == "FMAJOR" || scale == "DMINOR") {
+    return Scale::FMAJOR;
+  }
+  if (scale == "FSHARPMAJOR" || scale == "DSHARPMINOR") {
+    return Scale::FSHARPMAJOR;
+  }
+  if (scale == "GMAJOR" || scale == "EMINOR") {
+    return Scale::GMAJOR;
+  }
+  if (scale == "GSHARPMAJOR" || scale == "FMINOR") {
+    return Scale::GSHARPMAJOR;
+  }
+  if (scale == "AMAJOR" || scale == "FSHARPMINOR") {
+    return Scale::AMAJOR;
+  }
+  if (scale == "ASHARPMAJOR" || scale == "GMINOR") {
+    return Scale::ASHARPMAJOR;
+  }
+  if (scale == "BMAJOR" || scale == "GSHARPMINOR") {
+    return Scale::BMAJOR;
+  }
+  return Scale::CHROMATIC;
+}
+
+Superpowered::AutomaticVocalPitchCorrection::TunerSpeed parseAutotuneSpeed(
+  const std::string &speed
+) {
+  using Speed = Superpowered::AutomaticVocalPitchCorrection::TunerSpeed;
+  if (speed == "SUBTLE") {
+    return Speed::SUBTLE;
+  }
+  if (speed == "EXTREME") {
+    return Speed::EXTREME;
+  }
+  return Speed::MEDIUM;
+}
+
+Superpowered::AutomaticVocalPitchCorrection *buildAutotune(
+  const EffectSpec &spec,
+  unsigned int samplerate
+) {
+  Superpowered::AutomaticVocalPitchCorrection *autotune =
+    new Superpowered::AutomaticVocalPitchCorrection();
+  autotune->samplerate = samplerate;
+  autotune->scale = parseAutotuneScale(spec.scale);
+  autotune->speed = parseAutotuneSpeed(spec.speed);
+  autotune->range = Superpowered::AutomaticVocalPitchCorrection::WIDE;
+  autotune->clamp = Superpowered::AutomaticVocalPitchCorrection::LOOSE;
+  autotune->frequencyOfA = 440.0f;
+  return autotune;
+}
+
 Superpowered::Compressor *buildCompressor(const std::string &preset, unsigned int samplerate) {
   Superpowered::Compressor *compressor = new Superpowered::Compressor(samplerate);
   compressor->hpCutOffHz = 80.0f;
@@ -341,6 +417,7 @@ extern "C" int SuperpoweredEffects_processFile(
     return 5;
   }
 
+  Superpowered::AutomaticVocalPitchCorrection *autotune = nullptr;
   Superpowered::Compressor *compressor = nullptr;
   EqBank eqBank;
   Superpowered::Echo *echo = nullptr;
@@ -348,7 +425,9 @@ extern "C" int SuperpoweredEffects_processFile(
   Superpowered::Limiter *limiter = nullptr;
 
   for (const EffectSpec &spec : specs) {
-    if (spec.id == "compressor" && compressor == nullptr) {
+    if (spec.id == "autotune" && autotune == nullptr) {
+      autotune = buildAutotune(spec, samplerate);
+    } else if (spec.id == "compressor" && compressor == nullptr) {
       compressor = buildCompressor(spec.preset.empty() ? "gentle" : spec.preset, samplerate);
     } else if (spec.id == "eq" && eqBank.mudCut == nullptr && eqBank.lowShelf == nullptr &&
                eqBank.presence == nullptr && eqBank.hiShelf == nullptr && eqBank.highpass == nullptr) {
@@ -392,6 +471,7 @@ extern "C" int SuperpoweredEffects_processFile(
     std::free(intBuffer);
     std::free(floatBuffer);
     delete limiter;
+    delete autotune;
     delete compressor;
     eqBank.destroy();
     delete echo;
@@ -410,7 +490,11 @@ extern "C" int SuperpoweredEffects_processFile(
     const unsigned int frames = (unsigned int)framesDecoded;
     Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
 
-    // Voloco Free order: Comp → EQ → Echo → Reverb
+    // Chain order: Autotune → Comp → EQ → Echo → Reverb
+    if (autotune != nullptr) {
+      autotune->samplerate = samplerate;
+      autotune->process(floatBuffer, floatBuffer, true, frames);
+    }
     if (compressor != nullptr) {
       compressor->samplerate = samplerate;
       compressor->process(floatBuffer, floatBuffer, frames);
@@ -436,6 +520,7 @@ extern "C" int SuperpoweredEffects_processFile(
   std::free(intBuffer);
   std::free(floatBuffer);
   delete limiter;
+  delete autotune;
   delete compressor;
   eqBank.destroy();
   delete echo;

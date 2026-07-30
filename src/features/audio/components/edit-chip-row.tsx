@@ -15,6 +15,8 @@ import {
   ECHO_PRESETS,
   EQ_PRESETS,
   REVERB_PRESETS,
+  getAutotuneScaleLabel,
+  getAutotuneSpeedLabel,
   type CompressorPresetId,
   type EchoPresetId,
   type EditChainSelection,
@@ -28,6 +30,7 @@ type EditChipRowProps = {
   isProcessing?: boolean;
   processingLabel?: string;
   onCleanVoicePress: () => void;
+  onOpenAutotune: () => void;
   onOpenCompressor: () => void;
   onOpenEq: () => void;
   onOpenEcho: () => void;
@@ -48,6 +51,7 @@ export function EditChipRow({
   isProcessing = false,
   processingLabel,
   onCleanVoicePress,
+  onOpenAutotune,
   onOpenCompressor,
   onOpenEq,
   onOpenEcho,
@@ -66,6 +70,19 @@ export function EditChipRow({
       },
       active: selection.cleanVoice,
       onPress: onCleanVoicePress,
+    },
+    {
+      key: 'autotune',
+      label: selection.autotune
+        ? `Autotune · ${getAutotuneScaleLabel(selection.autotune.scale)} · ${getAutotuneSpeedLabel(selection.autotune.speed)}`
+        : 'Autotune',
+      icon: {
+        ios: 'music.note',
+        android: 'music_note',
+        web: 'music_note',
+      },
+      active: selection.autotune != null,
+      onPress: onOpenAutotune,
     },
     {
       key: 'compressor',

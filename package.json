@@ -6,7 +6,7 @@
   "dependencies": {
     "@expo/ui": "~56.0.18",
     "@wokcito/ffmpeg-kit-react-native": "^6.1.2",
-    "expo": "~56.0.12",
+    "expo": "~56.0.17",
     "expo-audio": "~56.0.12",
     "expo-build-properties": "~56.0.19",
     "expo-constants": "~56.0.18",

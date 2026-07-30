@@ -14,6 +14,7 @@ import {
   getEditChainLabel,
   getEditChainProcessingLabel,
   isEditChainEmpty,
+  type AutotuneSelection,
   type CompressorPresetId,
   type EchoPresetId,
   type EditChainSelection,
@@ -21,6 +22,8 @@ import {
   type ReverbPresetId,
 } from '@/features/audio/types/edit-chips';
 import type { AppliedEffect } from '@/features/audio/types/applied-effects';
+
+type PresetSheetKind = 'autotune' | 'compressor' | 'eq' | 'echo' | 'reverb';
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
@@ -68,9 +71,7 @@ export function useRecordingEditorSession({
   const [selection, setSelection] = useState<EditChainSelection>(() =>
     selectionFromAppliedEffects(initialAppliedEffects),
   );
-  const [presetSheet, setPresetSheet] = useState<
-    'compressor' | 'eq' | 'echo' | 'reverb' | null
-  >(null);
+  const [presetSheet, setPresetSheet] = useState<PresetSheetKind | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const activeBaselineRef = useRef(baselineUri);
   const pendingSelectionRef = useRef<EditChainSelection | null>(null);
@@ -168,7 +169,7 @@ export function useRecordingEditorSession({
   }, [isProcessing, isSaving, rebuildChain, selection]);
 
   const openPresetSheet = useCallback(
-    (kind: 'compressor' | 'eq' | 'echo' | 'reverb') => {
+    (kind: PresetSheetKind) => {
       if (isProcessing || isSaving) {
         return;
       }
@@ -183,6 +184,50 @@ export function useRecordingEditorSession({
     }
     setPresetSheet(null);
   }, [isProcessing]);
+
+  const selectAutotune = useCallback(
+    (value: AutotuneSelection | null) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
+
+      if (value == null) {
+        setPresetSheet(null);
+        void rebuildChain({
+          ...selection,
+          autotune: null,
+        });
+        return;
+      }
+
+      const alreadyOn = selection.autotune != null;
+      const apply = () => {
+        setPresetSheet(null);
+        void rebuildChain({
+          ...selection,
+          autotune: value,
+        });
+      };
+
+      if (alreadyOn) {
+        apply();
+        return;
+      }
+
+      Alert.alert(
+        'Autotune',
+        'Autotune is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse or pull notes to the wrong pitch.\n\nProcessing can take a little while. Please wait until it finishes.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Continue',
+            onPress: apply,
+          },
+        ],
+      );
+    },
+    [isProcessing, isSaving, rebuildChain, selection],
+  );
 
   const selectCompressor = useCallback(
     (preset: CompressorPresetId | null) => {
@@ -264,6 +309,7 @@ export function useRecordingEditorSession({
     openPresetSheet,
     closePresetSheet,
     presetSheet,
+    selectAutotune,
     selectCompressor,
     selectEq,
     selectEcho,

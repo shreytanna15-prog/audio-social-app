@@ -8,6 +8,7 @@ import {
   eqSheetOptions,
   reverbSheetOptions,
 } from '@/features/audio/components/edit-chip-row';
+import { AutotuneSheet } from '@/features/audio/components/autotune-sheet';
 import { IconButton } from '@/features/audio/components/icon-button';
 import { RecordingEditorActions } from '@/features/audio/components/recording-editor-actions';
 import { RecordingTimer } from '@/features/audio/components/recording-timer';
@@ -52,13 +53,17 @@ export function RecordingEditor({
   };
 
   const handleSave = async () => {
-    await onSave({
+    const saved = await onSave({
       sourceUri: session.workingUri,
       appliedEffects: session.appliedEffects,
       sourcePreGateUri: source.sourcePreGateUri ?? null,
     });
 
-    await session.cleanupWorkingFile();
+    // Only delete the temp working file after a successful save. On failure the
+    // user stays on this screen and still needs the file for play / retry.
+    if (saved) {
+      await session.cleanupWorkingFile();
+    }
   };
 
   return (
@@ -75,8 +80,8 @@ export function RecordingEditor({
           <Text style={styles.appliedEffect}>Applied: {session.effectLabel}</Text>
         ) : (
           <Text style={styles.hint}>
-            Soft cleanup is already on. Use the tools below for voice denoise, tone, or space.
-            Reset brings back the cleaned take.
+            Soft cleanup is already on. Use the tools below for voice denoise, Autotune, tone, or
+            space. Reset brings back the cleaned take.
           </Text>
         )}
         <View style={styles.playRow}>
@@ -113,6 +118,7 @@ export function RecordingEditor({
           isProcessing={session.isProcessing}
           processingLabel={session.processingLabel}
           onCleanVoicePress={session.toggleCleanVoice}
+          onOpenAutotune={() => session.openPresetSheet('autotune')}
           onOpenCompressor={() => session.openPresetSheet('compressor')}
           onOpenEq={() => session.openPresetSheet('eq')}
           onOpenEcho={() => session.openPresetSheet('echo')}
@@ -128,6 +134,13 @@ export function RecordingEditor({
         />
       </ScrollView>
 
+      <AutotuneSheet
+        visible={session.presetSheet === 'autotune'}
+        selection={session.selection.autotune}
+        onApply={(value) => session.selectAutotune(value)}
+        onClear={() => session.selectAutotune(null)}
+        onClose={session.closePresetSheet}
+      />
       <EditPresetSheet
         visible={session.presetSheet === 'compressor'}
         title="Compressor"

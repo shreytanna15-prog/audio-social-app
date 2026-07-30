@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { getOptimizeOverlayCopy } from '@/features/audio/domain/recording-optimize-copy';
 
@@ -13,13 +13,13 @@ export function RecordingOptimizeOverlay({
     return null;
   }
 
-  const { title, subtitle } = getOptimizeOverlayCopy();
+  const { title } = getOptimizeOverlayCopy();
 
   return (
     <View style={styles.backdrop} pointerEvents="auto">
       <View style={styles.card}>
+        <ActivityIndicator size="large" color="#1A73E8" />
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
     </View>
   );
@@ -44,19 +44,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 8,
+    paddingVertical: 28,
+    gap: 16,
+    alignItems: 'center',
   },
   title: {
     fontSize: 17,
     fontWeight: '600',
     color: '#1A1D21',
     textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#5C6370',
-    textAlign: 'center',
-    lineHeight: 20,
   },
 });
