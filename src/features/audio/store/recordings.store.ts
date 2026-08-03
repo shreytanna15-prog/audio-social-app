@@ -7,21 +7,23 @@ import {
   saveRecording as saveRecordingToRepository,
   updateRecording as updateRecordingInRepository,
 } from '@/features/audio/data/recording-repository';
-import type { AppliedEffect } from '@/features/audio/types/applied-effects';
+import type { StoredEditChain } from '@/features/audio/types/edit-chips';
 import type { AudioRecording } from '@/features/audio/types/audio';
 
 export type SaveRecordingParams = {
   sourceUri: string;
+  baselineUri: string;
   durationSeconds: number;
-  appliedEffects?: AppliedEffect[];
+  editChain?: StoredEditChain;
   sourcePreGateUri?: string | null;
 };
 
 export type UpdateRecordingParams = {
   id: string;
   sourceUri: string;
+  baselineUri: string;
   durationSeconds: number;
-  appliedEffects: AppliedEffect[];
+  editChain?: StoredEditChain;
   sourcePreGateUri?: string | null;
 };
 

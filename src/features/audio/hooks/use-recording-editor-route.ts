@@ -2,7 +2,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 
 import { discardPreviewRecording } from '@/features/audio/data/recording-repository';
-import { resolvePristineRecordingUri } from '@/features/audio/utils/recording-paths';
+import {
+  resolveBaselineRecordingUri,
+  resolvePristineRecordingUri,
+} from '@/features/audio/utils/recording-paths';
 
 import type { RecordingEditorRouteParams } from '@/features/audio/types/recording-editor-route';
 import type { RecordingEditorProps } from '@/features/audio/types/recording-editor';
@@ -43,7 +46,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const pristineUri = isPending
     ? uri
     : savedRecording
-      ? resolvePristineRecordingUri(savedRecording)
+      ? resolveBaselineRecordingUri(savedRecording) ?? savedRecording.uri
       : undefined;
 
   const resolvedSourcePreGateUri = (() => {
@@ -57,7 +60,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
     return savedRecording ? resolvePristineRecordingUri(savedRecording) : null;
   })();
 
-  const initialAppliedEffects = savedRecording?.appliedEffects ?? [];
+  const initialEditChain = savedRecording?.editChain;
 
   const durationSeconds = isPending
     ? Number(duration ?? 0)
@@ -68,7 +71,8 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const handleSave = useCallback(
     async ({
       sourceUri,
-      appliedEffects,
+      baselineUri,
+      editChain,
       sourcePreGateUri: saveSourcePreGateUri,
     }: RecordingEditorSavePayload): Promise<boolean> => {
       if (isSaving) {
@@ -78,15 +82,17 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       const saved = isPending
         ? await saveRecording({
             sourceUri,
+            baselineUri,
             durationSeconds,
-            appliedEffects,
+            editChain,
             sourcePreGateUri: saveSourcePreGateUri ?? resolvedSourcePreGateUri,
           })
         : await updateRecording({
             id,
             sourceUri,
+            baselineUri,
             durationSeconds,
-            appliedEffects,
+            editChain,
             sourcePreGateUri: saveSourcePreGateUri ?? resolvedSourcePreGateUri,
           });
 
@@ -132,7 +138,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
         pristineUri,
         playbackUri,
         sourcePreGateUri: resolvedSourcePreGateUri,
-        initialAppliedEffects,
+        initialEditChain,
       },
       title: isPending
         ? 'Review your recording'

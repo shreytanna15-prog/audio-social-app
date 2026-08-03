@@ -11,10 +11,12 @@ import {
 
 import { IconButton } from '@/features/audio/components/icon-button';
 import {
+  AUTOTUNE_CHROMATIC_HINT,
   AUTOTUNE_SCALES,
   AUTOTUNE_SPEEDS,
   DEFAULT_AUTOTUNE_SELECTION,
   getAutotuneScaleLabel,
+  getAutotuneSpeedHint,
   getAutotuneSpeedLabel,
   type AutotuneScaleId,
   type AutotuneSelection,
@@ -99,8 +101,12 @@ export function AutotuneSheet({
               );
             })}
           </View>
+          <Text style={styles.hint}>{getAutotuneSpeedHint(draftSpeed)}</Text>
 
           <Text style={styles.sectionLabel}>Key</Text>
+          {draftScale === 'chromatic' ? (
+            <Text style={styles.hint}>{AUTOTUNE_CHROMATIC_HINT}</Text>
+          ) : null}
           <ScrollView
             style={styles.scaleList}
             nestedScrollEnabled
@@ -195,6 +201,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#7A7F87',
     marginBottom: 4,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#7A7F87',
+    lineHeight: 17,
   },
   sectionLabel: {
     fontSize: 13,

@@ -151,13 +151,16 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
 
     if (spec.id == "reverb") {
       spec.roomSize = readNumberParam(params, "roomSize", 2.0f);
-      spec.amount = clampf(readNumberParam(params, "amount", 25.0f), 0.0f, 30.0f);
+      // Raised cap so Room/Hall/Soft Plate recipes can use stronger wet (≤0.45).
+      spec.amount = clampf(readNumberParam(params, "amount", 28.0f), 0.0f, 45.0f);
       specs.push_back(spec);
     } else if (spec.id == "echo") {
       spec.delay = readNumberParam(params, "delay", 2.0f);
-      spec.intensity = clampf(readNumberParam(params, "intensity", 30.0f), 0.0f, 35.0f);
+      // Raised cap so Slapback/Classic/Bounce recipes can use stronger wet (≤0.55).
+      spec.intensity = clampf(readNumberParam(params, "intensity", 35.0f), 0.0f, 55.0f);
       specs.push_back(spec);
-    } else if (spec.id == "eq" || spec.id == "compressor" || spec.id == "autotune") {
+    } else if (spec.id == "eq" || spec.id == "compressor" || spec.id == "autotune" ||
+               spec.id == "fx") {
       specs.push_back(spec);
     }
   }
@@ -171,15 +174,25 @@ struct EqBank {
   Superpowered::Filter *lowShelf = nullptr;
   Superpowered::Filter *mudCut = nullptr;
   Superpowered::Filter *presence = nullptr;
+  Superpowered::Filter *air = nullptr;
   Superpowered::Filter *hiShelf = nullptr;
+  Superpowered::Filter *sibilanceTame = nullptr;
+
+  bool isEmpty() const {
+    return highpass == nullptr && lowShelf == nullptr && mudCut == nullptr &&
+           presence == nullptr && air == nullptr && hiShelf == nullptr &&
+           sibilanceTame == nullptr;
+  }
 
   void destroy() {
     delete highpass;
     delete lowShelf;
     delete mudCut;
     delete presence;
+    delete air;
     delete hiShelf;
-    highpass = lowShelf = mudCut = presence = hiShelf = nullptr;
+    delete sibilanceTame;
+    highpass = lowShelf = mudCut = presence = air = hiShelf = sibilanceTame = nullptr;
   }
 
   void process(float *buffer, unsigned int frames, unsigned int samplerate) {
@@ -199,62 +212,153 @@ struct EqBank {
       presence->samplerate = samplerate;
       presence->process(buffer, buffer, frames);
     }
+    if (air != nullptr) {
+      air->samplerate = samplerate;
+      air->process(buffer, buffer, frames);
+    }
     if (hiShelf != nullptr) {
       hiShelf->samplerate = samplerate;
       hiShelf->process(buffer, buffer, frames);
     }
+    if (sibilanceTame != nullptr) {
+      sibilanceTame->samplerate = samplerate;
+      sibilanceTame->process(buffer, buffer, frames);
+    }
+  }
+
+  /** Scale boosts only (positive dB) so stacked chains stay clear. */
+  void scaleBoosts(float factor) {
+    auto scale = [factor](Superpowered::Filter *f) {
+      if (f != nullptr && f->decibel > 0.0f) {
+        f->decibel *= factor;
+      }
+    };
+    scale(lowShelf);
+    scale(presence);
+    scale(air);
+    scale(hiShelf);
   }
 };
 
-EqBank buildEqBank(const std::string &preset, unsigned int samplerate) {
+EqBank buildEqBank(const std::string &preset, unsigned int samplerate, bool fxAware) {
   EqBank bank;
+  const float fxScale = fxAware ? 0.75f : 1.0f;
 
-  if (preset == "warm-bass") {
+  if (preset == "mid-range-scoop") {
+    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+    bank.highpass->frequency = 75.0f;
+    bank.highpass->resonance = 0.1f;
+    bank.highpass->enabled = true;
+
+    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.mudCut->frequency = 500.0f;
+    bank.mudCut->octave = 1.1f;
+    bank.mudCut->decibel = -4.5f * fxScale;
+    bank.mudCut->enabled = true;
+
     bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
-    bank.lowShelf->frequency = 150.0f;
-    bank.lowShelf->decibel = 3.0f;
+    bank.lowShelf->frequency = 140.0f;
+    bank.lowShelf->slope = 0.5f;
+    bank.lowShelf->decibel = 2.5f * fxScale;
+    bank.lowShelf->enabled = true;
+
+    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+    bank.hiShelf->frequency = 5500.0f;
+    bank.hiShelf->slope = 0.5f;
+    bank.hiShelf->decibel = 2.5f * fxScale;
+    bank.hiShelf->enabled = true;
+  } else if (preset == "brightness") {
+    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+    bank.highpass->frequency = 85.0f;
+    bank.highpass->resonance = 0.1f;
+    bank.highpass->enabled = true;
+
+    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.presence->frequency = 4200.0f;
+    bank.presence->octave = 0.8f;
+    bank.presence->decibel = 3.0f * fxScale;
+    bank.presence->enabled = true;
+
+    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+    bank.hiShelf->frequency = 6500.0f;
+    bank.hiShelf->slope = 0.5f;
+    bank.hiShelf->decibel = 3.0f * fxScale;
+    bank.hiShelf->enabled = true;
+
+    bank.sibilanceTame = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.sibilanceTame->frequency = 7800.0f;
+    bank.sibilanceTame->octave = 0.5f;
+    bank.sibilanceTame->decibel = -1.5f;
+    bank.sibilanceTame->enabled = true;
+  } else if (preset == "low-high-boost") {
+    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+    bank.highpass->frequency = 70.0f;
+    bank.highpass->resonance = 0.1f;
+    bank.highpass->enabled = true;
+
+    bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
+    bank.lowShelf->frequency = 160.0f;
+    bank.lowShelf->slope = 0.5f;
+    bank.lowShelf->decibel = 3.5f * fxScale;
     bank.lowShelf->enabled = true;
 
     bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.mudCut->frequency = 300.0f;
+    bank.mudCut->frequency = 320.0f;
     bank.mudCut->octave = 0.7f;
-    bank.mudCut->decibel = -2.0f;
-    bank.mudCut->enabled = true;
-  } else if (preset == "clear-notes") {
-    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.mudCut->frequency = 300.0f;
-    bank.mudCut->octave = 0.7f;
-    bank.mudCut->decibel = -2.0f;
-    bank.mudCut->enabled = true;
-
-    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.presence->frequency = 3200.0f;
-    bank.presence->octave = 0.8f;
-    bank.presence->decibel = 1.5f;
-    bank.presence->enabled = true;
-  } else if (preset == "bright") {
-    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.mudCut->frequency = 300.0f;
-    bank.mudCut->octave = 0.7f;
-    bank.mudCut->decibel = -1.0f;
+    bank.mudCut->decibel = -1.5f;
     bank.mudCut->enabled = true;
 
     bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
-    bank.hiShelf->frequency = 5000.0f;
-    bank.hiShelf->decibel = 2.0f;
+    bank.hiShelf->frequency = 6000.0f;
+    bank.hiShelf->slope = 0.5f;
+    bank.hiShelf->decibel = 3.0f * fxScale;
     bank.hiShelf->enabled = true;
+  } else if (preset == "telephone") {
+    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+    bank.highpass->frequency = 400.0f;
+    bank.highpass->resonance = 0.12f;
+    bank.highpass->enabled = true;
+
+    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.presence->frequency = 1800.0f;
+    bank.presence->octave = 1.2f;
+    bank.presence->decibel = 4.0f * fxScale;
+    bank.presence->enabled = true;
+
+    bank.air = new Superpowered::Filter(Superpowered::Filter::Resonant_Lowpass, samplerate);
+    bank.air->frequency = 3200.0f;
+    bank.air->resonance = 0.12f;
+    bank.air->enabled = true;
   } else {
-    // vocal-presence (default speech-friendly)
+    // vocal-clarity (default) — Voloco Vocal Clarity
     bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
     bank.highpass->frequency = 80.0f;
     bank.highpass->resonance = 0.1f;
     bank.highpass->enabled = true;
 
+    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.mudCut->frequency = 250.0f;
+    bank.mudCut->octave = 0.8f;
+    bank.mudCut->decibel = fxAware ? -3.0f : -3.5f;
+    bank.mudCut->enabled = true;
+
     bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.presence->frequency = 3500.0f;
-    bank.presence->octave = 0.8f;
-    bank.presence->decibel = 2.0f;
+    bank.presence->frequency = 3200.0f;
+    bank.presence->octave = 0.85f;
+    bank.presence->decibel = fxAware ? 2.5f : 3.2f;
     bank.presence->enabled = true;
+
+    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+    bank.hiShelf->frequency = 9000.0f;
+    bank.hiShelf->slope = 0.5f;
+    bank.hiShelf->decibel = fxAware ? 0.8f : 1.2f;
+    bank.hiShelf->enabled = true;
+
+    bank.sibilanceTame = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+    bank.sibilanceTame->frequency = 7800.0f;
+    bank.sibilanceTame->octave = 0.5f;
+    bank.sibilanceTame->decibel = fxAware ? -2.0f : -1.5f;
+    bank.sibilanceTame->enabled = true;
   }
 
   return bank;
@@ -316,6 +420,34 @@ Superpowered::AutomaticVocalPitchCorrection::TunerSpeed parseAutotuneSpeed(
   return Speed::MEDIUM;
 }
 
+Superpowered::AutomaticVocalPitchCorrection::TunerClamp parseAutotuneClamp(
+  const std::string &speed,
+  const std::string &scale
+) {
+  using Clamp = Superpowered::AutomaticVocalPitchCorrection::TunerClamp;
+  if (speed == "SUBTLE") {
+    return Clamp::LOOSE;
+  }
+  if (speed == "MEDIUM") {
+    return Clamp::TIGHT;
+  }
+  if (speed == "EXTREME") {
+    // Always TIGHT — clamp OFF tears consonants and low notes into crackle.
+    return Clamp::TIGHT;
+  }
+  return Clamp::TIGHT;
+}
+
+Superpowered::AutomaticVocalPitchCorrection::TunerRange parseAutotuneRange(
+  const std::string &speed
+) {
+  using Range = Superpowered::AutomaticVocalPitchCorrection::TunerRange;
+  // WIDE covers low and high voices (40–3000 Hz); TENOR breaks low pitches.
+  (void)speed;
+  return Range::WIDE;
+}
+
+/** Autotune chip — user scale + speed. */
 Superpowered::AutomaticVocalPitchCorrection *buildAutotune(
   const EffectSpec &spec,
   unsigned int samplerate
@@ -325,38 +457,287 @@ Superpowered::AutomaticVocalPitchCorrection *buildAutotune(
   autotune->samplerate = samplerate;
   autotune->scale = parseAutotuneScale(spec.scale);
   autotune->speed = parseAutotuneSpeed(spec.speed);
-  autotune->range = Superpowered::AutomaticVocalPitchCorrection::WIDE;
-  autotune->clamp = Superpowered::AutomaticVocalPitchCorrection::LOOSE;
+  autotune->range = parseAutotuneRange(spec.speed);
+  autotune->clamp = parseAutotuneClamp(spec.speed, spec.scale);
   autotune->frequencyOfA = 440.0f;
   return autotune;
 }
 
-Superpowered::Compressor *buildCompressor(const std::string &preset, unsigned int samplerate) {
+/**
+ * FX Hard/Natural Snap — Superpowered AVPC only (no TimeStretching, no FxPost).
+ * Pipeline for FX: AVPC → (optional mix chips) → light limiter.
+ * TIGHT clamp protects consonants; LOOSE/OFF was crackle-prone.
+ */
+Superpowered::AutomaticVocalPitchCorrection *buildFx(
+  const EffectSpec &spec,
+  unsigned int samplerate
+) {
+  using Clamp = Superpowered::AutomaticVocalPitchCorrection::TunerClamp;
+  using Range = Superpowered::AutomaticVocalPitchCorrection::TunerRange;
+  using Speed = Superpowered::AutomaticVocalPitchCorrection::TunerSpeed;
+
+  Superpowered::AutomaticVocalPitchCorrection *fx =
+    new Superpowered::AutomaticVocalPitchCorrection();
+  fx->samplerate = samplerate;
+  fx->scale = parseAutotuneScale(spec.scale.empty() ? "CMAJOR" : spec.scale);
+  fx->range = Range::WIDE;
+  fx->frequencyOfA = 440.0f;
+
+  if (spec.preset == "natural-snap") {
+    fx->speed = Speed::SUBTLE;
+    fx->clamp = Clamp::TIGHT;
+  } else {
+    // Hard Snap: stronger than Natural but MEDIUM avoids EXTREME robot/steppy tone.
+    fx->speed = Speed::MEDIUM;
+    fx->clamp = Clamp::TIGHT;
+  }
+  return fx;
+}
+
+Superpowered::Compressor *buildCompressor(
+  const std::string &preset,
+  unsigned int samplerate,
+  bool denseStack,
+  bool fxAware
+) {
   Superpowered::Compressor *compressor = new Superpowered::Compressor(samplerate);
   compressor->hpCutOffHz = 80.0f;
-  compressor->attackSec = 0.012f;
-  compressor->releaseSec = 0.25f;
+  compressor->attackSec = fxAware ? 0.014f : 0.010f;
+  compressor->releaseSec = 0.22f;
   compressor->enabled = true;
 
-  if (preset == "punch") {
-    compressor->inputGainDb = 1.5f;
+  // Calm makeup — avoid double +2.5 dB slam that crackles into the limiter.
+  const float makeupScale = denseStack ? 0.7f : (fxAware ? 0.85f : 1.0f);
+
+  if (preset == "blasted") {
+    // Dense stacks: parallel-style wet + single-sided makeup (no double in+out slam).
+    compressor->inputGainDb = denseStack ? 0.0f : (1.0f * makeupScale);
+    compressor->outputGainDb = denseStack ? (1.2f * makeupScale) : (1.5f * makeupScale);
+    compressor->thresholdDb = denseStack ? -20.0f : -22.0f;
+    compressor->ratio = denseStack ? 5.0f : 6.0f;
+    compressor->wet = denseStack ? 0.72f : 1.0f;
+    compressor->attackSec = 0.008f;
+  } else if (preset == "rap") {
+    compressor->inputGainDb = 0.8f * makeupScale;
+    compressor->outputGainDb = 1.2f * makeupScale;
     compressor->thresholdDb = -18.0f;
-    compressor->ratio = 2.6f;
-    compressor->wet = 0.65f;
+    compressor->ratio = 3.5f;
+    compressor->wet = 1.0f;
   } else if (preset == "pop") {
-    compressor->inputGainDb = 1.0f;
+    compressor->inputGainDb = 0.8f * makeupScale;
+    compressor->outputGainDb = 1.2f * makeupScale;
+    compressor->thresholdDb = -17.0f;
+    compressor->ratio = 3.5f;
+    compressor->wet = 0.80f;
+  } else if (preset == "parallel") {
+    compressor->inputGainDb = 1.0f * makeupScale;
+    compressor->outputGainDb = 1.0f * makeupScale;
     compressor->thresholdDb = -16.0f;
-    compressor->ratio = 2.2f;
-    compressor->wet = 0.55f;
+    compressor->ratio = 3.0f;
+    compressor->wet = 0.50f;
   } else {
-    // gentle
-    compressor->inputGainDb = 0.5f;
+    // moderate (default)
+    compressor->inputGainDb = 0.5f * makeupScale;
+    compressor->outputGainDb = 0.8f * makeupScale;
     compressor->thresholdDb = -14.0f;
-    compressor->ratio = 1.8f;
-    compressor->wet = 0.45f;
+    compressor->ratio = 2.0f;
+    compressor->wet = 0.55f;
   }
 
   return compressor;
+}
+
+struct EchoSend {
+  Superpowered::Echo *echo = nullptr;
+  Superpowered::Filter *colorHp = nullptr;
+  Superpowered::Filter *colorLp = nullptr;
+  float sendGain = 0.22f;
+
+  void destroy() {
+    delete echo;
+    delete colorHp;
+    delete colorLp;
+    echo = nullptr;
+    colorHp = nullptr;
+    colorLp = nullptr;
+  }
+};
+
+struct ReverbSend {
+  Superpowered::Reverb *reverb = nullptr;
+  float sendGain = 0.18f;
+
+  void destroy() {
+    delete reverb;
+    reverb = nullptr;
+  }
+};
+
+EchoSend buildEchoSend(
+  const EffectSpec &spec,
+  unsigned int samplerate
+) {
+  EchoSend send;
+  send.echo = new Superpowered::Echo(samplerate);
+  send.echo->bpm = 120.0f;
+  send.echo->enabled = true;
+  // Wet-only send path
+  send.echo->dry = 0.0f;
+  send.echo->wet = 1.0f;
+
+  float beats = 0.5f;
+  float decay = 0.36f;
+  send.sendGain = clampf(spec.intensity / 100.0f, 0.0f, 0.40f);
+
+  const std::string &preset = spec.preset;
+  if (preset == "resonant-buzz") {
+    // Slapback — very short
+    beats = 0.125f;
+    decay = 0.14f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.18f, 0.0f, 0.28f);
+  } else if (preset == "eighth-note-bounce") {
+    beats = 0.5f;
+    decay = 0.28f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.24f, 0.0f, 0.34f);
+  } else if (preset == "slinky") {
+    beats = 0.75f;
+    decay = 0.48f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.24f, 0.0f, 0.34f);
+  } else if (preset == "right-to-left") {
+    // Ping-pong-ish within Superpowered Echo limits
+    beats = 0.5f;
+    decay = 0.34f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.22f, 0.0f, 0.32f);
+  } else {
+    // coin-drop — short, louder presence
+    beats = 0.25f;
+    decay = 0.30f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.28f, 0.0f, 0.36f);
+  }
+
+  send.echo->beats = beats;
+  send.echo->decay = decay;
+
+  send.colorHp = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+  send.colorHp->frequency = 320.0f;
+  send.colorHp->resonance = 0.1f;
+  send.colorHp->enabled = true;
+
+  send.colorLp = new Superpowered::Filter(Superpowered::Filter::Resonant_Lowpass, samplerate);
+  send.colorLp->frequency = 4800.0f;
+  send.colorLp->resonance = 0.12f;
+  send.colorLp->enabled = true;
+
+  return send;
+}
+
+ReverbSend buildReverbSend(
+  const EffectSpec &spec,
+  unsigned int samplerate
+) {
+  ReverbSend send;
+  send.reverb = new Superpowered::Reverb(samplerate);
+  send.reverb->enabled = true;
+  send.reverb->dry = 0.0f;
+  send.reverb->wet = 1.0f;
+
+  send.sendGain = clampf(spec.amount / 100.0f, 0.0f, 0.38f);
+
+  const std::string &preset = spec.preset;
+  if (preset == "cathedral") {
+    send.reverb->roomSize = 0.82f;
+    send.reverb->damp = 0.42f;
+    send.reverb->width = 1.0f;
+    send.reverb->predelayMs = 36.0f;
+    send.reverb->lowCutHz = 200.0f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.26f, 0.0f, 0.34f);
+  } else if (preset == "large-hall") {
+    send.reverb->roomSize = 0.72f;
+    send.reverb->damp = 0.48f;
+    send.reverb->width = 1.0f;
+    send.reverb->predelayMs = 30.0f;
+    send.reverb->lowCutHz = 210.0f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.24f, 0.0f, 0.32f);
+  } else if (preset == "stereo-width") {
+    send.reverb->roomSize = 0.50f;
+    send.reverb->damp = 0.45f;
+    send.reverb->width = 1.0f;
+    send.reverb->predelayMs = 20.0f;
+    send.reverb->lowCutHz = 240.0f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.20f, 0.0f, 0.30f);
+  } else if (preset == "long-narrow") {
+    send.reverb->roomSize = 0.62f;
+    send.reverb->damp = 0.55f;
+    send.reverb->width = 0.45f;
+    send.reverb->predelayMs = 40.0f;
+    send.reverb->lowCutHz = 260.0f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.22f, 0.0f, 0.30f);
+  } else if (preset == "small-club") {
+    send.reverb->roomSize = 0.36f;
+    send.reverb->damp = 0.55f;
+    send.reverb->width = 0.80f;
+    send.reverb->predelayMs = 14.0f;
+    send.reverb->lowCutHz = 250.0f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.18f, 0.0f, 0.28f);
+  } else {
+    // medium-room
+    send.reverb->roomSize = 0.48f;
+    send.reverb->damp = 0.56f;
+    send.reverb->width = 0.88f;
+    send.reverb->predelayMs = 22.0f;
+    send.reverb->lowCutHz = 260.0f;
+    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.19f, 0.0f, 0.28f);
+  }
+
+  return send;
+}
+
+void sumSendIntoDry(
+  float *dry,
+  const float *wet,
+  unsigned int frames,
+  float sendGain
+) {
+  const unsigned int samples = frames * 2;
+  for (unsigned int i = 0; i < samples; ++i) {
+    dry[i] += wet[i] * sendGain;
+  }
+}
+
+/** Peak already in ~[-12, -3] dBFS → leave alone; else scale toward -6 dBFS (0.5). */
+float computeInputNormalizeGain(float peak) {
+  if (peak < 1e-8f) {
+    return 1.0f;
+  }
+  const float safeLo = 0.251189f; // -12 dBFS
+  const float safeHi = 0.707946f; // -3 dBFS
+  if (peak >= safeLo && peak <= safeHi) {
+    return 1.0f;
+  }
+  const float target = 0.5f; // -6 dBFS
+  return target / peak;
+}
+
+void applyGain(float *buffer, unsigned int frames, float gain) {
+  if (std::fabs(gain - 1.0f) < 1e-6f) {
+    return;
+  }
+  const unsigned int samples = frames * 2;
+  for (unsigned int i = 0; i < samples; ++i) {
+    buffer[i] *= gain;
+  }
+}
+
+float bufferPeak(const float *buffer, unsigned int frames) {
+  float peak = 0.0f;
+  const unsigned int samples = frames * 2;
+  for (unsigned int i = 0; i < samples; ++i) {
+    const float a = std::fabs(buffer[i]);
+    if (a > peak) {
+      peak = a;
+    }
+  }
+  return peak;
 }
 
 } // namespace
@@ -417,69 +798,203 @@ extern "C" int SuperpoweredEffects_processFile(
     return 5;
   }
 
-  Superpowered::AutomaticVocalPitchCorrection *autotune = nullptr;
+  Superpowered::AutomaticVocalPitchCorrection *pitch = nullptr;
+  bool pitchIsFx = false;
   Superpowered::Compressor *compressor = nullptr;
   EqBank eqBank;
-  Superpowered::Echo *echo = nullptr;
-  Superpowered::Reverb *reverb = nullptr;
+  EchoSend echoSend;
+  ReverbSend reverbSend;
   Superpowered::Limiter *limiter = nullptr;
 
+  bool wantsPitchFx = false;
+  bool wantsPitchAutotune = false;
+  bool wantsComp = false;
+  bool wantsEq = false;
+  bool wantsEcho = false;
+  bool wantsReverb = false;
   for (const EffectSpec &spec : specs) {
-    if (spec.id == "autotune" && autotune == nullptr) {
-      autotune = buildAutotune(spec, samplerate);
-    } else if (spec.id == "compressor" && compressor == nullptr) {
-      compressor = buildCompressor(spec.preset.empty() ? "gentle" : spec.preset, samplerate);
-    } else if (spec.id == "eq" && eqBank.mudCut == nullptr && eqBank.lowShelf == nullptr &&
-               eqBank.presence == nullptr && eqBank.hiShelf == nullptr && eqBank.highpass == nullptr) {
-      eqBank = buildEqBank(spec.preset.empty() ? "clear-notes" : spec.preset, samplerate);
-    } else if (spec.id == "echo" && echo == nullptr) {
-      echo = new Superpowered::Echo(samplerate);
-      const float delayLevel = clampf(spec.delay, 1.0f, 3.0f);
-      const float wet = clampf(spec.intensity / 100.0f, 0.0f, 0.35f);
-      echo->bpm = 120.0f;
-      echo->beats = delayLevel <= 1.5f ? 0.25f : (delayLevel >= 2.5f ? 0.75f : 0.5f);
-      echo->decay = 0.28f + wet * 0.25f;
-      echo->setMix(wet);
-      echo->enabled = true;
-    } else if (spec.id == "reverb" && reverb == nullptr) {
-      reverb = new Superpowered::Reverb(samplerate);
-      const float room = clampf((spec.roomSize - 1.0f) / 2.0f, 0.0f, 1.0f);
-      const float wet = clampf(spec.amount / 100.0f, 0.0f, 0.30f);
-      reverb->roomSize = 0.30f + room * 0.45f;
-      reverb->mix = wet;
-      reverb->damp = 0.50f;
-      reverb->width = 1.0f;
-      reverb->enabled = true;
+    if (spec.id == "fx") {
+      wantsPitchFx = true;
+    } else if (spec.id == "autotune") {
+      wantsPitchAutotune = true;
+    } else if (spec.id == "compressor") {
+      wantsComp = true;
+    } else if (spec.id == "eq") {
+      wantsEq = true;
+    } else if (spec.id == "echo") {
+      wantsEcho = true;
+    } else if (spec.id == "reverb") {
+      wantsReverb = true;
+    }
+  }
+  const bool wantsPitch = wantsPitchFx || wantsPitchAutotune;
+  const int mixStages =
+    (wantsComp ? 1 : 0) + (wantsEq ? 1 : 0) + (wantsEcho ? 1 : 0) + (wantsReverb ? 1 : 0);
+  const bool denseStack =
+    mixStages >= 3 || (wantsPitch && wantsComp && wantsEq) ||
+    (wantsComp && wantsEq && (wantsEcho || wantsReverb));
+  const bool fxAware = wantsPitchFx;
+
+  // Prefer FX AVPC over Autotune if both appear (JS should only send one).
+  auto buildPitchFromSpecs = [&]() {
+    for (const EffectSpec &spec : specs) {
+      if (spec.id == "fx" && pitch == nullptr) {
+        EffectSpec fxSpec = spec;
+        if (fxSpec.preset.empty()) {
+          fxSpec.preset = "hard-snap";
+        }
+        if (fxSpec.scale.empty()) {
+          fxSpec.scale = "CMAJOR";
+        }
+        pitch = buildFx(fxSpec, samplerate);
+        pitchIsFx = true;
+        break;
+      }
+    }
+    if (pitch == nullptr) {
+      for (const EffectSpec &spec : specs) {
+        if (spec.id == "autotune") {
+          pitch = buildAutotune(spec, samplerate);
+          break;
+        }
+      }
+    }
+  };
+
+  buildPitchFromSpecs();
+
+  for (const EffectSpec &spec : specs) {
+    if (spec.id == "compressor" && compressor == nullptr) {
+      compressor = buildCompressor(
+        spec.preset.empty() ? "moderate" : spec.preset,
+        samplerate,
+        denseStack,
+        fxAware
+      );
+    } else if (spec.id == "eq" && eqBank.isEmpty()) {
+      eqBank = buildEqBank(
+        spec.preset.empty() ? "vocal-clarity" : spec.preset,
+        samplerate,
+        fxAware
+      );
+    } else if (spec.id == "echo" && echoSend.echo == nullptr) {
+      echoSend = buildEchoSend(spec, samplerate);
+    } else if (spec.id == "reverb" && reverbSend.reverb == nullptr) {
+      reverbSend = buildReverbSend(spec, samplerate);
     }
   }
 
-  // Light ceiling only when dynamics/tone ran (keeps levels safe, not a Master chip).
-  if (compressor != nullptr || eqBank.presence != nullptr || eqBank.lowShelf != nullptr) {
+  // Dense mix-only stacks: pull Echo/Reverb sends so space doesn't crackle into the limiter.
+  if (denseStack && !pitchIsFx) {
+    const float sendScale = 0.80f;
+    echoSend.sendGain *= sendScale;
+    reverbSend.sendGain *= sendScale;
+  }
+
+  if (pitch != nullptr || compressor != nullptr || !eqBank.isEmpty() ||
+      echoSend.echo != nullptr || reverbSend.reverb != nullptr) {
     limiter = new Superpowered::Limiter(samplerate);
     limiter->ceilingDb = -1.0f;
-    limiter->thresholdDb = -2.5f;
-    limiter->releaseSec = 0.06f;
+    // FX-only: more headroom so exports aren't slammed (Voloco peak ~0.39)
+    const bool fxOnly =
+      pitchIsFx && compressor == nullptr && eqBank.isEmpty() && echoSend.echo == nullptr &&
+      reverbSend.reverb == nullptr;
+    if (fxOnly) {
+      // FX = AVPC + light limiter only (no FxPost). Keep headroom so exports stay clean.
+      limiter->ceilingDb = -8.3f;
+      limiter->thresholdDb = -9.0f;
+      limiter->releaseSec = 0.10f;
+    } else if (denseStack && !pitchIsFx) {
+      // Mix-only dense stack: more headroom after normalize + calmer sends
+      limiter->ceilingDb = -1.5f;
+      limiter->thresholdDb = -5.0f;
+      limiter->releaseSec = 0.10f;
+    } else if (!pitchIsFx) {
+      // Mix with normalize: lighter limiting when gain staging is under control
+      limiter->ceilingDb = -1.0f;
+      limiter->thresholdDb = denseStack ? -3.8f : -2.5f;
+      limiter->releaseSec = 0.08f;
+    } else {
+      // FX + mix chips: AVPC then mix; moderate headroom
+      limiter->thresholdDb = denseStack ? -4.0f : -3.2f;
+      limiter->releaseSec = 0.08f;
+    }
     limiter->enabled = true;
   }
 
   const unsigned int framesPerChunk = decoder->getFramesPerChunk();
   short int *intBuffer = (short int *)std::malloc(framesPerChunk * 2 * sizeof(short int) + 16384);
   float *floatBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
+  float *dryBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
+  float *wetBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
 
-  if (intBuffer == nullptr || floatBuffer == nullptr) {
+  if (intBuffer == nullptr || floatBuffer == nullptr || dryBuffer == nullptr ||
+      wetBuffer == nullptr) {
     setError("Out of memory allocating audio buffers.");
     std::free(intBuffer);
     std::free(floatBuffer);
+    std::free(dryBuffer);
+    std::free(wetBuffer);
     delete limiter;
-    delete autotune;
+    delete pitch;
     delete compressor;
     eqBank.destroy();
-    delete echo;
-    delete reverb;
+    echoSend.destroy();
+    reverbSend.destroy();
     Superpowered::closeWAV(destinationFile);
     delete decoder;
     return 6;
   }
+
+  // -------------------------------------------------------------------------
+  // Canonical offline order (user chip tap order is irrelevant):
+  //   pitch (FX/Autotune AVPC only — no FxPost) → input-normalize → Comp → EQ
+  //   → Echo send → Reverb send → limiter
+  // FX-only path: AVPC → normalize → light limiter.
+  // Pass 1: measure peak after pitch (or after decode if no pitch).
+  // Pass 2: apply constant normalize gain, then mix stages.
+  // -------------------------------------------------------------------------
+  float filePeak = 0.0f;
+  while (true) {
+    int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
+    if (framesDecoded < 1) {
+      break;
+    }
+    const unsigned int frames = (unsigned int)framesDecoded;
+    Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
+    if (pitch != nullptr) {
+      pitch->samplerate = samplerate;
+      pitch->process(floatBuffer, floatBuffer, true, frames);
+    }
+    const float chunkPeak = bufferPeak(floatBuffer, frames);
+    if (chunkPeak > filePeak) {
+      filePeak = chunkPeak;
+    }
+  }
+
+  const float inputNormalizeGain = computeInputNormalizeGain(filePeak);
+
+  // Rewind + rebuild pitch so pass 2 starts with clean processor state.
+  if (!decoder->setPositionPrecise(0)) {
+    setError("Could not rewind decoder for normalize pass.");
+    std::free(intBuffer);
+    std::free(floatBuffer);
+    std::free(dryBuffer);
+    std::free(wetBuffer);
+    delete limiter;
+    delete pitch;
+    delete compressor;
+    eqBank.destroy();
+    echoSend.destroy();
+    reverbSend.destroy();
+    Superpowered::closeWAV(destinationFile);
+    delete decoder;
+    return 7;
+  }
+  delete pitch;
+  pitch = nullptr;
+  pitchIsFx = false;
+  buildPitchFromSpecs();
 
   while (true) {
     int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
@@ -490,24 +1005,52 @@ extern "C" int SuperpoweredEffects_processFile(
     const unsigned int frames = (unsigned int)framesDecoded;
     Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
 
-    // Chain order: Autotune → Comp → EQ → Echo → Reverb
-    if (autotune != nullptr) {
-      autotune->samplerate = samplerate;
-      autotune->process(floatBuffer, floatBuffer, true, frames);
+    // 1) Pitch: FX AVPC or Autotune AVPC (never both). No FxPost after FX.
+    if (pitch != nullptr) {
+      pitch->samplerate = samplerate;
+      pitch->process(floatBuffer, floatBuffer, true, frames);
     }
+
+    // 2) Input peak normalize (constant gain for whole file)
+    applyGain(floatBuffer, frames, inputNormalizeGain);
+
+    // 3) Comp
     if (compressor != nullptr) {
       compressor->samplerate = samplerate;
       compressor->process(floatBuffer, floatBuffer, frames);
     }
+    // 4) EQ
     eqBank.process(floatBuffer, frames, samplerate);
-    if (echo != nullptr) {
-      echo->samplerate = samplerate;
-      echo->process(floatBuffer, floatBuffer, frames);
+
+    // 5–6) Send-style Echo / Reverb: keep dry clear, blend filtered wet
+    if (echoSend.echo != nullptr || reverbSend.reverb != nullptr) {
+      std::memcpy(dryBuffer, floatBuffer, frames * 2 * sizeof(float));
+
+      if (echoSend.echo != nullptr) {
+        std::memcpy(wetBuffer, dryBuffer, frames * 2 * sizeof(float));
+        echoSend.echo->samplerate = samplerate;
+        if (echoSend.colorHp != nullptr) {
+          echoSend.colorHp->samplerate = samplerate;
+          echoSend.echo->processWithFx(wetBuffer, wetBuffer, frames, echoSend.colorHp);
+          if (echoSend.colorLp != nullptr) {
+            echoSend.colorLp->samplerate = samplerate;
+            echoSend.colorLp->process(wetBuffer, wetBuffer, frames);
+          }
+        } else {
+          echoSend.echo->process(wetBuffer, wetBuffer, frames);
+        }
+        sumSendIntoDry(floatBuffer, wetBuffer, frames, echoSend.sendGain);
+      }
+
+      if (reverbSend.reverb != nullptr) {
+        std::memcpy(wetBuffer, dryBuffer, frames * 2 * sizeof(float));
+        reverbSend.reverb->samplerate = samplerate;
+        reverbSend.reverb->process(wetBuffer, wetBuffer, frames);
+        sumSendIntoDry(floatBuffer, wetBuffer, frames, reverbSend.sendGain);
+      }
     }
-    if (reverb != nullptr) {
-      reverb->samplerate = samplerate;
-      reverb->process(floatBuffer, floatBuffer, frames);
-    }
+
+    // 7) Limiter
     if (limiter != nullptr) {
       limiter->samplerate = samplerate;
       limiter->process(floatBuffer, floatBuffer, frames);
@@ -519,12 +1062,14 @@ extern "C" int SuperpoweredEffects_processFile(
 
   std::free(intBuffer);
   std::free(floatBuffer);
+  std::free(dryBuffer);
+  std::free(wetBuffer);
   delete limiter;
-  delete autotune;
+  delete pitch;
   delete compressor;
   eqBank.destroy();
-  delete echo;
-  delete reverb;
+  echoSend.destroy();
+  reverbSend.destroy();
   Superpowered::closeWAV(destinationFile);
   delete decoder;
 

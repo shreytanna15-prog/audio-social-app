@@ -7,6 +7,7 @@ import {
   toEffectErrorPresentation,
   type EffectErrorPresentation,
 } from '@/features/audio/domain/audio-effect-errors';
+import { fromStoredEditChain } from '@/features/audio/domain/edit-chain-persistence';
 import { useRecordingPlayback } from '@/features/audio/hooks/use-recording-playback';
 import { applyEditChain } from '@/features/audio/services/apply-edit-chain.service';
 import {
@@ -19,57 +20,34 @@ import {
   type EchoPresetId,
   type EditChainSelection,
   type EqPresetId,
+  type FxSelection,
   type ReverbPresetId,
+  type StoredEditChain,
 } from '@/features/audio/types/edit-chips';
-import type { AppliedEffect } from '@/features/audio/types/applied-effects';
 
-type PresetSheetKind = 'autotune' | 'compressor' | 'eq' | 'echo' | 'reverb';
+type PresetSheetKind = 'autotune' | 'fx' | 'compressor' | 'eq' | 'echo' | 'reverb';
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
   playbackUri: string;
   sourcePreGateUri?: string | null;
-  initialAppliedEffects?: AppliedEffect[];
+  initialEditChain?: StoredEditChain;
   isSaving: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
 };
-
-function selectionFromAppliedEffects(
-  effects: AppliedEffect[] | undefined,
-): EditChainSelection {
-  if (!effects || effects.length === 0) {
-    return { ...EMPTY_EDIT_CHAIN };
-  }
-
-  const next = { ...EMPTY_EDIT_CHAIN };
-  for (const effect of effects) {
-    if (effect.id === 'denoise') {
-      next.cleanVoice = true;
-    }
-  }
-  return next;
-}
-
-function appliedEffectsFromSelection(selection: EditChainSelection): AppliedEffect[] {
-  const effects: AppliedEffect[] = [];
-  if (selection.cleanVoice) {
-    effects.push({ id: 'denoise', params: { strength: 'medium' } });
-  }
-  return effects;
-}
 
 export function useRecordingEditorSession({
   pristineUri,
   playbackUri,
   sourcePreGateUri = null,
-  initialAppliedEffects = [],
+  initialEditChain,
   isSaving = false,
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
   const baselineUri = pristineUri;
   const [workingUri, setWorkingUri] = useState(playbackUri);
   const [selection, setSelection] = useState<EditChainSelection>(() =>
-    selectionFromAppliedEffects(initialAppliedEffects),
+    fromStoredEditChain(initialEditChain),
   );
   const [presetSheet, setPresetSheet] = useState<PresetSheetKind | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -84,11 +62,11 @@ export function useRecordingEditorSession({
     activeBaselineRef.current = baselineUri;
     pendingSelectionRef.current = null;
     setWorkingUri(playbackUri);
-    setSelection(selectionFromAppliedEffects(initialAppliedEffects));
+    setSelection(fromStoredEditChain(initialEditChain));
     setPresetSheet(null);
     setIsProcessing(false);
     console.warn(`[Editor] reset session for new take uri=${baselineUri}`);
-  }, [baselineUri, initialAppliedEffects, playbackUri]);
+  }, [baselineUri, initialEditChain, playbackUri]);
 
   const playback = useRecordingPlayback(workingUri);
 
@@ -229,6 +207,50 @@ export function useRecordingEditorSession({
     [isProcessing, isSaving, rebuildChain, selection],
   );
 
+  const selectFx = useCallback(
+    (value: FxSelection | null) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
+
+      if (value == null) {
+        setPresetSheet(null);
+        void rebuildChain({
+          ...selection,
+          fx: null,
+        });
+        return;
+      }
+
+      const alreadyOn = selection.fx != null;
+      const apply = () => {
+        setPresetSheet(null);
+        void rebuildChain({
+          ...selection,
+          fx: value,
+        });
+      };
+
+      if (alreadyOn) {
+        apply();
+        return;
+      }
+
+      Alert.alert(
+        'FX',
+        'FX pitch styles are made for singing and speech — not instruments. On guitar, piano, or other instruments they can make the sound worse or pull notes to the wrong pitch.\n\nProcessing can take a little while. Please wait until it finishes.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Continue',
+            onPress: apply,
+          },
+        ],
+      );
+    },
+    [isProcessing, isSaving, rebuildChain, selection],
+  );
+
   const selectCompressor = useCallback(
     (preset: CompressorPresetId | null) => {
       setPresetSheet(null);
@@ -290,14 +312,14 @@ export function useRecordingEditorSession({
   }, [baselineUri, workingUri]);
 
   const togglePlayback = useCallback(() => {
-    console.warn("[Play] editor workingUri");
+    console.warn('[Play] editor workingUri');
     playback.togglePlayback();
   }, [playback]);
 
   return {
     workingUri,
+    baselineUri,
     selection,
-    appliedEffects: appliedEffectsFromSelection(selection),
     effectLabel,
     isProcessing,
     processingLabel,
@@ -310,6 +332,7 @@ export function useRecordingEditorSession({
     closePresetSheet,
     presetSheet,
     selectAutotune,
+    selectFx,
     selectCompressor,
     selectEq,
     selectEcho,

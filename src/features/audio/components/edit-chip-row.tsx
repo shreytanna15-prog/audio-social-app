@@ -17,11 +17,8 @@ import {
   REVERB_PRESETS,
   getAutotuneScaleLabel,
   getAutotuneSpeedLabel,
-  type CompressorPresetId,
-  type EchoPresetId,
+  getFxPresetLabel,
   type EditChainSelection,
-  type EqPresetId,
-  type ReverbPresetId,
 } from '@/features/audio/types/edit-chips';
 
 type EditChipRowProps = {
@@ -31,6 +28,7 @@ type EditChipRowProps = {
   processingLabel?: string;
   onCleanVoicePress: () => void;
   onOpenAutotune: () => void;
+  onOpenFx: () => void;
   onOpenCompressor: () => void;
   onOpenEq: () => void;
   onOpenEcho: () => void;
@@ -52,6 +50,7 @@ export function EditChipRow({
   processingLabel,
   onCleanVoicePress,
   onOpenAutotune,
+  onOpenFx,
   onOpenCompressor,
   onOpenEq,
   onOpenEcho,
@@ -77,12 +76,25 @@ export function EditChipRow({
         ? `Autotune · ${getAutotuneScaleLabel(selection.autotune.scale)} · ${getAutotuneSpeedLabel(selection.autotune.speed)}`
         : 'Autotune',
       icon: {
+        ios: 'music.quarternote.3',
+        android: 'piano',
+        web: 'piano',
+      },
+      active: selection.autotune != null,
+      onPress: onOpenAutotune,
+    },
+    {
+      key: 'fx',
+      label: selection.fx
+        ? `FX · ${getFxPresetLabel(selection.fx.preset)} · ${getAutotuneScaleLabel(selection.fx.scale)}`
+        : 'FX',
+      icon: {
         ios: 'music.note',
         android: 'music_note',
         web: 'music_note',
       },
-      active: selection.autotune != null,
-      onPress: onOpenAutotune,
+      active: selection.fx != null,
+      onPress: onOpenFx,
     },
     {
       key: 'compressor',
@@ -273,13 +285,6 @@ export function echoSheetOptions() {
 export function reverbSheetOptions() {
   return REVERB_PRESETS.map((item) => ({ id: item.id, label: item.label }));
 }
-
-export type {
-  CompressorPresetId,
-  EchoPresetId,
-  EqPresetId,
-  ReverbPresetId,
-};
 
 const styles = StyleSheet.create({
   wrap: {

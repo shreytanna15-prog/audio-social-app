@@ -1,31 +1,47 @@
+export const FX_PRESETS = [
+  { id: 'hard-snap', label: 'Hard Snap' },
+  { id: 'natural-snap', label: 'Natural Snap' },
+] as const;
+
+/** Voloco free compressor presets. */
 export const COMPRESSOR_PRESETS = [
-  { id: 'gentle', label: 'Gentle' },
+  { id: 'rap', label: 'Rap' },
   { id: 'pop', label: 'Pop' },
-  { id: 'punch', label: 'Punch' },
+  { id: 'moderate', label: 'Moderate' },
+  { id: 'parallel', label: 'Parallel' },
+  { id: 'blasted', label: 'Blasted' },
 ] as const;
 
+/** Voloco free EQ presets. */
 export const EQ_PRESETS = [
-  { id: 'warm-bass', label: 'Warm Bass' },
-  { id: 'clear-notes', label: 'Clear Notes' },
-  { id: 'bright', label: 'Bright' },
-  { id: 'vocal-presence', label: 'Vocal Presence' },
+  { id: 'mid-range-scoop', label: 'Mid-range Scoop' },
+  { id: 'brightness', label: 'Brightness' },
+  { id: 'low-high-boost', label: 'Low/High Boost' },
+  { id: 'vocal-clarity', label: 'Vocal Clarity' },
+  { id: 'telephone', label: 'Telephone' },
 ] as const;
 
+/** Voloco free echo presets. */
 export const ECHO_PRESETS = [
-  { id: 'slapback', label: 'Slapback' },
-  { id: 'classic', label: 'Classic' },
-  { id: 'bounce', label: 'Bounce' },
+  { id: 'right-to-left', label: 'Right to Left' },
+  { id: 'eighth-note-bounce', label: '8th Note Bounce' },
+  { id: 'resonant-buzz', label: 'Resonant Buzz' },
+  { id: 'slinky', label: 'Slinky' },
+  { id: 'coin-drop', label: 'Coin Drop' },
 ] as const;
 
+/** Voloco free reverb presets. */
 export const REVERB_PRESETS = [
-  { id: 'room', label: 'Room' },
-  { id: 'hall', label: 'Hall' },
-  { id: 'soft-plate', label: 'Soft Plate' },
+  { id: 'stereo-width', label: 'Stereo Width' },
+  { id: 'large-hall', label: 'Large Hall' },
+  { id: 'small-club', label: 'Small Club' },
+  { id: 'long-narrow', label: 'Long/Narrow' },
+  { id: 'cathedral', label: 'Cathedral' },
+  { id: 'medium-room', label: 'Medium Room' },
 ] as const;
 
-/** Superpowered TunerScale names used in native effects JSON. */
+/** Superpowered TunerScale names used in native effects JSON. Chromatic last — light correction only. */
 export const AUTOTUNE_SCALES = [
-  { id: 'chromatic', label: 'Chromatic', native: 'CHROMATIC' },
   { id: 'c-major', label: 'C Major', native: 'CMAJOR' },
   { id: 'a-minor', label: 'A Minor', native: 'AMINOR' },
   { id: 'c-sharp-major', label: 'C♯ Major', native: 'CSHARPMAJOR' },
@@ -50,6 +66,7 @@ export const AUTOTUNE_SCALES = [
   { id: 'g-minor', label: 'G Minor', native: 'GMINOR' },
   { id: 'b-major', label: 'B Major', native: 'BMAJOR' },
   { id: 'g-sharp-minor', label: 'G♯ Minor', native: 'GSHARPMINOR' },
+  { id: 'chromatic', label: 'Chromatic (light correction)', native: 'CHROMATIC' },
 ] as const;
 
 export const AUTOTUNE_SPEEDS = [
@@ -58,6 +75,7 @@ export const AUTOTUNE_SPEEDS = [
   { id: 'extreme', label: 'Extreme', native: 'EXTREME' },
 ] as const;
 
+export type FxPresetId = (typeof FX_PRESETS)[number]['id'];
 export type CompressorPresetId = (typeof COMPRESSOR_PRESETS)[number]['id'];
 export type EqPresetId = (typeof EQ_PRESETS)[number]['id'];
 export type EchoPresetId = (typeof ECHO_PRESETS)[number]['id'];
@@ -65,23 +83,59 @@ export type ReverbPresetId = (typeof REVERB_PRESETS)[number]['id'];
 export type AutotuneScaleId = (typeof AUTOTUNE_SCALES)[number]['id'];
 export type AutotuneSpeedId = (typeof AUTOTUNE_SPEEDS)[number]['id'];
 
+export const AUTOTUNE_CHROMATIC_HINT =
+  'Light correction only. Pick a key above for stronger snap to the scale.';
+
+export const AUTOTUNE_SPEED_HINTS: Record<AutotuneSpeedId, string> = {
+  subtle: 'Natural — gentle pitch smoothing.',
+  medium: 'Standard — noticeable correction.',
+  extreme: 'Hard tune — strong snap to the key.',
+};
+
+export const FX_KEY_HINT = 'Key is required for snap — pick the song key (same role as Voloco Key).';
+
+export const FX_PRESET_HINTS: Record<FxPresetId, string> = {
+  'hard-snap': 'Strong pitch-style snap (Hard Tune feel) with formant-safe shifting.',
+  'natural-snap': 'Softer pitch-style smoothing with formant-safe shifting.',
+};
+
 export type AutotuneSelection = {
   scale: AutotuneScaleId;
   speed: AutotuneSpeedId;
 };
 
+/** FX owns its own Key (separate from Autotune). */
+export type FxSelection = {
+  preset: FxPresetId;
+  scale: AutotuneScaleId;
+};
+
 export type EditChipKind =
   | 'clean-voice'
   | 'autotune'
+  | 'fx'
   | 'compressor'
   | 'eq'
   | 'echo'
   | 'reverb';
 
-/** Selected Voloco Free–tier edit tools (all optional except baseline soft gate). */
+/** Selected edit tools (all optional except baseline soft gate). */
 export type EditChainSelection = {
   cleanVoice: boolean;
   autotune: AutotuneSelection | null;
+  fx: FxSelection | null;
+  compressor: CompressorPresetId | null;
+  eq: EqPresetId | null;
+  echo: EchoPresetId | null;
+  reverb: ReverbPresetId | null;
+};
+
+/** Persisted edit recipe stored on AudioRecording (current write format). */
+export type StoredEditChain = {
+  version: 5;
+  cleanVoice: boolean;
+  autotune: AutotuneSelection | null;
+  fx: FxSelection | null;
   compressor: CompressorPresetId | null;
   eq: EqPresetId | null;
   echo: EchoPresetId | null;
@@ -91,6 +145,7 @@ export type EditChainSelection = {
 export const EMPTY_EDIT_CHAIN: EditChainSelection = {
   cleanVoice: false,
   autotune: null,
+  fx: null,
   compressor: null,
   eq: null,
   echo: null,
@@ -98,9 +153,22 @@ export const EMPTY_EDIT_CHAIN: EditChainSelection = {
 };
 
 export const DEFAULT_AUTOTUNE_SELECTION: AutotuneSelection = {
-  scale: 'chromatic',
-  speed: 'medium',
+  scale: 'c-major',
+  speed: 'extreme',
 };
+
+export const DEFAULT_FX_SELECTION: FxSelection = {
+  preset: 'hard-snap',
+  scale: 'c-major',
+};
+
+export function getFxPresetLabel(preset: FxPresetId): string {
+  return FX_PRESETS.find((item) => item.id === preset)?.label ?? preset;
+}
+
+export function getFxPresetHint(preset: FxPresetId): string {
+  return FX_PRESET_HINTS[preset];
+}
 
 export function getAutotuneScaleLabel(scale: AutotuneScaleId): string {
   return AUTOTUNE_SCALES.find((item) => item.id === scale)?.label ?? scale;
@@ -108,6 +176,10 @@ export function getAutotuneScaleLabel(scale: AutotuneScaleId): string {
 
 export function getAutotuneSpeedLabel(speed: AutotuneSpeedId): string {
   return AUTOTUNE_SPEEDS.find((item) => item.id === speed)?.label ?? speed;
+}
+
+export function getAutotuneSpeedHint(speed: AutotuneSpeedId): string {
+  return AUTOTUNE_SPEED_HINTS[speed];
 }
 
 export function getAutotuneNativeScale(scale: AutotuneScaleId): string {
@@ -122,6 +194,7 @@ export function isEditChainEmpty(selection: EditChainSelection): boolean {
   return (
     !selection.cleanVoice &&
     selection.autotune == null &&
+    selection.fx == null &&
     selection.compressor == null &&
     selection.eq == null &&
     selection.echo == null &&
@@ -138,6 +211,11 @@ export function getEditChainLabel(selection: EditChainSelection): string | null 
   if (selection.autotune) {
     parts.push(
       `Autotune: ${getAutotuneScaleLabel(selection.autotune.scale)} · ${getAutotuneSpeedLabel(selection.autotune.speed)}`,
+    );
+  }
+  if (selection.fx) {
+    parts.push(
+      `FX: ${getFxPresetLabel(selection.fx.preset)} · ${getAutotuneScaleLabel(selection.fx.scale)}`,
     );
   }
   if (selection.compressor) {
@@ -166,6 +244,9 @@ export function getEditChainProcessingLabel(selection: EditChainSelection): stri
   }
   if (selection.autotune && isEditChainEmpty({ ...selection, autotune: null })) {
     return 'Applying Autotune…';
+  }
+  if (selection.fx && isEditChainEmpty({ ...selection, fx: null })) {
+    return 'Applying FX…';
   }
   return 'Applying edit chain…';
 }

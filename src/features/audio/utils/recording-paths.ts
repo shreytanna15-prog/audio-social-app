@@ -38,6 +38,10 @@ function sourceFileName(extension: RecordingAudioExtension): string {
   return `source.${extension}`;
 }
 
+function baselineFileName(extension: RecordingAudioExtension = 'wav'): string {
+  return `baseline.${extension}`;
+}
+
 export function getRecordingsRoot(): string {
   return `${requireDocumentDirectory()}${RECORDINGS_FOLDER}/`;
 }
@@ -78,6 +82,31 @@ export function getRecordingSourceRelativePath(
   return `${RECORDINGS_FOLDER}/${id}/${sourceFileName(extension)}`;
 }
 
+export function getRecordingBaselineFileUri(
+  id: string,
+  extension: RecordingAudioExtension = 'wav',
+): string {
+  return `${getRecordingDirectory(id)}${baselineFileName(extension)}`;
+}
+
+export function getRecordingBaselineRelativePath(
+  id: string,
+  extension: RecordingAudioExtension = 'wav',
+): string {
+  return `${RECORDINGS_FOLDER}/${id}/${baselineFileName(extension)}`;
+}
+
+export function resolveBaselineRecordingUri(
+  recording: Pick<AudioRecording, 'uri' | 'baselinePath'>,
+): string | null {
+  if (recording.baselinePath && documentDirectory) {
+    return `${documentDirectory}${recording.baselinePath}`;
+  }
+
+  return null;
+}
+
+/** Pre-gate pristine WAV used as Clean Voice input. */
 export function resolvePristineRecordingUri(
   recording: Pick<AudioRecording, 'uri' | 'sourcePath'>,
 ): string {

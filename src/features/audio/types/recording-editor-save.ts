@@ -1,7 +1,8 @@
-import type { AppliedEffect } from '@/features/audio/types/applied-effects';
+import type { StoredEditChain } from '@/features/audio/types/edit-chips';
 
 export type RecordingEditorSavePayload = {
   sourceUri: string;
-  appliedEffects: AppliedEffect[];
+  baselineUri: string;
+  editChain?: StoredEditChain;
   sourcePreGateUri?: string | null;
 };

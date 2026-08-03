@@ -8,15 +8,18 @@ import {
   readIndex,
   writeIndex,
 } from '@/features/audio/data/recording-storage';
+import { normalizeStoredEditChain } from '@/features/audio/domain/edit-chain-persistence';
 import { normalizeAppliedEffects } from '@/features/audio/domain/effect-definitions';
 import {
   optimizeNsSpectralForPreview,
 } from '@/features/audio/services/recording-optimize.service';
-import type { AppliedEffect } from '@/features/audio/types/applied-effects';
+import type { StoredEditChain } from '@/features/audio/types/edit-chips';
 import {
   extensionFromUri,
   getPendingRecordingUri,
   getPendingSourceUri,
+  getRecordingBaselineFileUri,
+  getRecordingBaselineRelativePath,
   getRecordingFileUri,
   getRecordingRelativePath,
   getRecordingSourceFileUri,
@@ -27,8 +30,9 @@ import type { AudioRecording } from '@/features/audio/types/audio';
 
 type SaveRecordingInput = {
   sourceUri: string;
+  baselineUri: string;
   durationSeconds: number;
-  appliedEffects?: AppliedEffect[];
+  editChain?: StoredEditChain;
   /** Pre-soft-gate WAV to persist as source.* when saving. */
   sourcePreGateUri?: string | null;
 };
@@ -36,8 +40,9 @@ type SaveRecordingInput = {
 type UpdateRecordingInput = {
   id: string;
   sourceUri: string;
+  baselineUri: string;
   durationSeconds: number;
-  appliedEffects: AppliedEffect[];
+  editChain?: StoredEditChain;
   sourcePreGateUri?: string | null;
 };
 
@@ -187,6 +192,7 @@ export async function listRecordings(): Promise<AudioRecording[]> {
   return recordings
     .map((recording) => ({
       ...recording,
+      editChain: normalizeStoredEditChain(recording.editChain),
       appliedEffects: recording.appliedEffects
         ? normalizeAppliedEffects(recording.appliedEffects)
         : undefined,
@@ -198,14 +204,17 @@ export async function listRecordings(): Promise<AudioRecording[]> {
 
 export async function saveRecording({
   sourceUri,
+  baselineUri,
   durationSeconds,
-  appliedEffects = [],
+  editChain,
   sourcePreGateUri,
 }: SaveRecordingInput): Promise<AudioRecording> {
   const id = Crypto.randomUUID();
   const now = new Date().toISOString();
   const extension = extensionFromUri(sourceUri);
+  const baselineExtension = extensionFromUri(baselineUri);
   const destinationUri = getRecordingFileUri(id, extension);
+  const baselineDestinationUri = getRecordingBaselineFileUri(id, baselineExtension);
   const pristineUri = getRecordingSourceFileUri(
     id,
     sourcePreGateUri ? extensionFromUri(sourcePreGateUri) : extension,
@@ -213,6 +222,7 @@ export async function saveRecording({
 
   await ensureRecordingsRoot();
   await persistRecordingFile(sourceUri, destinationUri);
+  await persistRecordingFile(baselineUri, baselineDestinationUri);
   await persistRecordingFile(sourcePreGateUri ?? sourceUri, pristineUri);
 
   if (
@@ -242,9 +252,10 @@ export async function saveRecording({
       id,
       sourcePreGateUri ? extensionFromUri(sourcePreGateUri) : extension,
     ),
+    baselinePath: getRecordingBaselineRelativePath(id, baselineExtension),
     type: 'draft',
     duration: durationSeconds,
-    appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
+    editChain: normalizeStoredEditChain(editChain),
     createdAt: now,
     updatedAt: now,
   };
@@ -259,8 +270,9 @@ export async function saveRecording({
 export async function updateRecording({
   id,
   sourceUri,
+  baselineUri,
   durationSeconds,
-  appliedEffects,
+  editChain,
   sourcePreGateUri,
 }: UpdateRecordingInput): Promise<AudioRecording> {
   const recordings = await readIndex();
@@ -271,7 +283,9 @@ export async function updateRecording({
   }
 
   const extension = extensionFromUri(sourceUri);
+  const baselineExtension = extensionFromUri(baselineUri);
   const destinationUri = getRecordingFileUri(id, extension);
+  const baselineDestinationUri = getRecordingBaselineFileUri(id, baselineExtension);
 
   await ensureRecordingsRoot();
   await ensureSourceBackup(id, existing.uri);
@@ -282,6 +296,10 @@ export async function updateRecording({
       sourcePreGateUri,
       getRecordingSourceFileUri(id, sourceExt),
     );
+  }
+
+  if (baselineUri !== baselineDestinationUri) {
+    await persistRecordingFile(baselineUri, baselineDestinationUri);
   }
 
   if (sourceUri !== destinationUri) {
@@ -298,7 +316,8 @@ export async function updateRecording({
     duration: durationSeconds,
     sourcePath:
       existing.sourcePath ?? getRecordingSourceRelativePath(id, extension),
-    appliedEffects: appliedEffects.length > 0 ? appliedEffects : undefined,
+    baselinePath: getRecordingBaselineRelativePath(id, baselineExtension),
+    editChain: normalizeStoredEditChain(editChain),
     updatedAt: now,
   };
 

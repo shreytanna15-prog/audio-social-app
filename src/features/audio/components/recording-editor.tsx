@@ -9,11 +9,13 @@ import {
   reverbSheetOptions,
 } from '@/features/audio/components/edit-chip-row';
 import { AutotuneSheet } from '@/features/audio/components/autotune-sheet';
+import { FxSheet } from '@/features/audio/components/fx-sheet';
 import { IconButton } from '@/features/audio/components/icon-button';
 import { RecordingEditorActions } from '@/features/audio/components/recording-editor-actions';
 import { RecordingTimer } from '@/features/audio/components/recording-timer';
 import { WaveformDisplay } from '@/features/audio/components/waveform-display';
 import { useRecordingEditorSession } from '@/features/audio/hooks/use-recording-editor-session';
+import { toStoredEditChain } from '@/features/audio/domain/edit-chain-persistence';
 import { downloadRecording } from '@/features/audio/services/recording-share.service';
 import type { RecordingEditorProps } from '@/features/audio/types/recording-editor';
 import type { CompressorPresetId } from '@/features/audio/types/edit-chips';
@@ -36,11 +38,7 @@ export function RecordingEditor({
     pristineUri: source.pristineUri,
     playbackUri: source.playbackUri,
     sourcePreGateUri: source.sourcePreGateUri ?? null,
-    initialAppliedEffects: Array.isArray(source.initialAppliedEffects)
-      ? source.initialAppliedEffects.map((item) =>
-          typeof item === 'string' ? { id: item, params: {} } : item,
-        )
-      : undefined,
+    initialEditChain: source.initialEditChain,
     isSaving,
     onEffectError: ({ title: errorTitle, message }) => {
       Alert.alert(errorTitle, message);
@@ -55,7 +53,8 @@ export function RecordingEditor({
   const handleSave = async () => {
     const saved = await onSave({
       sourceUri: session.workingUri,
-      appliedEffects: session.appliedEffects,
+      baselineUri: session.baselineUri,
+      editChain: toStoredEditChain(session.selection),
       sourcePreGateUri: source.sourcePreGateUri ?? null,
     });
 
@@ -80,8 +79,8 @@ export function RecordingEditor({
           <Text style={styles.appliedEffect}>Applied: {session.effectLabel}</Text>
         ) : (
           <Text style={styles.hint}>
-            Soft cleanup is already on. Use the tools below for voice denoise, Autotune, tone, or
-            space. Reset brings back the cleaned take.
+            Soft cleanup is already on. Use Autotune for strength, FX for Hard/Natural Snap + Key,
+            plus Comp, EQ, Echo, or Reverb. Reset brings back the cleaned take.
           </Text>
         )}
         <View style={styles.playRow}>
@@ -119,6 +118,7 @@ export function RecordingEditor({
           processingLabel={session.processingLabel}
           onCleanVoicePress={session.toggleCleanVoice}
           onOpenAutotune={() => session.openPresetSheet('autotune')}
+          onOpenFx={() => session.openPresetSheet('fx')}
           onOpenCompressor={() => session.openPresetSheet('compressor')}
           onOpenEq={() => session.openPresetSheet('eq')}
           onOpenEcho={() => session.openPresetSheet('echo')}
@@ -139,6 +139,13 @@ export function RecordingEditor({
         selection={session.selection.autotune}
         onApply={(value) => session.selectAutotune(value)}
         onClear={() => session.selectAutotune(null)}
+        onClose={session.closePresetSheet}
+      />
+      <FxSheet
+        visible={session.presetSheet === 'fx'}
+        selection={session.selection.fx}
+        onApply={(value) => session.selectFx(value)}
+        onClear={() => session.selectFx(null)}
         onClose={session.closePresetSheet}
       />
       <EditPresetSheet
