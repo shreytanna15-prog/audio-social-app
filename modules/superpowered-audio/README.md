@@ -10,8 +10,9 @@ Offline Clean engine (post-record):
 
 Editor effects (offline file process):
 
-- **reverb / echo / modulate / enhance** via `processEffectsFile`
-- **denoise** via DeepFilter in JS, then optional Superpowered chain
+- **FX / Autotune / Comp / EQ / Echo / Reverb** via `processEffectsFile` (Voloco-style named presets with fixed values)
+- **Echo** uses a stereo delay engine matching Voloco Custom controls: duck, tempo sync, L/R delay + feedback, x-over (ping-pong), dry/wet
+- **Clean Voice** via DeepFilter in JS, then optional Superpowered chain
 - FFmpeg is used only to encode WAV → MP3 when needed
 
 ## JS API

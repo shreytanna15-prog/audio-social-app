@@ -12,6 +12,10 @@ import { useRecordingPlayback } from '@/features/audio/hooks/use-recording-playb
 import { applyEditChain } from '@/features/audio/services/apply-edit-chain.service';
 import {
   EMPTY_EDIT_CHAIN,
+  createCompressorSelection,
+  createEchoSelection,
+  createEqSelection,
+  createReverbSelection,
   getEditChainLabel,
   getEditChainProcessingLabel,
   isEditChainEmpty,
@@ -102,6 +106,7 @@ export function useRecordingEditorSession({
         await deleteProcessedRecording(previousUri, baselineUri);
         setWorkingUri(nextUri);
         setSelection(nextSelection);
+        // Auto-play runs after processing ends and the player remounts on the new URI.
       } catch (error) {
         const presentation = toEffectErrorPresentation(error, []);
         presentation.title = "Couldn't apply edit";
@@ -114,6 +119,27 @@ export function useRecordingEditorSession({
     },
     [baselineUri, onEffectError, playback, sourcePreGateUri, workingUri],
   );
+
+  // After a successful process, auto-play the new working file once processing ends.
+  const autoPlayUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isProcessing) {
+      return;
+    }
+    if (autoPlayUriRef.current === workingUri) {
+      return;
+    }
+    // Skip initial mount / baseline handoff from route — only auto-play after a chain change.
+    if (autoPlayUriRef.current == null) {
+      autoPlayUriRef.current = workingUri;
+      return;
+    }
+    autoPlayUriRef.current = workingUri;
+    const timer = setTimeout(() => {
+      playback.playFromStart();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [isProcessing, playback, workingUri]);
 
   const toggleCleanVoice = useCallback(() => {
     if (isProcessing || isSaving) {
@@ -215,23 +241,16 @@ export function useRecordingEditorSession({
 
       if (value == null) {
         setPresetSheet(null);
-        void rebuildChain({
-          ...selection,
-          fx: null,
-        });
+        void rebuildChain({ ...selection, fx: null });
         return;
       }
 
-      const alreadyOn = selection.fx != null;
       const apply = () => {
         setPresetSheet(null);
-        void rebuildChain({
-          ...selection,
-          fx: value,
-        });
+        void rebuildChain({ ...selection, fx: value });
       };
 
-      if (alreadyOn) {
+      if (selection.fx != null) {
         apply();
         return;
       }
@@ -253,50 +272,82 @@ export function useRecordingEditorSession({
 
   const selectCompressor = useCallback(
     (preset: CompressorPresetId | null) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
       setPresetSheet(null);
+      if (preset == null || selection.compressor?.preset === preset) {
+        void rebuildChain({ ...selection, compressor: null });
+        return;
+      }
       void rebuildChain({
         ...selection,
-        compressor: selection.compressor === preset ? null : preset,
+        compressor: createCompressorSelection(preset),
       });
     },
-    [rebuildChain, selection],
+    [isProcessing, isSaving, rebuildChain, selection],
   );
 
   const selectEq = useCallback(
     (preset: EqPresetId | null) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
       setPresetSheet(null);
+      if (preset == null || selection.eq?.preset === preset) {
+        void rebuildChain({ ...selection, eq: null });
+        return;
+      }
       void rebuildChain({
         ...selection,
-        eq: selection.eq === preset ? null : preset,
+        eq: createEqSelection(preset),
       });
     },
-    [rebuildChain, selection],
+    [isProcessing, isSaving, rebuildChain, selection],
   );
 
   const selectEcho = useCallback(
     (preset: EchoPresetId | null) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
       setPresetSheet(null);
+      if (preset == null || selection.echo?.preset === preset) {
+        void rebuildChain({ ...selection, echo: null });
+        return;
+      }
       void rebuildChain({
         ...selection,
-        echo: selection.echo === preset ? null : preset,
+        echo: createEchoSelection(preset),
       });
     },
-    [rebuildChain, selection],
+    [isProcessing, isSaving, rebuildChain, selection],
   );
 
   const selectReverb = useCallback(
     (preset: ReverbPresetId | null) => {
+      if (isProcessing || isSaving) {
+        return;
+      }
       setPresetSheet(null);
+      if (preset == null || selection.reverb?.preset === preset) {
+        void rebuildChain({ ...selection, reverb: null });
+        return;
+      }
       void rebuildChain({
         ...selection,
-        reverb: selection.reverb === preset ? null : preset,
+        reverb: createReverbSelection(preset),
       });
     },
-    [rebuildChain, selection],
+    [isProcessing, isSaving, rebuildChain, selection],
   );
 
   const resetEffects = useCallback(async () => {
-    if (!canReset) {
+    if (isProcessing || isSaving) {
+      return;
+    }
+
+    if (isEditChainEmpty(selection)) {
       return;
     }
 
@@ -305,7 +356,7 @@ export function useRecordingEditorSession({
     setWorkingUri(baselineUri);
     setSelection({ ...EMPTY_EDIT_CHAIN });
     setPresetSheet(null);
-  }, [baselineUri, canReset, playback, workingUri]);
+  }, [baselineUri, isProcessing, isSaving, playback, selection, workingUri]);
 
   const cleanupWorkingFile = useCallback(async () => {
     await deleteProcessedRecording(workingUri, baselineUri);
@@ -320,6 +371,7 @@ export function useRecordingEditorSession({
     workingUri,
     baselineUri,
     selection,
+    uiSelection: selection,
     effectLabel,
     isProcessing,
     processingLabel,

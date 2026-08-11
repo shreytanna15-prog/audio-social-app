@@ -7,11 +7,17 @@
 #include <string>
 #include <vector>
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#define EFFECTS_LOG(...) __android_log_print(ANDROID_LOG_INFO, "SuperpoweredEffects", __VA_ARGS__)
+#else
+#define EFFECTS_LOG(...) ((void)0)
+#endif
+
 #include "Superpowered.h"
 #include "SuperpoweredAutomaticVocalPitchCorrection.h"
 #include "SuperpoweredCompressor.h"
 #include "SuperpoweredDecoder.h"
-#include "SuperpoweredEcho.h"
 #include "SuperpoweredFilter.h"
 #include "SuperpoweredJSON.h"
 #include "SuperpoweredLimiter.h"
@@ -78,6 +84,29 @@ float readNumberParam(Superpowered::json *params, const char *key, float fallbac
   return fallback;
 }
 
+bool readOptionalNumber(Superpowered::json *params, const char *key, float *out) {
+  if (params == nullptr || out == nullptr) {
+    return false;
+  }
+  Superpowered::json *node = params->atKey(key);
+  if (node == nullptr) {
+    return false;
+  }
+  if (node->type == Superpowered::json::jdouble) {
+    *out = static_cast<float>(node->value.d);
+    return true;
+  }
+  if (node->type == Superpowered::json::jint) {
+    *out = static_cast<float>(node->value.i);
+    return true;
+  }
+  if (node->type == Superpowered::json::jstring && node->value.string != nullptr) {
+    *out = static_cast<float>(std::atof(node->value.string));
+    return true;
+  }
+  return false;
+}
+
 std::string readStringParam(Superpowered::json *params, const char *key) {
   if (params == nullptr) {
     return {};
@@ -94,10 +123,70 @@ struct EffectSpec {
   std::string preset;
   std::string scale;
   std::string speed;
-  float roomSize = 2.0f;
+  std::string clamp;
+  // Legacy JS amount/intensity (0–100 style) — only if sendGain absent.
   float amount = 25.0f;
-  float delay = 2.0f;
   float intensity = 30.0f;
+  float delay = 2.0f;
+  // Native overrides (has* = JSON key present)
+  bool hasSendGain = false;
+  float sendGain = 0.0f;
+  bool hasRoomSize = false;
+  float roomSize = 0.48f;
+  bool hasDamp = false;
+  float damp = 0.5f;
+  bool hasWidth = false;
+  float width = 1.0f;
+  bool hasPredelayMs = false;
+  float predelayMs = 20.0f;
+  bool hasLowCutHz = false;
+  float lowCutHz = 250.0f;
+  // Legacy echo
+  bool hasBeats = false;
+  float beats = 0.5f;
+  bool hasDecay = false;
+  float decay = 0.3f;
+  bool hasTone = false;
+  float tone = 0.5f;
+  // Voloco Custom Echo
+  bool hasDuckDelay = false;
+  float duckDelay = 0.35f;
+  bool hasTempoSync = false;
+  bool tempoSync = true;
+  bool hasLeftDelay = false;
+  float leftDelay = 0.5f;
+  bool hasRightDelay = false;
+  float rightDelay = 0.5f;
+  bool hasLeftFeedback = false;
+  float leftFeedback = 0.35f;
+  bool hasRightFeedback = false;
+  float rightFeedback = 0.35f;
+  bool hasXoverFeedback = false;
+  float xoverFeedback = 0.0f;
+  bool hasDryLevel = false;
+  float dryLevel = 1.0f;
+  bool hasWetLevel = false;
+  float wetLevel = 0.5f;
+  bool hasThresholdDb = false;
+  float thresholdDb = -14.0f;
+  bool hasRatio = false;
+  float ratio = 2.0f;
+  bool hasWet = false;
+  float wet = 0.55f;
+  bool hasOutputGainDb = false;
+  float outputGainDb = 0.8f;
+  bool hasAttackSec = false;
+  float attackSec = 0.01f;
+  bool hasBassDb = false;
+  float bassDb = 0.0f;
+  bool hasMudDb = false;
+  float mudDb = -3.5f;
+  bool hasPresenceDb = false;
+  float presenceDb = 3.2f;
+  bool hasBrightDb = false;
+  float brightDb = 1.2f;
+  bool hasHarshDb = false;
+  float harshDb = -1.5f;
 };
 
 std::vector<EffectSpec> parseEffects(const char *effectsJson) {
@@ -148,15 +237,71 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
     spec.preset = readStringParam(params, "preset");
     spec.scale = readStringParam(params, "scale");
     spec.speed = readStringParam(params, "speed");
+    spec.clamp = readStringParam(params, "clamp");
+
+    spec.hasSendGain = readOptionalNumber(params, "sendGain", &spec.sendGain);
+    spec.hasRoomSize = readOptionalNumber(params, "roomSize", &spec.roomSize);
+    spec.hasDamp = readOptionalNumber(params, "damp", &spec.damp);
+    spec.hasWidth = readOptionalNumber(params, "width", &spec.width);
+    spec.hasPredelayMs = readOptionalNumber(params, "predelayMs", &spec.predelayMs);
+    spec.hasLowCutHz = readOptionalNumber(params, "lowCutHz", &spec.lowCutHz);
+    spec.hasBeats = readOptionalNumber(params, "beats", &spec.beats);
+    spec.hasDecay = readOptionalNumber(params, "decay", &spec.decay);
+    spec.hasTone = readOptionalNumber(params, "tone", &spec.tone);
+    spec.hasDuckDelay = readOptionalNumber(params, "duckDelay", &spec.duckDelay);
+    {
+      Superpowered::json *syncNode = params->atKey("tempoSync");
+      if (syncNode != nullptr) {
+        spec.hasTempoSync = true;
+        if (syncNode->type == Superpowered::json::jbool) {
+          spec.tempoSync = syncNode->value.b != 0;
+        } else if (syncNode->type == Superpowered::json::jint) {
+          spec.tempoSync = syncNode->value.i != 0;
+        } else if (syncNode->type == Superpowered::json::jdouble) {
+          spec.tempoSync = syncNode->value.d != 0.0;
+        } else if (
+          syncNode->type == Superpowered::json::jstring && syncNode->value.string != nullptr
+        ) {
+          const char *s = syncNode->value.string;
+          spec.tempoSync =
+            !(s[0] == '0' || s[0] == 'f' || s[0] == 'F' || s[0] == 'n' || s[0] == 'N');
+        }
+      }
+    }
+    spec.hasLeftDelay = readOptionalNumber(params, "leftDelay", &spec.leftDelay);
+    spec.hasRightDelay = readOptionalNumber(params, "rightDelay", &spec.rightDelay);
+    spec.hasLeftFeedback = readOptionalNumber(params, "leftFeedback", &spec.leftFeedback);
+    spec.hasRightFeedback = readOptionalNumber(params, "rightFeedback", &spec.rightFeedback);
+    spec.hasXoverFeedback = readOptionalNumber(params, "xoverFeedback", &spec.xoverFeedback);
+    spec.hasDryLevel = readOptionalNumber(params, "dryLevel", &spec.dryLevel);
+    spec.hasWetLevel = readOptionalNumber(params, "wetLevel", &spec.wetLevel);
+    spec.hasThresholdDb = readOptionalNumber(params, "thresholdDb", &spec.thresholdDb);
+    spec.hasRatio = readOptionalNumber(params, "ratio", &spec.ratio);
+    spec.hasWet = readOptionalNumber(params, "wet", &spec.wet);
+    spec.hasOutputGainDb = readOptionalNumber(params, "outputGainDb", &spec.outputGainDb);
+    spec.hasAttackSec = readOptionalNumber(params, "attackSec", &spec.attackSec);
+    spec.hasBassDb = readOptionalNumber(params, "bassDb", &spec.bassDb);
+    spec.hasMudDb = readOptionalNumber(params, "mudDb", &spec.mudDb);
+    spec.hasPresenceDb = readOptionalNumber(params, "presenceDb", &spec.presenceDb);
+    spec.hasBrightDb = readOptionalNumber(params, "brightDb", &spec.brightDb);
+    spec.hasHarshDb = readOptionalNumber(params, "harshDb", &spec.harshDb);
+
+    EFFECTS_LOG(
+      "parsed id=%s preset=%s wet=%.2f Ldel=%.3f Rdel=%.3f xover=%.2f duck=%.2f sync=%d",
+      spec.id.c_str(),
+      spec.preset.c_str(),
+      spec.wetLevel,
+      spec.leftDelay,
+      spec.rightDelay,
+      spec.xoverFeedback,
+      spec.duckDelay,
+      spec.tempoSync ? 1 : 0);
 
     if (spec.id == "reverb") {
-      spec.roomSize = readNumberParam(params, "roomSize", 2.0f);
-      // Raised cap so Room/Hall/Soft Plate recipes can use stronger wet (≤0.45).
       spec.amount = clampf(readNumberParam(params, "amount", 28.0f), 0.0f, 45.0f);
       specs.push_back(spec);
     } else if (spec.id == "echo") {
       spec.delay = readNumberParam(params, "delay", 2.0f);
-      // Raised cap so Slapback/Classic/Bounce recipes can use stronger wet (≤0.55).
       spec.intensity = clampf(readNumberParam(params, "intensity", 35.0f), 0.0f, 55.0f);
       specs.push_back(spec);
     } else if (spec.id == "eq" || spec.id == "compressor" || spec.id == "autotune" ||
@@ -240,9 +385,10 @@ struct EqBank {
   }
 };
 
-EqBank buildEqBank(const std::string &preset, unsigned int samplerate, bool fxAware) {
+EqBank buildEqBank(const EffectSpec &spec, unsigned int samplerate, bool fxAware) {
   EqBank bank;
   const float fxScale = fxAware ? 0.75f : 1.0f;
+  const std::string preset = spec.preset.empty() ? "vocal-clarity" : spec.preset;
 
   if (preset == "mid-range-scoop") {
     bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
@@ -360,6 +506,66 @@ EqBank buildEqBank(const std::string &preset, unsigned int samplerate, bool fxAw
     bank.sibilanceTame->decibel = fxAware ? -2.0f : -1.5f;
     bank.sibilanceTame->enabled = true;
   }
+
+  // Client tune overrides (native dB values).
+  if (spec.hasBassDb) {
+    if (bank.lowShelf == nullptr) {
+      bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
+      bank.lowShelf->frequency = 160.0f;
+      bank.lowShelf->slope = 0.5f;
+      bank.lowShelf->enabled = true;
+    }
+    bank.lowShelf->decibel = clampf(spec.bassDb, -9.0f, 9.0f);
+  }
+  if (spec.hasMudDb) {
+    if (bank.mudCut == nullptr) {
+      bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+      bank.mudCut->frequency = 250.0f;
+      bank.mudCut->octave = 0.8f;
+      bank.mudCut->enabled = true;
+    }
+    bank.mudCut->decibel = clampf(spec.mudDb, -9.0f, 0.0f);
+  }
+  if (spec.hasPresenceDb) {
+    if (bank.presence == nullptr) {
+      bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+      bank.presence->frequency = 3200.0f;
+      bank.presence->octave = 0.85f;
+      bank.presence->enabled = true;
+    }
+    bank.presence->decibel = clampf(spec.presenceDb, -4.0f, 8.0f);
+  }
+  if (spec.hasBrightDb) {
+    if (bank.hiShelf == nullptr) {
+      bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+      bank.hiShelf->frequency = 6500.0f;
+      bank.hiShelf->slope = 0.5f;
+      bank.hiShelf->enabled = true;
+    }
+    bank.hiShelf->decibel = clampf(spec.brightDb, -6.0f, 6.0f);
+  }
+  if (spec.hasHarshDb) {
+    if (bank.sibilanceTame == nullptr) {
+      bank.sibilanceTame = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+      bank.sibilanceTame->frequency = 7800.0f;
+      bank.sibilanceTame->octave = 0.5f;
+      bank.sibilanceTame->enabled = true;
+    }
+    bank.sibilanceTame->decibel = clampf(spec.harshDb, -6.0f, 0.0f);
+  }
+
+  EFFECTS_LOG(
+    "eq preset=%s tuned=%d bass=%.1f mud=%.1f presence=%.1f bright=%.1f harsh=%.1f",
+    preset.c_str(),
+    (spec.hasBassDb || spec.hasMudDb || spec.hasPresenceDb || spec.hasBrightDb ||
+     spec.hasHarshDb)
+      ? 1
+      : 0,
+    bank.lowShelf != nullptr ? bank.lowShelf->decibel : 0.0f,
+    bank.mudCut != nullptr ? bank.mudCut->decibel : 0.0f,
+    bank.presence != nullptr ? bank.presence->decibel : 0.0f,
+    bank.hiShelf != nullptr ? bank.hiShelf->decibel : 0.0f,
+    bank.sibilanceTame != nullptr ? bank.sibilanceTame->decibel : 0.0f);
 
   return bank;
 }
@@ -483,19 +689,41 @@ Superpowered::AutomaticVocalPitchCorrection *buildFx(
   fx->range = Range::WIDE;
   fx->frequencyOfA = 440.0f;
 
+  // Defaults from preset, then optional JSON speed/clamp overrides.
   if (spec.preset == "natural-snap") {
     fx->speed = Speed::SUBTLE;
     fx->clamp = Clamp::TIGHT;
   } else {
-    // Hard Snap: stronger than Natural but MEDIUM avoids EXTREME robot/steppy tone.
     fx->speed = Speed::MEDIUM;
     fx->clamp = Clamp::TIGHT;
   }
+
+  if (spec.speed == "SUBTLE") {
+    fx->speed = Speed::SUBTLE;
+  } else if (spec.speed == "MEDIUM") {
+    fx->speed = Speed::MEDIUM;
+  } else if (spec.speed == "EXTREME") {
+    fx->speed = Speed::EXTREME;
+  }
+
+  if (spec.clamp == "LOOSE") {
+    fx->clamp = Clamp::LOOSE;
+  } else if (spec.clamp == "TIGHT") {
+    fx->clamp = Clamp::TIGHT;
+  }
+
+  EFFECTS_LOG(
+    "fx preset=%s scale=%s speed=%s clamp=%s",
+    spec.preset.c_str(),
+    spec.scale.c_str(),
+    spec.speed.c_str(),
+    spec.clamp.c_str());
+
   return fx;
 }
 
 Superpowered::Compressor *buildCompressor(
-  const std::string &preset,
+  const EffectSpec &spec,
   unsigned int samplerate,
   bool denseStack,
   bool fxAware
@@ -506,11 +734,10 @@ Superpowered::Compressor *buildCompressor(
   compressor->releaseSec = 0.22f;
   compressor->enabled = true;
 
-  // Calm makeup — avoid double +2.5 dB slam that crackles into the limiter.
   const float makeupScale = denseStack ? 0.7f : (fxAware ? 0.85f : 1.0f);
+  const std::string &preset = spec.preset;
 
   if (preset == "blasted") {
-    // Dense stacks: parallel-style wet + single-sided makeup (no double in+out slam).
     compressor->inputGainDb = denseStack ? 0.0f : (1.0f * makeupScale);
     compressor->outputGainDb = denseStack ? (1.2f * makeupScale) : (1.5f * makeupScale);
     compressor->thresholdDb = denseStack ? -20.0f : -22.0f;
@@ -536,7 +763,6 @@ Superpowered::Compressor *buildCompressor(
     compressor->ratio = 3.0f;
     compressor->wet = 0.50f;
   } else {
-    // moderate (default)
     compressor->inputGainDb = 0.5f * makeupScale;
     compressor->outputGainDb = 0.8f * makeupScale;
     compressor->thresholdDb = -14.0f;
@@ -544,22 +770,137 @@ Superpowered::Compressor *buildCompressor(
     compressor->wet = 0.55f;
   }
 
+  if (spec.hasThresholdDb) {
+    compressor->thresholdDb = clampf(spec.thresholdDb, -28.0f, -6.0f);
+  }
+  if (spec.hasRatio) {
+    compressor->ratio = clampf(spec.ratio, 1.5f, 10.0f);
+  }
+  if (spec.hasWet) {
+    compressor->wet = clampf(spec.wet, 0.0f, 1.0f);
+  }
+  if (spec.hasOutputGainDb) {
+    compressor->outputGainDb = clampf(spec.outputGainDb, 0.0f, 4.0f);
+  }
+  if (spec.hasAttackSec) {
+    compressor->attackSec = clampf(spec.attackSec, 0.003f, 0.040f);
+  }
+
+  EFFECTS_LOG(
+    "compressor preset=%s thr=%.1f ratio=%.2f wet=%.2f outGain=%.2f attack=%.3f tuned=%d",
+    preset.c_str(),
+    compressor->thresholdDb,
+    compressor->ratio,
+    compressor->wet,
+    compressor->outputGainDb,
+    compressor->attackSec,
+    (spec.hasThresholdDb || spec.hasRatio || spec.hasWet || spec.hasOutputGainDb ||
+     spec.hasAttackSec)
+      ? 1
+      : 0);
+
   return compressor;
 }
 
-struct EchoSend {
-  Superpowered::Echo *echo = nullptr;
-  Superpowered::Filter *colorHp = nullptr;
-  Superpowered::Filter *colorLp = nullptr;
-  float sendGain = 0.22f;
+struct StereoEchoEngine {
+  std::vector<float> delayL;
+  std::vector<float> delayR;
+  size_t writePos = 0;
+  size_t capacity = 0;
+  unsigned int samplerate = 48000;
+  bool active = false;
+
+  bool tempoSync = true;
+  float bpm = 120.0f;
+  float leftDelay = 0.5f;
+  float rightDelay = 0.5f;
+  float leftFeedback = 0.35f;
+  float rightFeedback = 0.35f;
+  float xoverFeedback = 0.0f;
+  float dryLevel = 1.0f;
+  float wetLevel = 0.5f;
+  float duckDelay = 0.35f;
+  float duckEnv = 0.0f;
 
   void destroy() {
-    delete echo;
-    delete colorHp;
-    delete colorLp;
-    echo = nullptr;
-    colorHp = nullptr;
-    colorLp = nullptr;
+    delayL.clear();
+    delayR.clear();
+    capacity = 0;
+    writePos = 0;
+    duckEnv = 0.0f;
+    active = false;
+  }
+
+  void ensureCapacity(unsigned int sr) {
+    samplerate = sr;
+    const size_t need = static_cast<size_t>(sr) * 4u + 16u; // ~4s headroom
+    if (need <= capacity) {
+      return;
+    }
+    delayL.assign(need, 0.0f);
+    delayR.assign(need, 0.0f);
+    capacity = need;
+    writePos = 0;
+    duckEnv = 0.0f;
+  }
+
+  float delayToMs(float value) const {
+    if (tempoSync) {
+      const float beats = clampf(value, 0.03125f, 2.0f);
+      return beats * (60000.0f / clampf(bpm, 40.0f, 250.0f));
+    }
+    return clampf(value, 1.0f, 2000.0f);
+  }
+
+  void processInPlace(float *buffer, unsigned int frames) {
+    if (!active || buffer == nullptr || frames == 0) {
+      return;
+    }
+    ensureCapacity(samplerate);
+
+    const size_t leftSamples = static_cast<size_t>(
+      clampf(delayToMs(leftDelay) * 0.001f * static_cast<float>(samplerate), 1.0f, static_cast<float>(capacity - 1))
+    );
+    const size_t rightSamples = static_cast<size_t>(
+      clampf(delayToMs(rightDelay) * 0.001f * static_cast<float>(samplerate), 1.0f, static_cast<float>(capacity - 1))
+    );
+
+    const float dry = clampf(dryLevel, 0.0f, 1.0f);
+    const float wet = clampf(wetLevel, 0.0f, 1.0f);
+    const float fbL = clampf(leftFeedback, 0.0f, 0.95f);
+    const float fbR = clampf(rightFeedback, 0.0f, 0.95f);
+    const float xover = clampf(xoverFeedback, 0.0f, 0.95f);
+    const float duckAmt = clampf(duckDelay, 0.0f, 1.0f);
+
+    for (unsigned int i = 0; i < frames; ++i) {
+      float inL = buffer[i * 2];
+      float inR = buffer[i * 2 + 1];
+      const float monoIn = 0.5f * (inL + inR);
+
+      const float peak = std::fabs(monoIn);
+      if (peak > duckEnv) {
+        duckEnv = peak;
+      } else {
+        duckEnv *= 0.995f;
+      }
+      const float duckGain = 1.0f - duckAmt * clampf(duckEnv * 2.2f, 0.0f, 1.0f);
+
+      const size_t readL = (writePos + capacity - leftSamples) % capacity;
+      const size_t readR = (writePos + capacity - rightSamples) % capacity;
+      const float delayedL = delayL[readL];
+      const float delayedR = delayR[readR];
+
+      float newL = monoIn + delayedL * fbL + delayedR * xover;
+      float newR = monoIn + delayedR * fbR + delayedL * xover;
+      newL = clampf(newL, -1.5f, 1.5f);
+      newR = clampf(newR, -1.5f, 1.5f);
+      delayL[writePos] = newL;
+      delayR[writePos] = newR;
+      writePos = (writePos + 1) % capacity;
+
+      buffer[i * 2] = inL * dry + delayedL * wet * duckGain;
+      buffer[i * 2 + 1] = inR * dry + delayedR * wet * duckGain;
+    }
   }
 };
 
@@ -573,62 +914,105 @@ struct ReverbSend {
   }
 };
 
-EchoSend buildEchoSend(
-  const EffectSpec &spec,
-  unsigned int samplerate
-) {
-  EchoSend send;
-  send.echo = new Superpowered::Echo(samplerate);
-  send.echo->bpm = 120.0f;
-  send.echo->enabled = true;
-  // Wet-only send path
-  send.echo->dry = 0.0f;
-  send.echo->wet = 1.0f;
+StereoEchoEngine buildStereoEcho(const EffectSpec &spec, unsigned int samplerate) {
+  StereoEchoEngine echo;
+  echo.active = true;
+  echo.samplerate = samplerate;
+  echo.bpm = 120.0f;
 
-  float beats = 0.5f;
-  float decay = 0.36f;
-  send.sendGain = clampf(spec.intensity / 100.0f, 0.0f, 0.40f);
+  const bool hasVoloco =
+    spec.hasWetLevel || spec.hasLeftDelay || spec.hasRightDelay || spec.hasLeftFeedback ||
+    spec.hasRightFeedback || spec.hasXoverFeedback || spec.hasDryLevel || spec.hasDuckDelay;
 
-  const std::string &preset = spec.preset;
-  if (preset == "resonant-buzz") {
-    // Slapback — very short
-    beats = 0.125f;
-    decay = 0.14f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.18f, 0.0f, 0.28f);
-  } else if (preset == "eighth-note-bounce") {
-    beats = 0.5f;
-    decay = 0.28f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.24f, 0.0f, 0.34f);
-  } else if (preset == "slinky") {
-    beats = 0.75f;
-    decay = 0.48f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.24f, 0.0f, 0.34f);
-  } else if (preset == "right-to-left") {
-    // Ping-pong-ish within Superpowered Echo limits
-    beats = 0.5f;
-    decay = 0.34f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.22f, 0.0f, 0.32f);
+  if (hasVoloco) {
+    echo.tempoSync = spec.hasTempoSync ? spec.tempoSync : true;
+    echo.duckDelay = spec.hasDuckDelay ? clampf(spec.duckDelay, 0.0f, 1.0f) : 0.35f;
+    echo.leftDelay = spec.hasLeftDelay ? spec.leftDelay : 0.5f;
+    echo.rightDelay = spec.hasRightDelay ? spec.rightDelay : echo.leftDelay;
+    echo.leftFeedback =
+      spec.hasLeftFeedback ? clampf(spec.leftFeedback, 0.0f, 0.95f) : 0.35f;
+    echo.rightFeedback =
+      spec.hasRightFeedback ? clampf(spec.rightFeedback, 0.0f, 0.95f) : echo.leftFeedback;
+    echo.xoverFeedback =
+      spec.hasXoverFeedback ? clampf(spec.xoverFeedback, 0.0f, 0.95f) : 0.0f;
+    echo.dryLevel = spec.hasDryLevel ? clampf(spec.dryLevel, 0.0f, 1.0f) : 1.0f;
+    echo.wetLevel = spec.hasWetLevel ? clampf(spec.wetLevel, 0.0f, 1.0f) : 0.5f;
   } else {
-    // coin-drop — short, louder presence
-    beats = 0.25f;
-    decay = 0.30f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.28f, 0.0f, 0.36f);
+    // Legacy sendGain/beats/decay → Voloco-shaped defaults by preset name.
+    echo.tempoSync = true;
+    echo.duckDelay = 0.35f;
+    echo.dryLevel = 1.0f;
+    echo.leftDelay = spec.hasBeats ? clampf(spec.beats, 0.03125f, 2.0f) : 0.5f;
+    echo.rightDelay = echo.leftDelay;
+    echo.leftFeedback = spec.hasDecay ? clampf(spec.decay, 0.0f, 0.95f) : 0.35f;
+    echo.rightFeedback = echo.leftFeedback;
+    echo.xoverFeedback = 0.0f;
+    echo.wetLevel = spec.hasSendGain
+      ? clampf(spec.sendGain, 0.0f, 1.0f)
+      : clampf(spec.intensity / 100.0f, 0.0f, 1.0f);
+
+    const std::string &preset = spec.preset;
+    if (preset == "resonant-buzz") {
+      echo.leftDelay = echo.rightDelay = 0.125f;
+      echo.leftFeedback = echo.rightFeedback = 0.10f;
+      echo.xoverFeedback = 0.0f;
+      echo.duckDelay = 0.20f;
+      if (!spec.hasSendGain) {
+        echo.wetLevel = 0.45f;
+      }
+    } else if (preset == "eighth-note-bounce") {
+      echo.leftDelay = echo.rightDelay = 0.5f;
+      echo.leftFeedback = echo.rightFeedback = 0.30f;
+      echo.xoverFeedback = 0.10f;
+      echo.duckDelay = 0.40f;
+      if (!spec.hasSendGain) {
+        echo.wetLevel = 0.50f;
+      }
+    } else if (preset == "slinky") {
+      echo.leftDelay = echo.rightDelay = 0.75f;
+      echo.leftFeedback = echo.rightFeedback = 0.60f;
+      echo.xoverFeedback = 0.15f;
+      echo.duckDelay = 0.25f;
+      if (!spec.hasSendGain) {
+        echo.wetLevel = 0.55f;
+      }
+    } else if (preset == "right-to-left") {
+      echo.leftDelay = 0.5f;
+      echo.rightDelay = 0.75f;
+      echo.leftFeedback = echo.rightFeedback = 0.22f;
+      echo.xoverFeedback = 0.55f;
+      echo.duckDelay = 0.35f;
+      if (!spec.hasSendGain) {
+        echo.wetLevel = 0.50f;
+      }
+    } else {
+      // coin-drop / default
+      echo.leftDelay = 0.25f;
+      echo.rightDelay = 0.28f;
+      echo.leftFeedback = echo.rightFeedback = 0.35f;
+      echo.xoverFeedback = 0.30f;
+      echo.duckDelay = 0.20f;
+      if (!spec.hasSendGain) {
+        echo.wetLevel = 0.65f;
+      }
+    }
   }
 
-  send.echo->beats = beats;
-  send.echo->decay = decay;
+  EFFECTS_LOG(
+    "echo voloco preset=%s sync=%d L=%.3f R=%.3f fbL=%.2f fbR=%.2f xover=%.2f dry=%.2f wet=%.2f duck=%.2f",
+    spec.preset.c_str(),
+    echo.tempoSync ? 1 : 0,
+    echo.leftDelay,
+    echo.rightDelay,
+    echo.leftFeedback,
+    echo.rightFeedback,
+    echo.xoverFeedback,
+    echo.dryLevel,
+    echo.wetLevel,
+    echo.duckDelay);
 
-  send.colorHp = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
-  send.colorHp->frequency = 320.0f;
-  send.colorHp->resonance = 0.1f;
-  send.colorHp->enabled = true;
-
-  send.colorLp = new Superpowered::Filter(Superpowered::Filter::Resonant_Lowpass, samplerate);
-  send.colorLp->frequency = 4800.0f;
-  send.colorLp->resonance = 0.12f;
-  send.colorLp->enabled = true;
-
-  return send;
+  echo.ensureCapacity(samplerate);
+  return echo;
 }
 
 ReverbSend buildReverbSend(
@@ -641,53 +1025,95 @@ ReverbSend buildReverbSend(
   send.reverb->dry = 0.0f;
   send.reverb->wet = 1.0f;
 
-  send.sendGain = clampf(spec.amount / 100.0f, 0.0f, 0.38f);
+  if (spec.hasSendGain) {
+    send.sendGain = clampf(spec.sendGain, 0.0f, 0.95f);
+  } else {
+    send.sendGain = clampf(spec.amount / 100.0f, 0.0f, 0.95f);
+  }
 
   const std::string &preset = spec.preset;
   if (preset == "cathedral") {
+    send.reverb->roomSize = 0.92f;
+    send.reverb->damp = 0.38f;
+    send.reverb->width = 1.0f;
+    send.reverb->predelayMs = 42.0f;
+    send.reverb->lowCutHz = 180.0f;
+    if (!spec.hasSendGain) {
+      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.72f, 0.0f, 0.90f);
+    }
+  } else if (preset == "large-hall") {
     send.reverb->roomSize = 0.82f;
     send.reverb->damp = 0.42f;
     send.reverb->width = 1.0f;
-    send.reverb->predelayMs = 36.0f;
+    send.reverb->predelayMs = 32.0f;
     send.reverb->lowCutHz = 200.0f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.26f, 0.0f, 0.34f);
-  } else if (preset == "large-hall") {
-    send.reverb->roomSize = 0.72f;
-    send.reverb->damp = 0.48f;
-    send.reverb->width = 1.0f;
-    send.reverb->predelayMs = 30.0f;
-    send.reverb->lowCutHz = 210.0f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.24f, 0.0f, 0.32f);
+    if (!spec.hasSendGain) {
+      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.64f, 0.0f, 0.85f);
+    }
   } else if (preset == "stereo-width") {
-    send.reverb->roomSize = 0.50f;
-    send.reverb->damp = 0.45f;
+    send.reverb->roomSize = 0.52f;
+    send.reverb->damp = 0.40f;
     send.reverb->width = 1.0f;
-    send.reverb->predelayMs = 20.0f;
-    send.reverb->lowCutHz = 240.0f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.20f, 0.0f, 0.30f);
+    send.reverb->predelayMs = 18.0f;
+    send.reverb->lowCutHz = 230.0f;
+    if (!spec.hasSendGain) {
+      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.50f, 0.0f, 0.75f);
+    }
   } else if (preset == "long-narrow") {
-    send.reverb->roomSize = 0.62f;
-    send.reverb->damp = 0.55f;
-    send.reverb->width = 0.45f;
-    send.reverb->predelayMs = 40.0f;
-    send.reverb->lowCutHz = 260.0f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.22f, 0.0f, 0.30f);
+    send.reverb->roomSize = 0.70f;
+    send.reverb->damp = 0.58f;
+    send.reverb->width = 0.35f;
+    send.reverb->predelayMs = 48.0f;
+    send.reverb->lowCutHz = 270.0f;
+    if (!spec.hasSendGain) {
+      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.58f, 0.0f, 0.80f);
+    }
   } else if (preset == "small-club") {
-    send.reverb->roomSize = 0.36f;
-    send.reverb->damp = 0.55f;
-    send.reverb->width = 0.80f;
-    send.reverb->predelayMs = 14.0f;
-    send.reverb->lowCutHz = 250.0f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.18f, 0.0f, 0.28f);
-  } else {
-    // medium-room
-    send.reverb->roomSize = 0.48f;
-    send.reverb->damp = 0.56f;
-    send.reverb->width = 0.88f;
-    send.reverb->predelayMs = 22.0f;
+    send.reverb->roomSize = 0.28f;
+    send.reverb->damp = 0.60f;
+    send.reverb->width = 0.75f;
+    send.reverb->predelayMs = 10.0f;
     send.reverb->lowCutHz = 260.0f;
-    send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.19f, 0.0f, 0.28f);
+    if (!spec.hasSendGain) {
+      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.38f, 0.0f, 0.55f);
+    }
+  } else {
+    send.reverb->roomSize = 0.50f;
+    send.reverb->damp = 0.52f;
+    send.reverb->width = 0.90f;
+    send.reverb->predelayMs = 22.0f;
+    send.reverb->lowCutHz = 250.0f;
+    if (!spec.hasSendGain) {
+      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.48f, 0.0f, 0.70f);
+    }
   }
+
+  if (spec.hasRoomSize) {
+    send.reverb->roomSize = clampf(spec.roomSize, 0.15f, 0.95f);
+  }
+  if (spec.hasDamp) {
+    send.reverb->damp = clampf(spec.damp, 0.15f, 0.90f);
+  }
+  if (spec.hasWidth) {
+    send.reverb->width = clampf(spec.width, 0.25f, 1.0f);
+  }
+  if (spec.hasPredelayMs) {
+    send.reverb->predelayMs = clampf(spec.predelayMs, 0.0f, 80.0f);
+  }
+  if (spec.hasLowCutHz) {
+    send.reverb->lowCutHz = clampf(spec.lowCutHz, 120.0f, 400.0f);
+  }
+
+  EFFECTS_LOG(
+    "reverb preset=%s sendGain=%.3f (tuned=%d) room=%.3f damp=%.3f width=%.3f predelay=%.1f lowCut=%.1f",
+    preset.c_str(),
+    send.sendGain,
+    spec.hasSendGain ? 1 : 0,
+    send.reverb->roomSize,
+    send.reverb->damp,
+    send.reverb->width,
+    send.reverb->predelayMs,
+    send.reverb->lowCutHz);
 
   return send;
 }
@@ -698,9 +1124,13 @@ void sumSendIntoDry(
   unsigned int frames,
   float sendGain
 ) {
+  // Preset character mix: wet stays obvious at Voloco-style sends; duck dry so
+  // small-club vs cathedral / short vs long echo remain night-and-day.
+  const float wetGain = clampf(sendGain, 0.0f, 0.95f);
+  const float dryKeep = 1.0f - wetGain * 0.65f;
   const unsigned int samples = frames * 2;
   for (unsigned int i = 0; i < samples; ++i) {
-    dry[i] += wet[i] * sendGain;
+    dry[i] = dry[i] * dryKeep + wet[i] * wetGain;
   }
 }
 
@@ -752,6 +1182,9 @@ extern "C" int SuperpoweredEffects_processFile(
   const char *effectsJson
 ) {
   setError(nullptr);
+  EFFECTS_LOG(
+    "processFile tune-overrides v3 apply-only-lab json=%s",
+    effectsJson != nullptr ? effectsJson : "");
 
   if (!SuperpoweredPolish_isInitialized()) {
     setError("Superpowered is not initialized. Call SuperpoweredPolish_initialize first.");
@@ -802,7 +1235,7 @@ extern "C" int SuperpoweredEffects_processFile(
   bool pitchIsFx = false;
   Superpowered::Compressor *compressor = nullptr;
   EqBank eqBank;
-  EchoSend echoSend;
+  StereoEchoEngine stereoEcho;
   ReverbSend reverbSend;
   Superpowered::Limiter *limiter = nullptr;
 
@@ -865,39 +1298,59 @@ extern "C" int SuperpoweredEffects_processFile(
 
   for (const EffectSpec &spec : specs) {
     if (spec.id == "compressor" && compressor == nullptr) {
-      compressor = buildCompressor(
-        spec.preset.empty() ? "moderate" : spec.preset,
-        samplerate,
-        denseStack,
-        fxAware
-      );
+      EffectSpec compSpec = spec;
+      if (compSpec.preset.empty()) {
+        compSpec.preset = "moderate";
+      }
+      compressor = buildCompressor(compSpec, samplerate, denseStack, fxAware);
     } else if (spec.id == "eq" && eqBank.isEmpty()) {
-      eqBank = buildEqBank(
-        spec.preset.empty() ? "vocal-clarity" : spec.preset,
-        samplerate,
-        fxAware
-      );
-    } else if (spec.id == "echo" && echoSend.echo == nullptr) {
-      echoSend = buildEchoSend(spec, samplerate);
+      EffectSpec eqSpec = spec;
+      if (eqSpec.preset.empty()) {
+        eqSpec.preset = "vocal-clarity";
+      }
+      eqBank = buildEqBank(eqSpec, samplerate, fxAware);
+    } else if (spec.id == "echo" && !stereoEcho.active) {
+      stereoEcho = buildStereoEcho(spec, samplerate);
     } else if (spec.id == "reverb" && reverbSend.reverb == nullptr) {
       reverbSend = buildReverbSend(spec, samplerate);
     }
   }
 
-  // Dense mix-only stacks: pull Echo/Reverb sends so space doesn't crackle into the limiter.
+  // Dense mix-only stacks: pull Echo/Reverb so space doesn't crackle into the limiter.
+  // Skip when Voloco wetLevel was explicitly provided.
   if (denseStack && !pitchIsFx) {
+    bool echoTuned = false;
+    bool reverbTuned = false;
+    for (const EffectSpec &spec : specs) {
+      if (spec.id == "echo" && (spec.hasWetLevel || spec.hasSendGain)) {
+        echoTuned = true;
+      }
+      if (spec.id == "reverb" && spec.hasSendGain) {
+        reverbTuned = true;
+      }
+    }
     const float sendScale = 0.80f;
-    echoSend.sendGain *= sendScale;
-    reverbSend.sendGain *= sendScale;
+    if (!echoTuned && stereoEcho.active) {
+      stereoEcho.wetLevel *= sendScale;
+    }
+    if (!reverbTuned && reverbSend.reverb != nullptr) {
+      reverbSend.sendGain *= sendScale;
+    }
+    EFFECTS_LOG(
+      "denseStack sendScale applied echo=%d reverb=%d finalEchoWet=%.3f finalReverb=%.3f",
+      echoTuned ? 0 : 1,
+      reverbTuned ? 0 : 1,
+      stereoEcho.wetLevel,
+      reverbSend.sendGain);
   }
 
   if (pitch != nullptr || compressor != nullptr || !eqBank.isEmpty() ||
-      echoSend.echo != nullptr || reverbSend.reverb != nullptr) {
+      stereoEcho.active || reverbSend.reverb != nullptr) {
     limiter = new Superpowered::Limiter(samplerate);
     limiter->ceilingDb = -1.0f;
     // FX-only: more headroom so exports aren't slammed (Voloco peak ~0.39)
     const bool fxOnly =
-      pitchIsFx && compressor == nullptr && eqBank.isEmpty() && echoSend.echo == nullptr &&
+      pitchIsFx && compressor == nullptr && eqBank.isEmpty() && !stereoEcho.active &&
       reverbSend.reverb == nullptr;
     if (fxOnly) {
       // FX = AVPC + light limiter only (no FxPost). Keep headroom so exports stay clean.
@@ -939,7 +1392,7 @@ extern "C" int SuperpoweredEffects_processFile(
     delete pitch;
     delete compressor;
     eqBank.destroy();
-    echoSend.destroy();
+    stereoEcho.destroy();
     reverbSend.destroy();
     Superpowered::closeWAV(destinationFile);
     delete decoder;
@@ -985,7 +1438,7 @@ extern "C" int SuperpoweredEffects_processFile(
     delete pitch;
     delete compressor;
     eqBank.destroy();
-    echoSend.destroy();
+    stereoEcho.destroy();
     reverbSend.destroy();
     Superpowered::closeWAV(destinationFile);
     delete decoder;
@@ -1022,24 +1475,14 @@ extern "C" int SuperpoweredEffects_processFile(
     // 4) EQ
     eqBank.process(floatBuffer, frames, samplerate);
 
-    // 5–6) Send-style Echo / Reverb: keep dry clear, blend filtered wet
-    if (echoSend.echo != nullptr || reverbSend.reverb != nullptr) {
+    // 5) Voloco-style stereo echo (dry/wet + duck + L/R + x-over)
+    // 6) Reverb send from pre-echo dry (parallel), then limiter
+    if (stereoEcho.active || reverbSend.reverb != nullptr) {
       std::memcpy(dryBuffer, floatBuffer, frames * 2 * sizeof(float));
 
-      if (echoSend.echo != nullptr) {
-        std::memcpy(wetBuffer, dryBuffer, frames * 2 * sizeof(float));
-        echoSend.echo->samplerate = samplerate;
-        if (echoSend.colorHp != nullptr) {
-          echoSend.colorHp->samplerate = samplerate;
-          echoSend.echo->processWithFx(wetBuffer, wetBuffer, frames, echoSend.colorHp);
-          if (echoSend.colorLp != nullptr) {
-            echoSend.colorLp->samplerate = samplerate;
-            echoSend.colorLp->process(wetBuffer, wetBuffer, frames);
-          }
-        } else {
-          echoSend.echo->process(wetBuffer, wetBuffer, frames);
-        }
-        sumSendIntoDry(floatBuffer, wetBuffer, frames, echoSend.sendGain);
+      if (stereoEcho.active) {
+        stereoEcho.samplerate = samplerate;
+        stereoEcho.processInPlace(floatBuffer, frames);
       }
 
       if (reverbSend.reverb != nullptr) {
@@ -1068,7 +1511,7 @@ extern "C" int SuperpoweredEffects_processFile(
   delete pitch;
   delete compressor;
   eqBank.destroy();
-  echoSend.destroy();
+  stereoEcho.destroy();
   reverbSend.destroy();
   Superpowered::closeWAV(destinationFile);
   delete decoder;

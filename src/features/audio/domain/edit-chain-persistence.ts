@@ -1,4 +1,16 @@
 import {
+  clampCompParams,
+  clampEchoParams,
+  clampEqParams,
+  clampFxParams,
+  clampReverbParams,
+  defaultCompParams,
+  defaultEchoParams,
+  defaultEqParams,
+  defaultFxParams,
+  defaultReverbParams,
+} from '@/features/audio/domain/chip-tune-params';
+import {
   AUTOTUNE_SCALES,
   AUTOTUNE_SPEEDS,
   COMPRESSOR_PRESETS,
@@ -12,12 +24,16 @@ import {
   type AutotuneSelection,
   type AutotuneSpeedId,
   type CompressorPresetId,
+  type CompressorSelection,
   type EchoPresetId,
+  type EchoSelection,
   type EditChainSelection,
   type EqPresetId,
+  type EqSelection,
   type FxPresetId,
   type FxSelection,
   type ReverbPresetId,
+  type ReverbSelection,
   type StoredEditChain,
 } from '@/features/audio/types/edit-chips';
 
@@ -70,14 +86,20 @@ function parseFx(value: unknown): FxSelection | null {
     return null;
   }
 
-  const candidate = value as Partial<FxSelection>;
+  const candidate = value as Partial<FxSelection> & { params?: unknown };
   if (!isFxPresetId(candidate.preset) || !isAutotuneScaleId(candidate.scale)) {
     return null;
   }
 
+  const rawParams =
+    candidate.params && typeof candidate.params === 'object'
+      ? (candidate.params as Partial<FxSelection['params']>)
+      : defaultFxParams(candidate.preset);
+
   return {
     preset: candidate.preset,
     scale: candidate.scale,
+    params: clampFxParams(rawParams),
   };
 }
 
@@ -143,6 +165,86 @@ function migrateReverbPresetId(value: unknown): ReverbPresetId | null {
   return null;
 }
 
+function parseCompressorSelection(value: unknown): CompressorSelection | null {
+  if (typeof value === 'string') {
+    const preset = migrateCompressorPresetId(value);
+    return preset ? { preset, params: defaultCompParams(preset) } : null;
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as { preset?: unknown; params?: unknown };
+  const preset = migrateCompressorPresetId(candidate.preset);
+  if (!preset) {
+    return null;
+  }
+  const raw =
+    candidate.params && typeof candidate.params === 'object'
+      ? (candidate.params as Partial<CompressorSelection['params']>)
+      : defaultCompParams(preset);
+  return { preset, params: clampCompParams(raw) };
+}
+
+function parseEqSelection(value: unknown): EqSelection | null {
+  if (typeof value === 'string') {
+    const preset = migrateEqPresetId(value);
+    return preset ? { preset, params: defaultEqParams(preset) } : null;
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as { preset?: unknown; params?: unknown };
+  const preset = migrateEqPresetId(candidate.preset);
+  if (!preset) {
+    return null;
+  }
+  const raw =
+    candidate.params && typeof candidate.params === 'object'
+      ? (candidate.params as Partial<EqSelection['params']>)
+      : defaultEqParams(preset);
+  return { preset, params: clampEqParams(raw) };
+}
+
+function parseEchoSelection(value: unknown): EchoSelection | null {
+  if (typeof value === 'string') {
+    const preset = migrateEchoPresetId(value);
+    return preset ? { preset, params: defaultEchoParams(preset) } : null;
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as { preset?: unknown; params?: unknown };
+  const preset = migrateEchoPresetId(candidate.preset);
+  if (!preset) {
+    return null;
+  }
+  const raw =
+    candidate.params && typeof candidate.params === 'object'
+      ? (candidate.params as Partial<EchoSelection['params']>)
+      : defaultEchoParams(preset);
+  return { preset, params: clampEchoParams(raw) };
+}
+
+function parseReverbSelection(value: unknown): ReverbSelection | null {
+  if (typeof value === 'string') {
+    const preset = migrateReverbPresetId(value);
+    return preset ? { preset, params: defaultReverbParams(preset) } : null;
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as { preset?: unknown; params?: unknown };
+  const preset = migrateReverbPresetId(candidate.preset);
+  if (!preset) {
+    return null;
+  }
+  const raw =
+    candidate.params && typeof candidate.params === 'object'
+      ? (candidate.params as Partial<ReverbSelection['params']>)
+      : defaultReverbParams(preset);
+  return { preset, params: clampReverbParams(raw) };
+}
+
 /** Migrate v2 fx { preset, scale } → fx + optional autotune mirror. */
 function migrateV2Fx(value: unknown): {
   fx: FxSelection | null;
@@ -175,20 +277,21 @@ function migrateV3Fx(
   return {
     preset: fxValue,
     scale: autotune?.scale ?? 'c-major',
+    params: defaultFxParams(fxValue),
   };
 }
 
-function parseCommonPresets(stored: {
+function parseMixSelections(stored: {
   compressor?: unknown;
   eq?: unknown;
   echo?: unknown;
   reverb?: unknown;
 }): Pick<EditChainSelection, 'compressor' | 'eq' | 'echo' | 'reverb'> {
   return {
-    compressor: migrateCompressorPresetId(stored.compressor),
-    eq: migrateEqPresetId(stored.eq),
-    echo: migrateEchoPresetId(stored.echo),
-    reverb: migrateReverbPresetId(stored.reverb),
+    compressor: parseCompressorSelection(stored.compressor),
+    eq: parseEqSelection(stored.eq),
+    echo: parseEchoSelection(stored.echo),
+    reverb: parseReverbSelection(stored.reverb),
   };
 }
 
@@ -200,7 +303,7 @@ export function toStoredEditChain(
   }
 
   return {
-    version: 5,
+    version: 6,
     cleanVoice: selection.cleanVoice,
     autotune: selection.autotune,
     fx: selection.fx,
@@ -225,15 +328,24 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
     return { ...EMPTY_EDIT_CHAIN };
   }
 
-  const common = parseCommonPresets(stored);
+  const mix = parseMixSelections(stored);
 
-  // v4–v5: same pitch shape; v5 uses Voloco mix preset ids (migrated above).
+  if (stored.version === 6) {
+    return {
+      cleanVoice: Boolean(stored.cleanVoice),
+      autotune: parseAutotune(stored.autotune),
+      fx: parseFx(stored.fx),
+      ...mix,
+    };
+  }
+
+  // v4–v5: preset ids only (or legacy strings); attach default tune params.
   if (stored.version === 5 || stored.version === 4) {
     return {
       cleanVoice: Boolean(stored.cleanVoice),
       autotune: parseAutotune(stored.autotune),
       fx: parseFx(stored.fx),
-      ...common,
+      ...mix,
     };
   }
 
@@ -242,7 +354,7 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
       cleanVoice: Boolean(stored.cleanVoice),
       autotune: parseAutotune(stored.autotune),
       fx: migrateV3Fx(stored.fx, stored.autotune),
-      ...common,
+      ...mix,
     };
   }
 
@@ -252,7 +364,7 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
       cleanVoice: Boolean(stored.cleanVoice),
       autotune: migrated.autotune,
       fx: migrated.fx,
-      ...common,
+      ...mix,
     };
   }
 
@@ -261,7 +373,7 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
       cleanVoice: Boolean(stored.cleanVoice),
       autotune: parseAutotune(stored.autotune),
       fx: null,
-      ...common,
+      ...mix,
     };
   }
 

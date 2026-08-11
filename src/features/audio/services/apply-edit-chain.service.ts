@@ -1,79 +1,38 @@
-import * as Crypto from "expo-crypto";
-import { File } from "expo-file-system";
+import * as Crypto from 'expo-crypto';
+import { File } from 'expo-file-system';
 
-import { ensureRecordingsRoot } from "@/features/audio/data/recording-storage";
-import { deleteFileIfExists } from "@/features/audio/services/ffmpeg.service";
+import { ensureRecordingsRoot } from '@/features/audio/data/recording-storage';
+import { deleteFileIfExists } from '@/features/audio/services/ffmpeg.service';
 import {
   initSuperpowered,
   isSuperpoweredAvailable,
   processFileWithSuperpoweredEffects,
-} from "@/features/audio/services/superpowered-audio.service";
+} from '@/features/audio/services/superpowered-audio.service';
 import {
   getAutotuneNativeScale,
   getAutotuneNativeSpeed,
   isEditChainEmpty,
   type EditChainSelection,
-} from "@/features/audio/types/edit-chips";
-import { toFileUri } from "@/features/audio/utils/ffmpeg-path";
-import { getProcessedRecordingUri } from "@/features/audio/utils/recording-paths";
+} from '@/features/audio/types/edit-chips';
+import { toFileUri } from '@/features/audio/utils/ffmpeg-path';
+import { getProcessedRecordingUri } from '@/features/audio/utils/recording-paths';
 
 type EffectJsonItem = {
   id: string;
   params: Record<string, string | number>;
 };
 
-function echoParams(
-  preset: NonNullable<EditChainSelection["echo"]>,
-): EffectJsonItem["params"] {
-  // intensity = send depth (native mixes dry + wet sends)
-  if (preset === "resonant-buzz") {
-    return { delay: 1, intensity: 18, preset };
-  }
-  if (preset === "eighth-note-bounce") {
-    return { delay: 3, intensity: 24, preset };
-  }
-  if (preset === "slinky") {
-    return { delay: 2, intensity: 24, preset };
-  }
-  if (preset === "right-to-left") {
-    return { delay: 2, intensity: 22, preset };
-  }
-  // coin-drop — louder presence
-  return { delay: 1, intensity: 28, preset };
-}
-
-function reverbParams(
-  preset: NonNullable<EditChainSelection["reverb"]>,
-): EffectJsonItem["params"] {
-  // amount = send depth
-  if (preset === "cathedral") {
-    return { roomSize: 4, amount: 26, preset };
-  }
-  if (preset === "large-hall") {
-    return { roomSize: 3, amount: 24, preset };
-  }
-  if (preset === "stereo-width") {
-    return { roomSize: 2, amount: 20, preset };
-  }
-  if (preset === "long-narrow") {
-    return { roomSize: 3, amount: 22, preset };
-  }
-  if (preset === "small-club") {
-    return { roomSize: 1, amount: 18, preset };
-  }
-  // medium-room
-  return { roomSize: 2, amount: 19, preset };
-}
-
 /** One pitch stage only: FX wins over Autotune. FX owns its Key. */
 function resolvePitchEffects(selection: EditChainSelection): EffectJsonItem[] {
   if (selection.fx) {
     return [
       {
-        id: "fx",
+        id: 'fx',
         params: {
           preset: selection.fx.preset,
           scale: getAutotuneNativeScale(selection.fx.scale),
+          speed: selection.fx.params.speed,
+          clamp: selection.fx.params.clamp,
         },
       },
     ];
@@ -82,7 +41,7 @@ function resolvePitchEffects(selection: EditChainSelection): EffectJsonItem[] {
   if (selection.autotune) {
     return [
       {
-        id: "autotune",
+        id: 'autotune',
         params: {
           scale: getAutotuneNativeScale(selection.autotune.scale),
           speed: getAutotuneNativeSpeed(selection.autotune.speed),
@@ -97,43 +56,52 @@ function resolvePitchEffects(selection: EditChainSelection): EffectJsonItem[] {
 /**
  * Build effects JSON for native. Chip tap order is irrelevant — selection is a set.
  * Native always runs: pitch → input-normalize → Comp → EQ → Echo → Reverb → limiter.
- * Push order here matches that list for readability only.
+ * Params are native Superpowered values (no fake 0–100 send scale).
  */
 function buildSuperpoweredEffectsJson(selection: EditChainSelection): string {
   const effects: EffectJsonItem[] = [...resolvePitchEffects(selection)];
 
   if (selection.compressor) {
     effects.push({
-      id: "compressor",
-      params: { preset: selection.compressor },
+      id: 'compressor',
+      params: {
+        preset: selection.compressor.preset,
+        ...selection.compressor.params,
+      },
     });
   }
   if (selection.eq) {
     effects.push({
-      id: "eq",
-      params: { preset: selection.eq },
+      id: 'eq',
+      params: {
+        preset: selection.eq.preset,
+        ...selection.eq.params,
+      },
     });
   }
   if (selection.echo) {
     effects.push({
-      id: "echo",
-      params: echoParams(selection.echo),
+      id: 'echo',
+      params: {
+        preset: selection.echo.preset,
+        ...selection.echo.params,
+      },
     });
   }
   if (selection.reverb) {
     effects.push({
-      id: "reverb",
-      params: reverbParams(selection.reverb),
+      id: 'reverb',
+      params: {
+        preset: selection.reverb.preset,
+        ...selection.reverb.params,
+      },
     });
   }
 
   return JSON.stringify(effects);
 }
 
-async function copyFile(
-  sourceUri: string,
-  destinationUri: string,
-): Promise<void> {
+async function copyFile(sourceUri: string, destinationUri: string): Promise<void> {
   const destination = new File(destinationUri);
   const parent = destination.parentDirectory;
   if (!parent.exists) {
@@ -171,25 +139,26 @@ export async function applyEditChain(input: {
 
   if (selection.cleanVoice) {
     if (!sourcePreGateUri) {
-      throw new Error("Clean Voice needs the original pre-gate recording.");
+      throw new Error('Clean Voice needs the original pre-gate recording.');
     }
 
-    const { isDeepFilterDenoiseAvailable, denoiseRecordingWithDeepFilter } =
-      await import("@/features/audio/services/deepfilter-denoise.service");
+    const { isDeepFilterDenoiseAvailable, denoiseRecordingWithDeepFilter } = await import(
+      '@/features/audio/services/deepfilter-denoise.service'
+    );
 
     if (!(await isDeepFilterDenoiseAvailable())) {
-      throw new Error("Clean Voice requires DeepFilterNet on this device.");
+      throw new Error('Clean Voice requires DeepFilterNet on this device.');
     }
 
     cleanVoiceTempUri = toFileUri(
-      getProcessedRecordingUri("clean-voice", Crypto.randomUUID()),
+      getProcessedRecordingUri('clean-voice', Crypto.randomUUID()),
     );
     const parent = new File(cleanVoiceTempUri).parentDirectory;
     if (!parent.exists) {
       parent.create({ intermediates: true, idempotent: true });
     }
 
-    console.warn("[EditChain] Clean Voice (DeepFilter) from pre-gate…");
+    console.warn('[EditChain] Clean Voice (DeepFilter) from pre-gate…');
     await denoiseRecordingWithDeepFilter(sourcePreGateUri, cleanVoiceTempUri);
     chainInputUri = cleanVoiceTempUri;
   }
@@ -203,25 +172,22 @@ export async function applyEditChain(input: {
     selection.reverb != null;
 
   if (!hasSuperpoweredFx) {
-    // Clean Voice only — return denoised WAV as working file.
     return chainInputUri;
   }
 
   if (!isSuperpoweredAvailable()) {
-    throw new Error(
-      "Superpowered native module is not available for edit chips.",
-    );
+    throw new Error('Superpowered native module is not available for edit chips.');
   }
 
   const initialized = await initSuperpowered();
   if (!initialized) {
     throw new Error(
-      "Superpowered init failed (check EXPO_PUBLIC_SUPERPOWERED_LICENSE_KEY).",
+      'Superpowered init failed (check EXPO_PUBLIC_SUPERPOWERED_LICENSE_KEY).',
     );
   }
 
   const outputUri = toFileUri(
-    getProcessedRecordingUri("edit-chain", Crypto.randomUUID()),
+    getProcessedRecordingUri('edit-chain', Crypto.randomUUID()),
   );
   const parent = new File(outputUri).parentDirectory;
   if (!parent.exists) {
@@ -229,13 +195,9 @@ export async function applyEditChain(input: {
   }
 
   const effectsJson = buildSuperpoweredEffectsJson(selection);
-  console.warn(`[EditChain] Superpowered chain ${effectsJson}`);
+  console.warn(`[EditChain] Superpowered chain (native params):\n${effectsJson}`);
 
-  await processFileWithSuperpoweredEffects(
-    chainInputUri,
-    outputUri,
-    effectsJson,
-  );
+  await processFileWithSuperpoweredEffects(chainInputUri, outputUri, effectsJson);
 
   if (cleanVoiceTempUri && cleanVoiceTempUri !== outputUri) {
     await deleteFileIfExists(cleanVoiceTempUri);
@@ -244,11 +206,9 @@ export async function applyEditChain(input: {
   return outputUri;
 }
 
-export async function persistBaselineCopy(
-  baselineUri: string,
-): Promise<string> {
+export async function persistBaselineCopy(baselineUri: string): Promise<string> {
   const outputUri = toFileUri(
-    getProcessedRecordingUri("baseline-copy", Crypto.randomUUID()),
+    getProcessedRecordingUri('baseline-copy', Crypto.randomUUID()),
   );
   await copyFile(baselineUri, outputUri);
   return outputUri;

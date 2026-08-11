@@ -1,3 +1,18 @@
+import type {
+  CompTuneParams,
+  EchoTuneParams,
+  EqTuneParams,
+  FxTuneParams,
+  ReverbTuneParams,
+} from '@/features/audio/domain/chip-tune-params';
+import {
+  defaultCompParams,
+  defaultEchoParams,
+  defaultEqParams,
+  defaultFxParams,
+  defaultReverbParams,
+} from '@/features/audio/domain/chip-tune-params';
+
 export const FX_PRESETS = [
   { id: 'hard-snap', label: 'Hard Snap' },
   { id: 'natural-snap', label: 'Natural Snap' },
@@ -108,6 +123,27 @@ export type AutotuneSelection = {
 export type FxSelection = {
   preset: FxPresetId;
   scale: AutotuneScaleId;
+  params: FxTuneParams;
+};
+
+export type CompressorSelection = {
+  preset: CompressorPresetId;
+  params: CompTuneParams;
+};
+
+export type EqSelection = {
+  preset: EqPresetId;
+  params: EqTuneParams;
+};
+
+export type EchoSelection = {
+  preset: EchoPresetId;
+  params: EchoTuneParams;
+};
+
+export type ReverbSelection = {
+  preset: ReverbPresetId;
+  params: ReverbTuneParams;
 };
 
 export type EditChipKind =
@@ -124,22 +160,22 @@ export type EditChainSelection = {
   cleanVoice: boolean;
   autotune: AutotuneSelection | null;
   fx: FxSelection | null;
-  compressor: CompressorPresetId | null;
-  eq: EqPresetId | null;
-  echo: EchoPresetId | null;
-  reverb: ReverbPresetId | null;
+  compressor: CompressorSelection | null;
+  eq: EqSelection | null;
+  echo: EchoSelection | null;
+  reverb: ReverbSelection | null;
 };
 
 /** Persisted edit recipe stored on AudioRecording (current write format). */
 export type StoredEditChain = {
-  version: 5;
+  version: 6;
   cleanVoice: boolean;
   autotune: AutotuneSelection | null;
   fx: FxSelection | null;
-  compressor: CompressorPresetId | null;
-  eq: EqPresetId | null;
-  echo: EchoPresetId | null;
-  reverb: ReverbPresetId | null;
+  compressor: CompressorSelection | null;
+  eq: EqSelection | null;
+  echo: EchoSelection | null;
+  reverb: ReverbSelection | null;
 };
 
 export const EMPTY_EDIT_CHAIN: EditChainSelection = {
@@ -160,7 +196,31 @@ export const DEFAULT_AUTOTUNE_SELECTION: AutotuneSelection = {
 export const DEFAULT_FX_SELECTION: FxSelection = {
   preset: 'hard-snap',
   scale: 'c-major',
+  params: defaultFxParams('hard-snap'),
 };
+
+export function createCompressorSelection(preset: CompressorPresetId): CompressorSelection {
+  return { preset, params: defaultCompParams(preset) };
+}
+
+export function createEqSelection(preset: EqPresetId): EqSelection {
+  return { preset, params: defaultEqParams(preset) };
+}
+
+export function createEchoSelection(preset: EchoPresetId): EchoSelection {
+  return { preset, params: defaultEchoParams(preset) };
+}
+
+export function createReverbSelection(preset: ReverbPresetId): ReverbSelection {
+  return { preset, params: defaultReverbParams(preset) };
+}
+
+export function createFxSelection(
+  preset: FxPresetId,
+  scale: AutotuneScaleId,
+): FxSelection {
+  return { preset, scale, params: defaultFxParams(preset) };
+}
 
 export function getFxPresetLabel(preset: FxPresetId): string {
   return FX_PRESETS.find((item) => item.id === preset)?.label ?? preset;
@@ -219,20 +279,20 @@ export function getEditChainLabel(selection: EditChainSelection): string | null 
     );
   }
   if (selection.compressor) {
-    const preset = COMPRESSOR_PRESETS.find((item) => item.id === selection.compressor);
-    parts.push(`Comp: ${preset?.label ?? selection.compressor}`);
+    const preset = COMPRESSOR_PRESETS.find((item) => item.id === selection.compressor?.preset);
+    parts.push(`Comp: ${preset?.label ?? selection.compressor.preset}`);
   }
   if (selection.eq) {
-    const preset = EQ_PRESETS.find((item) => item.id === selection.eq);
-    parts.push(`EQ: ${preset?.label ?? selection.eq}`);
+    const preset = EQ_PRESETS.find((item) => item.id === selection.eq?.preset);
+    parts.push(`EQ: ${preset?.label ?? selection.eq.preset}`);
   }
   if (selection.echo) {
-    const preset = ECHO_PRESETS.find((item) => item.id === selection.echo);
-    parts.push(`Echo: ${preset?.label ?? selection.echo}`);
+    const preset = ECHO_PRESETS.find((item) => item.id === selection.echo?.preset);
+    parts.push(`Echo: ${preset?.label ?? selection.echo.preset}`);
   }
   if (selection.reverb) {
-    const preset = REVERB_PRESETS.find((item) => item.id === selection.reverb);
-    parts.push(`Reverb: ${preset?.label ?? selection.reverb}`);
+    const preset = REVERB_PRESETS.find((item) => item.id === selection.reverb?.preset);
+    parts.push(`Reverb: ${preset?.label ?? selection.reverb.preset}`);
   }
 
   return parts.length > 0 ? parts.join(' · ') : null;

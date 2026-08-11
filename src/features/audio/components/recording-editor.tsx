@@ -79,8 +79,8 @@ export function RecordingEditor({
           <Text style={styles.appliedEffect}>Applied: {session.effectLabel}</Text>
         ) : (
           <Text style={styles.hint}>
-            Soft cleanup is already on. Use Autotune for strength, FX for Hard/Natural Snap + Key,
-            plus Comp, EQ, Echo, or Reverb. Reset brings back the cleaned take.
+            Soft cleanup is already on. Tap Autotune, FX, Comp, EQ, Echo, or Reverb and pick a
+            preset — it applies right away. Reset brings back the cleaned take.
           </Text>
         )}
         <View style={styles.playRow}>
@@ -112,7 +112,7 @@ export function RecordingEditor({
           />
         </View>
         <EditChipRow
-          selection={session.selection}
+          selection={session.uiSelection}
           disabled={isSaving}
           isProcessing={session.isProcessing}
           processingLabel={session.processingLabel}
@@ -152,7 +152,7 @@ export function RecordingEditor({
         visible={session.presetSheet === 'compressor'}
         title="Compressor"
         options={compressorSheetOptions()}
-        selectedId={session.selection.compressor}
+        selectedId={session.selection.compressor?.preset ?? null}
         onSelect={(id) => session.selectCompressor(id as CompressorPresetId)}
         onClear={() => session.selectCompressor(null)}
         onClose={session.closePresetSheet}
@@ -161,7 +161,7 @@ export function RecordingEditor({
         visible={session.presetSheet === 'eq'}
         title="EQ"
         options={eqSheetOptions()}
-        selectedId={session.selection.eq}
+        selectedId={session.selection.eq?.preset ?? null}
         onSelect={(id) => session.selectEq(id as EqPresetId)}
         onClear={() => session.selectEq(null)}
         onClose={session.closePresetSheet}
@@ -170,7 +170,7 @@ export function RecordingEditor({
         visible={session.presetSheet === 'echo'}
         title="Echo"
         options={echoSheetOptions()}
-        selectedId={session.selection.echo}
+        selectedId={session.selection.echo?.preset ?? null}
         onSelect={(id) => session.selectEcho(id as EchoPresetId)}
         onClear={() => session.selectEcho(null)}
         onClose={session.closePresetSheet}
@@ -179,7 +179,7 @@ export function RecordingEditor({
         visible={session.presetSheet === 'reverb'}
         title="Reverb"
         options={reverbSheetOptions()}
-        selectedId={session.selection.reverb}
+        selectedId={session.selection.reverb?.preset ?? null}
         onSelect={(id) => session.selectReverb(id as ReverbPresetId)}
         onClear={() => session.selectReverb(null)}
         onClose={session.closePresetSheet}

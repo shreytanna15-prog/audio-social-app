@@ -16,6 +16,7 @@ import {
   DEFAULT_FX_SELECTION,
   FX_KEY_HINT,
   FX_PRESETS,
+  createFxSelection,
   getAutotuneScaleLabel,
   getFxPresetHint,
   getFxPresetLabel,
@@ -85,10 +86,11 @@ export function FxSheet({ visible, selection, onApply, onClear, onClose }: FxShe
                     pressed && styles.optionPressed,
                   ]}
                   onPress={() =>
-                    applyDraft({
-                      preset: preset.id,
-                      scale: draftScale,
-                    })
+                    applyDraft(
+                      selection?.preset === preset.id
+                        ? { ...selection, scale: draftScale }
+                        : createFxSelection(preset.id, draftScale),
+                    )
                   }>
                   <Text style={[styles.presetLabel, active && styles.presetLabelActive]}>
                     {preset.label}
@@ -120,10 +122,15 @@ export function FxSheet({ visible, selection, onApply, onClear, onClose }: FxShe
                     pressed && styles.optionPressed,
                   ]}
                   onPress={() =>
-                    applyDraft({
-                      preset: draftPreset,
-                      scale: scale.id,
-                    })
+                    applyDraft(
+                      selection?.preset === draftPreset
+                        ? {
+                            preset: draftPreset,
+                            scale: scale.id,
+                            params: selection.params,
+                          }
+                        : createFxSelection(draftPreset, scale.id),
+                    )
                   }>
                   <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>
                     {scale.label}

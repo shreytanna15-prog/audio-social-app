@@ -99,7 +99,7 @@ export function EditChipRow({
     {
       key: 'compressor',
       label: selection.compressor
-        ? `Comp · ${COMPRESSOR_PRESETS.find((p) => p.id === selection.compressor)?.label}`
+        ? `Comp · ${COMPRESSOR_PRESETS.find((p) => p.id === selection.compressor?.preset)?.label}`
         : 'Compressor',
       icon: {
         ios: 'slider.horizontal.3',
@@ -112,7 +112,7 @@ export function EditChipRow({
     {
       key: 'eq',
       label: selection.eq
-        ? `EQ · ${EQ_PRESETS.find((p) => p.id === selection.eq)?.label}`
+        ? `EQ · ${EQ_PRESETS.find((p) => p.id === selection.eq?.preset)?.label}`
         : 'EQ',
       icon: {
         ios: 'wand.and.stars',
@@ -125,7 +125,7 @@ export function EditChipRow({
     {
       key: 'echo',
       label: selection.echo
-        ? `Echo · ${ECHO_PRESETS.find((p) => p.id === selection.echo)?.label}`
+        ? `Echo · ${ECHO_PRESETS.find((p) => p.id === selection.echo?.preset)?.label}`
         : 'Echo',
       icon: {
         ios: 'repeat',
@@ -138,7 +138,7 @@ export function EditChipRow({
     {
       key: 'reverb',
       label: selection.reverb
-        ? `Reverb · ${REVERB_PRESETS.find((p) => p.id === selection.reverb)?.label}`
+        ? `Reverb · ${REVERB_PRESETS.find((p) => p.id === selection.reverb?.preset)?.label}`
         : 'Reverb',
       icon: {
         ios: 'dot.radiowaves.left.and.right',

@@ -9,19 +9,24 @@ export function useRecordingPlayback(uri: string) {
     player.pause();
   }, [player]);
 
+  const playFromStart = useCallback(() => {
+    player.seekTo(0);
+    player.play();
+  }, [player]);
+
   const togglePlayback = useCallback(() => {
     if (playerStatus.playing) {
       player.pause();
       return;
     }
 
-    player.seekTo(0);
-    player.play();
-  }, [player, playerStatus.playing]);
+    playFromStart();
+  }, [playFromStart, player, playerStatus.playing]);
 
   return {
     isPlaying: playerStatus.playing,
     pause,
+    playFromStart,
     togglePlayback,
   };
 }
