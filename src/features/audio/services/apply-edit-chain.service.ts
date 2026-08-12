@@ -19,7 +19,7 @@ import { getProcessedRecordingUri } from '@/features/audio/utils/recording-paths
 
 type EffectJsonItem = {
   id: string;
-  params: Record<string, string | number>;
+  params: Record<string, string | number | boolean>;
 };
 
 /** One pitch stage only: FX wins over Autotune. FX owns its Key. */

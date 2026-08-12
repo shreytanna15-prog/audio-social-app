@@ -11,7 +11,10 @@ Offline Clean engine (post-record):
 Editor effects (offline file process):
 
 - **FX / Autotune / Comp / EQ / Echo / Reverb** via `processEffectsFile` (Voloco-style named presets with fixed values)
+- **EQ** uses Voloco Custom EQ: high-pass + 7 bands (200…8000 Hz) + high shelf; free presets are locked recipes of those knobs
+- **Comp** uses Voloco Custom Compressor: mix, input/output gain, attack, release, ratio, auto-threshold / threshold diff
 - **Echo** uses a stereo delay engine matching Voloco Custom controls: duck, tempo sync, L/R delay + feedback, x-over (ping-pong), dry/wet
+- **Reverb** uses Voloco Custom controls: mix, width, damp, room size, pre-delay (0–500 ms)
 - **Clean Voice** via DeepFilter in JS, then optional Superpowered chain
 - FFmpeg is used only to encode WAV → MP3 when needed
 

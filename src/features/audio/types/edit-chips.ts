@@ -23,7 +23,7 @@ export const COMPRESSOR_PRESETS = [
   { id: 'rap', label: 'Rap' },
   { id: 'pop', label: 'Pop' },
   { id: 'moderate', label: 'Moderate' },
-  { id: 'parallel', label: 'Parallel' },
+  { id: 'parallel', label: 'Parallel Compression' },
   { id: 'blasted', label: 'Blasted' },
 ] as const;
 
@@ -50,7 +50,7 @@ export const REVERB_PRESETS = [
   { id: 'stereo-width', label: 'Stereo Width' },
   { id: 'large-hall', label: 'Large Hall' },
   { id: 'small-club', label: 'Small Club' },
-  { id: 'long-narrow', label: 'Long/Narrow' },
+  { id: 'long-narrow', label: 'Long and Narrow' },
   { id: 'cathedral', label: 'Cathedral' },
   { id: 'medium-room', label: 'Medium Room' },
 ] as const;

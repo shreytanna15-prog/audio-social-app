@@ -36,6 +36,7 @@ type UseRecordingEditorSessionOptions = {
   playbackUri: string;
   sourcePreGateUri?: string | null;
   initialEditChain?: StoredEditChain;
+  durationSeconds?: number;
   isSaving: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
 };
@@ -45,6 +46,7 @@ export function useRecordingEditorSession({
   playbackUri,
   sourcePreGateUri = null,
   initialEditChain,
+  durationSeconds = 0,
   isSaving = false,
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
@@ -72,7 +74,9 @@ export function useRecordingEditorSession({
     console.warn(`[Editor] reset session for new take uri=${baselineUri}`);
   }, [baselineUri, initialEditChain, playbackUri]);
 
-  const playback = useRecordingPlayback(workingUri);
+  const playback = useRecordingPlayback(workingUri, {
+    fallbackDurationSeconds: durationSeconds,
+  });
 
   const canReset = !isEditChainEmpty(selection) && !isProcessing && !isSaving;
   const effectLabel = getEditChainLabel(selection);
@@ -135,8 +139,9 @@ export function useRecordingEditorSession({
       return;
     }
     autoPlayUriRef.current = workingUri;
+    // Replay from last scrubbed spot so EQ/Echo A/B stays on the same line.
     const timer = setTimeout(() => {
-      playback.playFromStart();
+      playback.playFromAnchor();
     }, 80);
     return () => clearTimeout(timer);
   }, [isProcessing, playback, workingUri]);
@@ -367,6 +372,17 @@ export function useRecordingEditorSession({
     playback.togglePlayback();
   }, [playback]);
 
+  const seekTo = useCallback(
+    (seconds: number) => {
+      void playback.seekTo(seconds);
+    },
+    [playback],
+  );
+
+  const playFromAnchor = useCallback(() => {
+    playback.playFromAnchor();
+  }, [playback]);
+
   return {
     workingUri,
     baselineUri,
@@ -378,7 +394,11 @@ export function useRecordingEditorSession({
     canReset,
     isPlaybackDisabled,
     isPlaying: playback.isPlaying,
+    currentTime: playback.currentTime,
+    duration: playback.duration,
     togglePlayback,
+    seekTo,
+    playFromAnchor,
     toggleCleanVoice,
     openPresetSheet,
     closePresetSheet,

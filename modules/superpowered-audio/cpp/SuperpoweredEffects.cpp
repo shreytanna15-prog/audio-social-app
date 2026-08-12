@@ -1,6 +1,7 @@
 #include "SuperpoweredEffects.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -173,10 +174,40 @@ struct EffectSpec {
   float ratio = 2.0f;
   bool hasWet = false;
   float wet = 0.55f;
+  bool hasInputGainDb = false;
+  float inputGainDb = 0.0f;
   bool hasOutputGainDb = false;
-  float outputGainDb = 0.8f;
+  float outputGainDb = 0.0f;
   bool hasAttackSec = false;
   float attackSec = 0.01f;
+  bool hasReleaseSec = false;
+  float releaseSec = 0.22f;
+  bool hasAutoThreshold = false;
+  bool autoThreshold = true;
+  bool hasThresholdDiffDb = false;
+  float thresholdDiffDb = -4.0f;
+  // Voloco Custom EQ
+  bool hasHighPassHz = false;
+  float highPassHz = 80.0f;
+  bool hasDb200 = false;
+  float db200 = 0.0f;
+  bool hasDb500 = false;
+  float db500 = 0.0f;
+  bool hasDb1000 = false;
+  float db1000 = 0.0f;
+  bool hasDb2000 = false;
+  float db2000 = 0.0f;
+  bool hasDb3000 = false;
+  float db3000 = 0.0f;
+  bool hasDb4500 = false;
+  float db4500 = 0.0f;
+  bool hasDb8000 = false;
+  float db8000 = 0.0f;
+  bool hasHighShelfDb = false;
+  float highShelfDb = 0.0f;
+  bool hasMakeupGainDb = false;
+  float makeupGainDb = 0.0f;
+  // Legacy 5-knob EQ (migrated if Custom fields absent)
   bool hasBassDb = false;
   float bassDb = 0.0f;
   bool hasMudDb = false;
@@ -278,8 +309,53 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
     spec.hasThresholdDb = readOptionalNumber(params, "thresholdDb", &spec.thresholdDb);
     spec.hasRatio = readOptionalNumber(params, "ratio", &spec.ratio);
     spec.hasWet = readOptionalNumber(params, "wet", &spec.wet);
+    // Voloco "mix": reverb → send amount; compressor → wet/dry.
+    {
+      float mixVal = 0.0f;
+      if (readOptionalNumber(params, "mix", &mixVal)) {
+        if (spec.id == "reverb") {
+          spec.hasSendGain = true;
+          spec.sendGain = mixVal;
+        } else if (spec.id == "compressor") {
+          spec.hasWet = true;
+          spec.wet = mixVal;
+        }
+      }
+    }
+    spec.hasInputGainDb = readOptionalNumber(params, "inputGainDb", &spec.inputGainDb);
     spec.hasOutputGainDb = readOptionalNumber(params, "outputGainDb", &spec.outputGainDb);
     spec.hasAttackSec = readOptionalNumber(params, "attackSec", &spec.attackSec);
+    spec.hasReleaseSec = readOptionalNumber(params, "releaseSec", &spec.releaseSec);
+    spec.hasThresholdDiffDb = readOptionalNumber(params, "thresholdDiffDb", &spec.thresholdDiffDb);
+    if (params != nullptr) {
+      Superpowered::json *autoNode = params->atKey("autoThreshold");
+      if (autoNode != nullptr) {
+        spec.hasAutoThreshold = true;
+        if (autoNode->type == Superpowered::json::jbool) {
+          spec.autoThreshold = autoNode->value.b != 0;
+        } else if (autoNode->type == Superpowered::json::jint) {
+          spec.autoThreshold = autoNode->value.i != 0;
+        } else if (autoNode->type == Superpowered::json::jdouble) {
+          spec.autoThreshold = autoNode->value.d != 0.0;
+        } else if (
+          autoNode->type == Superpowered::json::jstring && autoNode->value.string != nullptr
+        ) {
+          const char *s = autoNode->value.string;
+          spec.autoThreshold =
+            !(s[0] == '0' || s[0] == 'f' || s[0] == 'F' || s[0] == 'n' || s[0] == 'N');
+        }
+      }
+    }
+    spec.hasHighPassHz = readOptionalNumber(params, "highPassHz", &spec.highPassHz);
+    spec.hasDb200 = readOptionalNumber(params, "db200", &spec.db200);
+    spec.hasDb500 = readOptionalNumber(params, "db500", &spec.db500);
+    spec.hasDb1000 = readOptionalNumber(params, "db1000", &spec.db1000);
+    spec.hasDb2000 = readOptionalNumber(params, "db2000", &spec.db2000);
+    spec.hasDb3000 = readOptionalNumber(params, "db3000", &spec.db3000);
+    spec.hasDb4500 = readOptionalNumber(params, "db4500", &spec.db4500);
+    spec.hasDb8000 = readOptionalNumber(params, "db8000", &spec.db8000);
+    spec.hasHighShelfDb = readOptionalNumber(params, "highShelfDb", &spec.highShelfDb);
+    spec.hasMakeupGainDb = readOptionalNumber(params, "makeupGainDb", &spec.makeupGainDb);
     spec.hasBassDb = readOptionalNumber(params, "bassDb", &spec.bassDb);
     spec.hasMudDb = readOptionalNumber(params, "mudDb", &spec.mudDb);
     spec.hasPresenceDb = readOptionalNumber(params, "presenceDb", &spec.presenceDb);
@@ -314,60 +390,63 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
   return specs;
 }
 
+/** Voloco Custom EQ: HPF + 7 parametric bands + high shelf. */
 struct EqBank {
   Superpowered::Filter *highpass = nullptr;
-  Superpowered::Filter *lowShelf = nullptr;
-  Superpowered::Filter *mudCut = nullptr;
-  Superpowered::Filter *presence = nullptr;
-  Superpowered::Filter *air = nullptr;
+  Superpowered::Filter *band200 = nullptr;
+  Superpowered::Filter *band500 = nullptr;
+  Superpowered::Filter *band1000 = nullptr;
+  Superpowered::Filter *band2000 = nullptr;
+  Superpowered::Filter *band3000 = nullptr;
+  Superpowered::Filter *band4500 = nullptr;
+  Superpowered::Filter *band8000 = nullptr;
   Superpowered::Filter *hiShelf = nullptr;
-  Superpowered::Filter *sibilanceTame = nullptr;
+  float makeupLinear = 1.0f;
 
   bool isEmpty() const {
-    return highpass == nullptr && lowShelf == nullptr && mudCut == nullptr &&
-           presence == nullptr && air == nullptr && hiShelf == nullptr &&
-           sibilanceTame == nullptr;
+    return highpass == nullptr && band200 == nullptr && band500 == nullptr &&
+           band1000 == nullptr && band2000 == nullptr && band3000 == nullptr &&
+           band4500 == nullptr && band8000 == nullptr && hiShelf == nullptr;
   }
 
   void destroy() {
     delete highpass;
-    delete lowShelf;
-    delete mudCut;
-    delete presence;
-    delete air;
+    delete band200;
+    delete band500;
+    delete band1000;
+    delete band2000;
+    delete band3000;
+    delete band4500;
+    delete band8000;
     delete hiShelf;
-    delete sibilanceTame;
-    highpass = lowShelf = mudCut = presence = air = hiShelf = sibilanceTame = nullptr;
+    highpass = band200 = band500 = band1000 = band2000 = band3000 = band4500 =
+      band8000 = hiShelf = nullptr;
+    makeupLinear = 1.0f;
   }
 
   void process(float *buffer, unsigned int frames, unsigned int samplerate) {
-    if (highpass != nullptr) {
-      highpass->samplerate = samplerate;
-      highpass->process(buffer, buffer, frames);
-    }
-    if (lowShelf != nullptr) {
-      lowShelf->samplerate = samplerate;
-      lowShelf->process(buffer, buffer, frames);
-    }
-    if (mudCut != nullptr) {
-      mudCut->samplerate = samplerate;
-      mudCut->process(buffer, buffer, frames);
-    }
-    if (presence != nullptr) {
-      presence->samplerate = samplerate;
-      presence->process(buffer, buffer, frames);
-    }
-    if (air != nullptr) {
-      air->samplerate = samplerate;
-      air->process(buffer, buffer, frames);
-    }
-    if (hiShelf != nullptr) {
-      hiShelf->samplerate = samplerate;
-      hiShelf->process(buffer, buffer, frames);
-    }
-    if (sibilanceTame != nullptr) {
-      sibilanceTame->samplerate = samplerate;
-      sibilanceTame->process(buffer, buffer, frames);
+    auto run = [buffer, frames, samplerate](Superpowered::Filter *f) {
+      if (f == nullptr) {
+        return;
+      }
+      f->samplerate = samplerate;
+      f->process(buffer, buffer, frames);
+    };
+    run(highpass);
+    run(band200);
+    run(band500);
+    run(band1000);
+    run(band2000);
+    run(band3000);
+    run(band4500);
+    run(band8000);
+    run(hiShelf);
+
+    if (std::fabs(makeupLinear - 1.0f) > 1e-6f) {
+      const unsigned int samples = frames * 2;
+      for (unsigned int i = 0; i < samples; ++i) {
+        buffer[i] *= makeupLinear;
+      }
     }
   }
 
@@ -378,194 +457,202 @@ struct EqBank {
         f->decibel *= factor;
       }
     };
-    scale(lowShelf);
-    scale(presence);
-    scale(air);
+    scale(band200);
+    scale(band500);
+    scale(band1000);
+    scale(band2000);
+    scale(band3000);
+    scale(band4500);
+    scale(band8000);
     scale(hiShelf);
   }
 };
+
+static Superpowered::Filter *makeParametricBand(
+  unsigned int samplerate,
+  float frequencyHz,
+  float gainDb,
+  float octave
+) {
+  auto *filter = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
+  filter->frequency = frequencyHz;
+  filter->octave = octave;
+  filter->decibel = gainDb;
+  filter->enabled = true;
+  return filter;
+}
+
+static float scalePositiveDb(float db, float fxScale) {
+  if (db > 0.0f) {
+    return db * fxScale;
+  }
+  return db;
+}
 
 EqBank buildEqBank(const EffectSpec &spec, unsigned int samplerate, bool fxAware) {
   EqBank bank;
   const float fxScale = fxAware ? 0.75f : 1.0f;
   const std::string preset = spec.preset.empty() ? "vocal-clarity" : spec.preset;
 
-  if (preset == "mid-range-scoop") {
-    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
-    bank.highpass->frequency = 75.0f;
-    bank.highpass->resonance = 0.1f;
-    bank.highpass->enabled = true;
+  const bool hasCustom =
+    spec.hasHighPassHz || spec.hasDb200 || spec.hasDb500 || spec.hasDb1000 ||
+    spec.hasDb2000 || spec.hasDb3000 || spec.hasDb4500 || spec.hasDb8000 ||
+    spec.hasHighShelfDb || spec.hasMakeupGainDb;
 
-    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.mudCut->frequency = 500.0f;
-    bank.mudCut->octave = 1.1f;
-    bank.mudCut->decibel = -4.5f * fxScale;
-    bank.mudCut->enabled = true;
+  float highPassHz = 80.0f;
+  float db200 = 0.0f;
+  float db500 = 0.0f;
+  float db1000 = 0.0f;
+  float db2000 = 0.0f;
+  float db3000 = 0.0f;
+  float db4500 = 0.0f;
+  float db8000 = 0.0f;
+  float highShelfDb = 0.0f;
+  float makeupGainDb = 0.0f;
 
-    bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
-    bank.lowShelf->frequency = 140.0f;
-    bank.lowShelf->slope = 0.5f;
-    bank.lowShelf->decibel = 2.5f * fxScale;
-    bank.lowShelf->enabled = true;
-
-    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
-    bank.hiShelf->frequency = 5500.0f;
-    bank.hiShelf->slope = 0.5f;
-    bank.hiShelf->decibel = 2.5f * fxScale;
-    bank.hiShelf->enabled = true;
+  if (hasCustom) {
+    highPassHz = spec.hasHighPassHz ? spec.highPassHz : 80.0f;
+    db200 = spec.hasDb200 ? spec.db200 : 0.0f;
+    db500 = spec.hasDb500 ? spec.db500 : 0.0f;
+    db1000 = spec.hasDb1000 ? spec.db1000 : 0.0f;
+    db2000 = spec.hasDb2000 ? spec.db2000 : 0.0f;
+    db3000 = spec.hasDb3000 ? spec.db3000 : 0.0f;
+    db4500 = spec.hasDb4500 ? spec.db4500 : 0.0f;
+    db8000 = spec.hasDb8000 ? spec.db8000 : 0.0f;
+    highShelfDb = spec.hasHighShelfDb ? spec.highShelfDb : 0.0f;
+    makeupGainDb = spec.hasMakeupGainDb ? spec.makeupGainDb : 0.0f;
+  } else if (
+    spec.hasBassDb || spec.hasMudDb || spec.hasPresenceDb || spec.hasBrightDb ||
+    spec.hasHarshDb
+  ) {
+    // Approximate legacy 5-knob EQ into Custom bands.
+    const float bass = spec.hasBassDb ? spec.bassDb : 0.0f;
+    const float mud = spec.hasMudDb ? spec.mudDb : 0.0f;
+    const float presence = spec.hasPresenceDb ? spec.presenceDb : 0.0f;
+    const float bright = spec.hasBrightDb ? spec.brightDb : 0.0f;
+    const float harsh = spec.hasHarshDb ? spec.harshDb : 0.0f;
+    highPassHz = 80.0f;
+    db200 = bass * 0.6f + mud * 0.4f;
+    db500 = mud;
+    db1000 = presence * 0.25f;
+    db2000 = presence * 0.55f;
+    db3000 = presence * 0.7f;
+    db4500 = bright * 0.45f + harsh * 0.3f;
+    db8000 = bright * 0.7f + harsh * 0.5f;
+    highShelfDb = clampf(bright * 0.35f, -0.6f, 6.0f);
+    makeupGainDb = 0.0f;
+  } else if (preset == "mid-range-scoop") {
+    highPassHz = 60.0f;
+    db200 = 5.0f;
+    db500 = -8.0f;
+    db1000 = -7.5f;
+    db2000 = -5.0f;
+    db3000 = -1.5f;
+    db4500 = 3.5f;
+    db8000 = 4.5f;
+    highShelfDb = 3.5f;
+    makeupGainDb = 3.5f;
   } else if (preset == "brightness") {
-    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
-    bank.highpass->frequency = 85.0f;
-    bank.highpass->resonance = 0.1f;
-    bank.highpass->enabled = true;
-
-    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.presence->frequency = 4200.0f;
-    bank.presence->octave = 0.8f;
-    bank.presence->decibel = 3.0f * fxScale;
-    bank.presence->enabled = true;
-
-    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
-    bank.hiShelf->frequency = 6500.0f;
-    bank.hiShelf->slope = 0.5f;
-    bank.hiShelf->decibel = 3.0f * fxScale;
-    bank.hiShelf->enabled = true;
-
-    bank.sibilanceTame = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.sibilanceTame->frequency = 7800.0f;
-    bank.sibilanceTame->octave = 0.5f;
-    bank.sibilanceTame->decibel = -1.5f;
-    bank.sibilanceTame->enabled = true;
+    highPassHz = 90.0f;
+    db200 = -1.0f;
+    db500 = -1.5f;
+    db1000 = 0.5f;
+    db2000 = 1.5f;
+    db3000 = 3.5f;
+    db4500 = 5.5f;
+    db8000 = 7.0f;
+    highShelfDb = 5.5f;
+    makeupGainDb = 2.5f;
   } else if (preset == "low-high-boost") {
-    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
-    bank.highpass->frequency = 70.0f;
-    bank.highpass->resonance = 0.1f;
-    bank.highpass->enabled = true;
-
-    bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
-    bank.lowShelf->frequency = 160.0f;
-    bank.lowShelf->slope = 0.5f;
-    bank.lowShelf->decibel = 3.5f * fxScale;
-    bank.lowShelf->enabled = true;
-
-    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.mudCut->frequency = 320.0f;
-    bank.mudCut->octave = 0.7f;
-    bank.mudCut->decibel = -1.5f;
-    bank.mudCut->enabled = true;
-
-    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
-    bank.hiShelf->frequency = 6000.0f;
-    bank.hiShelf->slope = 0.5f;
-    bank.hiShelf->decibel = 3.0f * fxScale;
-    bank.hiShelf->enabled = true;
+    highPassHz = 50.0f;
+    db200 = 5.5f;
+    db500 = 2.0f;
+    db1000 = 1.0f;
+    db2000 = 0.5f;
+    db3000 = 1.0f;
+    db4500 = 3.0f;
+    db8000 = 4.5f;
+    highShelfDb = 4.0f;
+    makeupGainDb = 1.5f;
   } else if (preset == "telephone") {
-    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
-    bank.highpass->frequency = 400.0f;
-    bank.highpass->resonance = 0.12f;
-    bank.highpass->enabled = true;
-
-    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.presence->frequency = 1800.0f;
-    bank.presence->octave = 1.2f;
-    bank.presence->decibel = 4.0f * fxScale;
-    bank.presence->enabled = true;
-
-    bank.air = new Superpowered::Filter(Superpowered::Filter::Resonant_Lowpass, samplerate);
-    bank.air->frequency = 3200.0f;
-    bank.air->resonance = 0.12f;
-    bank.air->enabled = true;
+    highPassHz = 450.0f;
+    db200 = -12.0f;
+    db500 = -3.0f;
+    db1000 = 5.0f;
+    db2000 = 6.0f;
+    db3000 = 4.0f;
+    db4500 = -8.0f;
+    db8000 = -12.0f;
+    highShelfDb = -0.6f;
+    makeupGainDb = 2.0f;
   } else {
-    // vocal-clarity (default) — Voloco Vocal Clarity
-    bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
-    bank.highpass->frequency = 80.0f;
-    bank.highpass->resonance = 0.1f;
-    bank.highpass->enabled = true;
-
-    bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.mudCut->frequency = 250.0f;
-    bank.mudCut->octave = 0.8f;
-    bank.mudCut->decibel = fxAware ? -3.0f : -3.5f;
-    bank.mudCut->enabled = true;
-
-    bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.presence->frequency = 3200.0f;
-    bank.presence->octave = 0.85f;
-    bank.presence->decibel = fxAware ? 2.5f : 3.2f;
-    bank.presence->enabled = true;
-
-    bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
-    bank.hiShelf->frequency = 9000.0f;
-    bank.hiShelf->slope = 0.5f;
-    bank.hiShelf->decibel = fxAware ? 0.8f : 1.2f;
-    bank.hiShelf->enabled = true;
-
-    bank.sibilanceTame = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-    bank.sibilanceTame->frequency = 7800.0f;
-    bank.sibilanceTame->octave = 0.5f;
-    bank.sibilanceTame->decibel = fxAware ? -2.0f : -1.5f;
-    bank.sibilanceTame->enabled = true;
+    // vocal-clarity
+    highPassHz = 85.0f;
+    db200 = -2.5f;
+    db500 = -3.0f;
+    db1000 = 1.0f;
+    db2000 = 3.5f;
+    db3000 = 4.5f;
+    db4500 = 2.0f;
+    db8000 = 1.0f;
+    highShelfDb = 1.2f;
+    makeupGainDb = 1.5f;
   }
 
-  // Client tune overrides (native dB values).
-  if (spec.hasBassDb) {
-    if (bank.lowShelf == nullptr) {
-      bank.lowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
-      bank.lowShelf->frequency = 160.0f;
-      bank.lowShelf->slope = 0.5f;
-      bank.lowShelf->enabled = true;
-    }
-    bank.lowShelf->decibel = clampf(spec.bassDb, -9.0f, 9.0f);
-  }
-  if (spec.hasMudDb) {
-    if (bank.mudCut == nullptr) {
-      bank.mudCut = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-      bank.mudCut->frequency = 250.0f;
-      bank.mudCut->octave = 0.8f;
-      bank.mudCut->enabled = true;
-    }
-    bank.mudCut->decibel = clampf(spec.mudDb, -9.0f, 0.0f);
-  }
-  if (spec.hasPresenceDb) {
-    if (bank.presence == nullptr) {
-      bank.presence = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-      bank.presence->frequency = 3200.0f;
-      bank.presence->octave = 0.85f;
-      bank.presence->enabled = true;
-    }
-    bank.presence->decibel = clampf(spec.presenceDb, -4.0f, 8.0f);
-  }
-  if (spec.hasBrightDb) {
-    if (bank.hiShelf == nullptr) {
-      bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
-      bank.hiShelf->frequency = 6500.0f;
-      bank.hiShelf->slope = 0.5f;
-      bank.hiShelf->enabled = true;
-    }
-    bank.hiShelf->decibel = clampf(spec.brightDb, -6.0f, 6.0f);
-  }
-  if (spec.hasHarshDb) {
-    if (bank.sibilanceTame == nullptr) {
-      bank.sibilanceTame = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-      bank.sibilanceTame->frequency = 7800.0f;
-      bank.sibilanceTame->octave = 0.5f;
-      bank.sibilanceTame->enabled = true;
-    }
-    bank.sibilanceTame->decibel = clampf(spec.harshDb, -6.0f, 0.0f);
-  }
+  highPassHz = clampf(highPassHz, 40.0f, 1000.0f);
+  db200 = clampf(db200, -12.0f, 12.0f);
+  db500 = clampf(db500, -12.0f, 12.0f);
+  db1000 = clampf(db1000, -12.0f, 12.0f);
+  db2000 = clampf(db2000, -12.0f, 12.0f);
+  db3000 = clampf(db3000, -12.0f, 12.0f);
+  db4500 = clampf(db4500, -12.0f, 12.0f);
+  db8000 = clampf(db8000, -12.0f, 12.0f);
+  highShelfDb = clampf(highShelfDb, -0.6f, 6.0f);
+  makeupGainDb = clampf(makeupGainDb, 0.0f, 6.0f);
+
+  bank.highpass = new Superpowered::Filter(Superpowered::Filter::Resonant_Highpass, samplerate);
+  bank.highpass->frequency = highPassHz;
+  bank.highpass->resonance = 0.1f;
+  bank.highpass->enabled = true;
+
+  // ~2/3 octave Q keeps bands musical and Voloco-like.
+  const float bandOctave = 0.75f;
+  bank.band200 =
+    makeParametricBand(samplerate, 200.0f, scalePositiveDb(db200, fxScale), bandOctave);
+  bank.band500 =
+    makeParametricBand(samplerate, 500.0f, scalePositiveDb(db500, fxScale), bandOctave);
+  bank.band1000 =
+    makeParametricBand(samplerate, 1000.0f, scalePositiveDb(db1000, fxScale), bandOctave);
+  bank.band2000 =
+    makeParametricBand(samplerate, 2000.0f, scalePositiveDb(db2000, fxScale), bandOctave);
+  bank.band3000 =
+    makeParametricBand(samplerate, 3000.0f, scalePositiveDb(db3000, fxScale), bandOctave);
+  bank.band4500 =
+    makeParametricBand(samplerate, 4500.0f, scalePositiveDb(db4500, fxScale), bandOctave);
+  bank.band8000 =
+    makeParametricBand(samplerate, 8000.0f, scalePositiveDb(db8000, fxScale), 0.65f);
+
+  bank.hiShelf = new Superpowered::Filter(Superpowered::Filter::HighShelf, samplerate);
+  bank.hiShelf->frequency = 8000.0f;
+  bank.hiShelf->slope = 0.5f;
+  bank.hiShelf->decibel = scalePositiveDb(highShelfDb, fxScale);
+  bank.hiShelf->enabled = true;
+  bank.makeupLinear = std::pow(10.0f, makeupGainDb / 20.0f);
 
   EFFECTS_LOG(
-    "eq preset=%s tuned=%d bass=%.1f mud=%.1f presence=%.1f bright=%.1f harsh=%.1f",
+    "eq preset=%s custom=%d hpf=%.0f 200=%.1f 500=%.1f 1k=%.1f 2k=%.1f 3k=%.1f 4.5k=%.1f 8k=%.1f shelf=%.1f makeup=%.1f",
     preset.c_str(),
-    (spec.hasBassDb || spec.hasMudDb || spec.hasPresenceDb || spec.hasBrightDb ||
-     spec.hasHarshDb)
-      ? 1
-      : 0,
-    bank.lowShelf != nullptr ? bank.lowShelf->decibel : 0.0f,
-    bank.mudCut != nullptr ? bank.mudCut->decibel : 0.0f,
-    bank.presence != nullptr ? bank.presence->decibel : 0.0f,
-    bank.hiShelf != nullptr ? bank.hiShelf->decibel : 0.0f,
-    bank.sibilanceTame != nullptr ? bank.sibilanceTame->decibel : 0.0f);
+    hasCustom ? 1 : 0,
+    highPassHz,
+    db200,
+    db500,
+    db1000,
+    db2000,
+    db3000,
+    db4500,
+    db8000,
+    highShelfDb,
+    makeupGainDb);
 
   return bank;
 }
@@ -730,76 +817,174 @@ Superpowered::Compressor *buildCompressor(
 ) {
   Superpowered::Compressor *compressor = new Superpowered::Compressor(samplerate);
   compressor->hpCutOffHz = 80.0f;
-  compressor->attackSec = fxAware ? 0.014f : 0.010f;
-  compressor->releaseSec = 0.22f;
   compressor->enabled = true;
 
   const float makeupScale = denseStack ? 0.7f : (fxAware ? 0.85f : 1.0f);
   const std::string &preset = spec.preset;
 
+  // Defaults from free preset character (overridden by Voloco Custom params).
+  float mix = 0.55f;
+  float inputGainDb = 0.5f * makeupScale;
+  float outputGainDb = 0.8f * makeupScale;
+  float attackSec = fxAware ? 0.014f : 0.010f;
+  float releaseSec = 0.22f;
+  float ratio = 2.0f;
+  float thresholdDb = -14.0f;
+  float thresholdDiffDb = -3.0f;
+  bool autoThreshold = true;
+
   if (preset == "blasted") {
-    compressor->inputGainDb = denseStack ? 0.0f : (1.0f * makeupScale);
-    compressor->outputGainDb = denseStack ? (1.2f * makeupScale) : (1.5f * makeupScale);
-    compressor->thresholdDb = denseStack ? -20.0f : -22.0f;
-    compressor->ratio = denseStack ? 5.0f : 6.0f;
-    compressor->wet = denseStack ? 0.72f : 1.0f;
-    compressor->attackSec = 0.008f;
+    mix = 1.0f;
+    inputGainDb = denseStack ? 3.5f : 6.0f;
+    outputGainDb = denseStack ? 2.5f : 3.5f;
+    attackSec = 0.004f;
+    releaseSec = 0.12f;
+    ratio = 10.0f;
+    thresholdDb = -24.0f;
+    thresholdDiffDb = -11.0f;
   } else if (preset == "rap") {
-    compressor->inputGainDb = 0.8f * makeupScale;
-    compressor->outputGainDb = 1.2f * makeupScale;
-    compressor->thresholdDb = -18.0f;
-    compressor->ratio = 3.5f;
-    compressor->wet = 1.0f;
+    mix = 1.0f;
+    inputGainDb = 4.0f * makeupScale;
+    outputGainDb = 3.0f * makeupScale;
+    attackSec = 0.005f;
+    releaseSec = 0.14f;
+    ratio = 5.0f;
+    thresholdDb = -20.0f;
+    thresholdDiffDb = -8.5f;
   } else if (preset == "pop") {
-    compressor->inputGainDb = 0.8f * makeupScale;
-    compressor->outputGainDb = 1.2f * makeupScale;
-    compressor->thresholdDb = -17.0f;
-    compressor->ratio = 3.5f;
-    compressor->wet = 0.80f;
+    mix = 0.88f;
+    inputGainDb = 2.0f * makeupScale;
+    outputGainDb = 2.5f * makeupScale;
+    attackSec = 0.018f;
+    releaseSec = 0.3f;
+    ratio = 3.0f;
+    thresholdDb = -16.0f;
+    thresholdDiffDb = -4.5f;
   } else if (preset == "parallel") {
-    compressor->inputGainDb = 1.0f * makeupScale;
-    compressor->outputGainDb = 1.0f * makeupScale;
-    compressor->thresholdDb = -16.0f;
-    compressor->ratio = 3.0f;
-    compressor->wet = 0.50f;
+    mix = 0.38f;
+    inputGainDb = 5.5f * makeupScale;
+    outputGainDb = 2.0f * makeupScale;
+    attackSec = 0.007f;
+    releaseSec = 0.16f;
+    ratio = 5.0f;
+    thresholdDb = -18.0f;
+    thresholdDiffDb = -7.0f;
   } else {
-    compressor->inputGainDb = 0.5f * makeupScale;
-    compressor->outputGainDb = 0.8f * makeupScale;
-    compressor->thresholdDb = -14.0f;
-    compressor->ratio = 2.0f;
-    compressor->wet = 0.55f;
+    // moderate
+    mix = 0.32f;
+    inputGainDb = 0.5f * makeupScale;
+    outputGainDb = 1.5f * makeupScale;
+    attackSec = 0.028f;
+    releaseSec = 0.4f;
+    ratio = 2.0f;
+    thresholdDb = -12.0f;
+    thresholdDiffDb = -1.0f;
   }
 
-  if (spec.hasThresholdDb) {
-    compressor->thresholdDb = clampf(spec.thresholdDb, -28.0f, -6.0f);
+  const bool hasCustom =
+    spec.hasWet || spec.hasInputGainDb || spec.hasOutputGainDb || spec.hasAttackSec ||
+    spec.hasReleaseSec || spec.hasRatio || spec.hasThresholdDb || spec.hasAutoThreshold ||
+    spec.hasThresholdDiffDb;
+
+  if (hasCustom) {
+    if (spec.hasWet) {
+      mix = spec.wet;
+    }
+    if (spec.hasInputGainDb) {
+      inputGainDb = spec.inputGainDb;
+    }
+    if (spec.hasOutputGainDb) {
+      outputGainDb = spec.outputGainDb;
+    }
+    if (spec.hasAttackSec) {
+      attackSec = spec.attackSec;
+    }
+    if (spec.hasReleaseSec) {
+      releaseSec = spec.releaseSec;
+    }
+    if (spec.hasRatio) {
+      ratio = spec.ratio;
+    }
+    if (spec.hasThresholdDb) {
+      thresholdDb = spec.thresholdDb;
+    }
+    if (spec.hasAutoThreshold) {
+      autoThreshold = spec.autoThreshold;
+    }
+    if (spec.hasThresholdDiffDb) {
+      thresholdDiffDb = spec.thresholdDiffDb;
+    }
   }
-  if (spec.hasRatio) {
-    compressor->ratio = clampf(spec.ratio, 1.5f, 10.0f);
-  }
-  if (spec.hasWet) {
-    compressor->wet = clampf(spec.wet, 0.0f, 1.0f);
-  }
-  if (spec.hasOutputGainDb) {
-    compressor->outputGainDb = clampf(spec.outputGainDb, 0.0f, 4.0f);
-  }
-  if (spec.hasAttackSec) {
-    compressor->attackSec = clampf(spec.attackSec, 0.003f, 0.040f);
-  }
+
+  compressor->wet = clampf(mix, 0.0f, 1.0f);
+  compressor->inputGainDb = clampf(inputGainDb, -24.0f, 24.0f);
+  compressor->outputGainDb = clampf(outputGainDb, -24.0f, 24.0f);
+  compressor->attackSec = clampf(attackSec, 0.001f, 1.0f);
+  // Superpowered Compressor release floor is 0.1s.
+  compressor->releaseSec = clampf(releaseSec, 0.1f, 4.0f);
+  compressor->ratio = clampf(ratio, 1.5f, 10.0f);
+  // Manual threshold for now; auto mode is applied after pass-1 loudness measure.
+  compressor->thresholdDb = clampf(thresholdDb, -40.0f, 0.0f);
 
   EFFECTS_LOG(
-    "compressor preset=%s thr=%.1f ratio=%.2f wet=%.2f outGain=%.2f attack=%.3f tuned=%d",
+    "compressor preset=%s mix=%.2f in=%.1f out=%.1f atk=%.3f rel=%.3f ratio=%.1f thr=%.1f auto=%d diff=%.1f custom=%d",
     preset.c_str(),
-    compressor->thresholdDb,
-    compressor->ratio,
     compressor->wet,
+    compressor->inputGainDb,
     compressor->outputGainDb,
     compressor->attackSec,
-    (spec.hasThresholdDb || spec.hasRatio || spec.hasWet || spec.hasOutputGainDb ||
-     spec.hasAttackSec)
-      ? 1
-      : 0);
+    compressor->releaseSec,
+    compressor->ratio,
+    compressor->thresholdDb,
+    autoThreshold ? 1 : 0,
+    thresholdDiffDb,
+    hasCustom ? 1 : 0);
 
   return compressor;
+}
+
+static bool compressorWantsAutoThreshold(const EffectSpec &spec) {
+  if (spec.hasAutoThreshold) {
+    return spec.autoThreshold;
+  }
+  // Free presets default to Auto Threshold on.
+  return true;
+}
+
+static float compressorThresholdDiffDb(const EffectSpec &spec) {
+  if (spec.hasThresholdDiffDb) {
+    return clampf(spec.thresholdDiffDb, -12.0f, 12.0f);
+  }
+  if (spec.preset == "blasted") {
+    return -11.0f;
+  }
+  if (spec.preset == "rap") {
+    return -8.5f;
+  }
+  if (spec.preset == "parallel") {
+    return -7.0f;
+  }
+  if (spec.preset == "pop") {
+    return -4.5f;
+  }
+  return -1.0f;
+}
+
+static void applyCompressorAutoThreshold(
+  Superpowered::Compressor *compressor,
+  const EffectSpec &spec,
+  float inputLoudnessDb
+) {
+  if (compressor == nullptr || !compressorWantsAutoThreshold(spec)) {
+    return;
+  }
+  const float diff = compressorThresholdDiffDb(spec);
+  compressor->thresholdDb = clampf(inputLoudnessDb + diff, -40.0f, 0.0f);
+  EFFECTS_LOG(
+    "compressor autoThreshold loudness=%.1f diff=%.1f -> thr=%.1f",
+    inputLoudnessDb,
+    diff,
+    compressor->thresholdDb);
 }
 
 struct StereoEchoEngine {
@@ -1022,98 +1207,98 @@ ReverbSend buildReverbSend(
   ReverbSend send;
   send.reverb = new Superpowered::Reverb(samplerate);
   send.reverb->enabled = true;
+  // 100% wet engine; Mix is applied in sumSendIntoDry (Voloco wet/dry).
   send.reverb->dry = 0.0f;
   send.reverb->wet = 1.0f;
 
-  if (spec.hasSendGain) {
-    send.sendGain = clampf(spec.sendGain, 0.0f, 0.95f);
-  } else {
-    send.sendGain = clampf(spec.amount / 100.0f, 0.0f, 0.95f);
-  }
-
   const std::string &preset = spec.preset;
+  float mix = 0.28f;
+  float roomSize = 0.50f;
+  float damp = 0.55f;
+  float width = 0.85f;
+  float predelayMs = 25.0f;
+
   if (preset == "cathedral") {
-    send.reverb->roomSize = 0.92f;
-    send.reverb->damp = 0.38f;
-    send.reverb->width = 1.0f;
-    send.reverb->predelayMs = 42.0f;
-    send.reverb->lowCutHz = 180.0f;
-    if (!spec.hasSendGain) {
-      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.72f, 0.0f, 0.90f);
-    }
+    mix = 0.45f;
+    roomSize = 0.95f;
+    damp = 0.62f;
+    width = 1.0f;
+    predelayMs = 52.0f;
   } else if (preset == "large-hall") {
-    send.reverb->roomSize = 0.82f;
-    send.reverb->damp = 0.42f;
-    send.reverb->width = 1.0f;
-    send.reverb->predelayMs = 32.0f;
-    send.reverb->lowCutHz = 200.0f;
-    if (!spec.hasSendGain) {
-      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.64f, 0.0f, 0.85f);
-    }
+    mix = 0.42f;
+    roomSize = 0.85f;
+    damp = 0.36f;
+    width = 0.95f;
+    predelayMs = 32.0f;
   } else if (preset == "stereo-width") {
-    send.reverb->roomSize = 0.52f;
-    send.reverb->damp = 0.40f;
-    send.reverb->width = 1.0f;
-    send.reverb->predelayMs = 18.0f;
-    send.reverb->lowCutHz = 230.0f;
-    if (!spec.hasSendGain) {
-      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.50f, 0.0f, 0.75f);
-    }
+    mix = 0.32f;
+    roomSize = 0.48f;
+    damp = 0.48f;
+    width = 1.0f;
+    predelayMs = 18.0f;
   } else if (preset == "long-narrow") {
-    send.reverb->roomSize = 0.70f;
-    send.reverb->damp = 0.58f;
-    send.reverb->width = 0.35f;
-    send.reverb->predelayMs = 48.0f;
-    send.reverb->lowCutHz = 270.0f;
-    if (!spec.hasSendGain) {
-      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.58f, 0.0f, 0.80f);
-    }
+    mix = 0.38f;
+    roomSize = 0.78f;
+    damp = 0.30f;
+    width = 0.18f;
+    predelayMs = 70.0f;
   } else if (preset == "small-club") {
-    send.reverb->roomSize = 0.28f;
-    send.reverb->damp = 0.60f;
-    send.reverb->width = 0.75f;
-    send.reverb->predelayMs = 10.0f;
-    send.reverb->lowCutHz = 260.0f;
-    if (!spec.hasSendGain) {
-      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.38f, 0.0f, 0.55f);
-    }
+    mix = 0.16f;
+    roomSize = 0.22f;
+    damp = 0.78f;
+    width = 0.65f;
+    predelayMs = 8.0f;
   } else {
-    send.reverb->roomSize = 0.50f;
-    send.reverb->damp = 0.52f;
-    send.reverb->width = 0.90f;
-    send.reverb->predelayMs = 22.0f;
-    send.reverb->lowCutHz = 250.0f;
-    if (!spec.hasSendGain) {
-      send.sendGain = clampf(send.sendGain > 0.01f ? send.sendGain : 0.48f, 0.0f, 0.70f);
-    }
+    // medium-room
+    mix = 0.26f;
+    roomSize = 0.48f;
+    damp = 0.55f;
+    width = 0.80f;
+    predelayMs = 22.0f;
   }
 
-  if (spec.hasRoomSize) {
-    send.reverb->roomSize = clampf(spec.roomSize, 0.15f, 0.95f);
+  const bool hasCustom =
+    spec.hasSendGain || spec.hasRoomSize || spec.hasDamp || spec.hasWidth ||
+    spec.hasPredelayMs;
+
+  if (hasCustom) {
+    if (spec.hasSendGain) {
+      mix = spec.sendGain;
+    }
+    if (spec.hasRoomSize) {
+      roomSize = spec.roomSize;
+    }
+    if (spec.hasDamp) {
+      damp = spec.damp;
+    }
+    if (spec.hasWidth) {
+      width = spec.width;
+    }
+    if (spec.hasPredelayMs) {
+      predelayMs = spec.predelayMs;
+    }
+  } else if (!spec.hasSendGain && spec.amount > 0.0f) {
+    // Legacy amount (0–100) → mix
+    mix = clampf(spec.amount / 100.0f, 0.0f, 1.0f);
   }
-  if (spec.hasDamp) {
-    send.reverb->damp = clampf(spec.damp, 0.15f, 0.90f);
-  }
-  if (spec.hasWidth) {
-    send.reverb->width = clampf(spec.width, 0.25f, 1.0f);
-  }
-  if (spec.hasPredelayMs) {
-    send.reverb->predelayMs = clampf(spec.predelayMs, 0.0f, 80.0f);
-  }
-  if (spec.hasLowCutHz) {
-    send.reverb->lowCutHz = clampf(spec.lowCutHz, 120.0f, 400.0f);
-  }
+
+  send.sendGain = clampf(mix, 0.0f, 1.0f);
+  send.reverb->roomSize = clampf(roomSize, 0.0f, 1.0f);
+  send.reverb->damp = clampf(damp, 0.0f, 1.0f);
+  send.reverb->width = clampf(width, 0.0f, 1.0f);
+  send.reverb->predelayMs = clampf(predelayMs, 0.0f, 500.0f);
+  // Light low-cut; Cathedral gets a bit more to stop stuck tonal ring in the tail.
+  send.reverb->lowCutHz = (preset == "cathedral") ? 280.0f : 160.0f;
 
   EFFECTS_LOG(
-    "reverb preset=%s sendGain=%.3f (tuned=%d) room=%.3f damp=%.3f width=%.3f predelay=%.1f lowCut=%.1f",
+    "reverb preset=%s mix=%.3f room=%.3f damp=%.3f width=%.3f predelay=%.1f custom=%d",
     preset.c_str(),
     send.sendGain,
-    spec.hasSendGain ? 1 : 0,
     send.reverb->roomSize,
     send.reverb->damp,
     send.reverb->width,
     send.reverb->predelayMs,
-    send.reverb->lowCutHz);
+    hasCustom ? 1 : 0);
 
   return send;
 }
@@ -1124,10 +1309,9 @@ void sumSendIntoDry(
   unsigned int frames,
   float sendGain
 ) {
-  // Preset character mix: wet stays obvious at Voloco-style sends; duck dry so
-  // small-club vs cathedral / short vs long echo remain night-and-day.
-  const float wetGain = clampf(sendGain, 0.0f, 0.95f);
-  const float dryKeep = 1.0f - wetGain * 0.65f;
+  // Voloco Mix: wet/dry blend. Mild dry duck keeps space obvious without washout.
+  const float wetGain = clampf(sendGain, 0.0f, 1.0f);
+  const float dryKeep = 1.0f - wetGain * 0.55f;
   const unsigned int samples = frames * 2;
   for (unsigned int i = 0; i < samples; ++i) {
     dry[i] = dry[i] * dryKeep + wet[i] * wetGain;
@@ -1234,6 +1418,8 @@ extern "C" int SuperpoweredEffects_processFile(
   Superpowered::AutomaticVocalPitchCorrection *pitch = nullptr;
   bool pitchIsFx = false;
   Superpowered::Compressor *compressor = nullptr;
+  EffectSpec compressorSpec;
+  bool hasCompressorSpec = false;
   EqBank eqBank;
   StereoEchoEngine stereoEcho;
   ReverbSend reverbSend;
@@ -1302,6 +1488,8 @@ extern "C" int SuperpoweredEffects_processFile(
       if (compSpec.preset.empty()) {
         compSpec.preset = "moderate";
       }
+      compressorSpec = compSpec;
+      hasCompressorSpec = true;
       compressor = buildCompressor(compSpec, samplerate, denseStack, fxAware);
     } else if (spec.id == "eq" && eqBank.isEmpty()) {
       EffectSpec eqSpec = spec;
@@ -1408,6 +1596,8 @@ extern "C" int SuperpoweredEffects_processFile(
   // Pass 2: apply constant normalize gain, then mix stages.
   // -------------------------------------------------------------------------
   float filePeak = 0.0f;
+  double sumSquares = 0.0;
+  uint64_t sampleCount = 0;
   while (true) {
     int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
     if (framesDecoded < 1) {
@@ -1423,9 +1613,24 @@ extern "C" int SuperpoweredEffects_processFile(
     if (chunkPeak > filePeak) {
       filePeak = chunkPeak;
     }
+    const unsigned int samples = frames * 2;
+    for (unsigned int i = 0; i < samples; ++i) {
+      const double s = (double)floatBuffer[i];
+      sumSquares += s * s;
+    }
+    sampleCount += samples;
   }
 
   const float inputNormalizeGain = computeInputNormalizeGain(filePeak);
+  float inputLoudnessDb = -18.0f;
+  if (sampleCount > 0) {
+    const float rms = (float)std::sqrt(sumSquares / (double)sampleCount);
+    const float rmsAfterNorm = rms * inputNormalizeGain;
+    inputLoudnessDb = 20.0f * std::log10(std::max(rmsAfterNorm, 1.0e-8f));
+  }
+  if (hasCompressorSpec) {
+    applyCompressorAutoThreshold(compressor, compressorSpec, inputLoudnessDb);
+  }
 
   // Rewind + rebuild pitch so pass 2 starts with clean processor state.
   if (!decoder->setPositionPrecise(0)) {

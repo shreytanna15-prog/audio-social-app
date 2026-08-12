@@ -13,4 +13,5 @@ export { RecordingTimer } from '@/features/audio/components/recording-timer';
 export { RecordingOptimizeOverlay } from '@/features/audio/components/recording-optimize-overlay';
 export { RecordingsList } from '@/features/audio/components/recordings-list';
 export { RecordingEditorScreenState } from '@/features/audio/components/recording-editor-screen-state';
+export { PlaybackScrubber } from '@/features/audio/components/playback-scrubber';
 export { WaveformDisplay } from '@/features/audio/components/waveform-display';

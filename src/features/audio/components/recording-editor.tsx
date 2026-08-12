@@ -11,6 +11,7 @@ import {
 import { AutotuneSheet } from '@/features/audio/components/autotune-sheet';
 import { FxSheet } from '@/features/audio/components/fx-sheet';
 import { IconButton } from '@/features/audio/components/icon-button';
+import { PlaybackScrubber } from '@/features/audio/components/playback-scrubber';
 import { RecordingEditorActions } from '@/features/audio/components/recording-editor-actions';
 import { RecordingTimer } from '@/features/audio/components/recording-timer';
 import { WaveformDisplay } from '@/features/audio/components/waveform-display';
@@ -39,6 +40,7 @@ export function RecordingEditor({
     playbackUri: source.playbackUri,
     sourcePreGateUri: source.sourcePreGateUri ?? null,
     initialEditChain: source.initialEditChain,
+    durationSeconds,
     isSaving,
     onEffectError: ({ title: errorTitle, message }) => {
       Alert.alert(errorTitle, message);
@@ -111,6 +113,13 @@ export function RecordingEditor({
             disabled={session.isPlaybackDisabled}
           />
         </View>
+        <PlaybackScrubber
+          currentTime={session.currentTime}
+          duration={session.duration}
+          disabled={session.isPlaybackDisabled}
+          onSeek={session.seekTo}
+          onReplayFromHere={session.playFromAnchor}
+        />
         <EditChipRow
           selection={session.uiSelection}
           disabled={isSaving}
