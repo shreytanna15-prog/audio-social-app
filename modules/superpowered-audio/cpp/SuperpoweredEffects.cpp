@@ -1,5 +1,6 @@
 #include "SuperpoweredEffects.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -16,15 +17,16 @@
 #endif
 
 #include "Superpowered.h"
-#include "SuperpoweredAutomaticVocalPitchCorrection.h"
 #include "SuperpoweredCompressor.h"
 #include "SuperpoweredDecoder.h"
 #include "SuperpoweredFilter.h"
+#include "SuperpoweredFlanger.h"
 #include "SuperpoweredJSON.h"
 #include "SuperpoweredLimiter.h"
 #include "SuperpoweredPolish.h"
 #include "SuperpoweredReverb.h"
 #include "SuperpoweredSimple.h"
+#include "MelodyRetune.h"
 
 namespace {
 
@@ -174,6 +176,32 @@ struct EffectSpec {
   float ratio = 2.0f;
   bool hasWet = false;
   float wet = 0.55f;
+  bool hasTap1Ms = false;
+  float tap1Ms = 23.0f;
+  bool hasTap2Ms = false;
+  float tap2Ms = 31.0f;
+  bool hasLfoHz = false;
+  float lfoHz = 0.38f;
+  bool hasLfoDepthMs = false;
+  float lfoDepthMs = 3.5f;
+  bool hasCarrierHz = false;
+  float carrierHz = 140.0f;
+  bool hasStrength = false;
+  float strength = 0.8f;
+  bool hasSlewMs = false;
+  float slewMs = 40.0f;
+  bool hasVibratoCents = false;
+  float vibratoCents = 18.0f;
+  bool hasFormant = false;
+  float formant = 1.0f;
+  bool hasDepth = false;
+  float depth = 0.45f;
+  bool hasBits = false;
+  float bits = 8.0f;
+  bool hasCrushHz = false;
+  float crushHz = 9500.0f;
+  bool hasPitchCents = false;
+  float pitchCents = 0.0f;
   bool hasInputGainDb = false;
   float inputGainDb = 0.0f;
   bool hasOutputGainDb = false;
@@ -309,6 +337,19 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
     spec.hasThresholdDb = readOptionalNumber(params, "thresholdDb", &spec.thresholdDb);
     spec.hasRatio = readOptionalNumber(params, "ratio", &spec.ratio);
     spec.hasWet = readOptionalNumber(params, "wet", &spec.wet);
+    spec.hasTap1Ms = readOptionalNumber(params, "tap1Ms", &spec.tap1Ms);
+    spec.hasTap2Ms = readOptionalNumber(params, "tap2Ms", &spec.tap2Ms);
+    spec.hasLfoHz = readOptionalNumber(params, "lfoHz", &spec.lfoHz);
+    spec.hasLfoDepthMs = readOptionalNumber(params, "lfoDepthMs", &spec.lfoDepthMs);
+    spec.hasCarrierHz = readOptionalNumber(params, "carrierHz", &spec.carrierHz);
+    spec.hasStrength = readOptionalNumber(params, "strength", &spec.strength);
+    spec.hasSlewMs = readOptionalNumber(params, "slewMs", &spec.slewMs);
+    spec.hasVibratoCents = readOptionalNumber(params, "vibratoCents", &spec.vibratoCents);
+    spec.hasFormant = readOptionalNumber(params, "formant", &spec.formant);
+    spec.hasDepth = readOptionalNumber(params, "depth", &spec.depth);
+    spec.hasBits = readOptionalNumber(params, "bits", &spec.bits);
+    spec.hasCrushHz = readOptionalNumber(params, "crushHz", &spec.crushHz);
+    spec.hasPitchCents = readOptionalNumber(params, "pitchCents", &spec.pitchCents);
     // Voloco "mix": reverb → send amount; compressor → wet/dry.
     {
       float mixVal = 0.0f;
@@ -380,8 +421,7 @@ std::vector<EffectSpec> parseEffects(const char *effectsJson) {
       spec.delay = readNumberParam(params, "delay", 2.0f);
       spec.intensity = clampf(readNumberParam(params, "intensity", 35.0f), 0.0f, 55.0f);
       specs.push_back(spec);
-    } else if (spec.id == "eq" || spec.id == "compressor" || spec.id == "autotune" ||
-               spec.id == "fx") {
+    } else if (spec.id == "eq" || spec.id == "compressor" || spec.id == "fx") {
       specs.push_back(spec);
     }
   }
@@ -657,156 +697,100 @@ EqBank buildEqBank(const EffectSpec &spec, unsigned int samplerate, bool fxAware
   return bank;
 }
 
-Superpowered::AutomaticVocalPitchCorrection::TunerScale parseAutotuneScale(
-  const std::string &scale
-) {
-  using Scale = Superpowered::AutomaticVocalPitchCorrection::TunerScale;
-  if (scale == "CMAJOR" || scale == "AMINOR") {
-    return Scale::CMAJOR;
-  }
-  if (scale == "CSHARPMAJOR" || scale == "ASHARPMINOR") {
-    return Scale::CSHARPMAJOR;
-  }
-  if (scale == "DMAJOR" || scale == "BMINOR") {
-    return Scale::DMAJOR;
-  }
-  if (scale == "DSHARPMAJOR" || scale == "CMINOR") {
-    return Scale::DSHARPMAJOR;
-  }
-  if (scale == "EMAJOR" || scale == "CSHARPMINOR") {
-    return Scale::EMAJOR;
-  }
-  if (scale == "FMAJOR" || scale == "DMINOR") {
-    return Scale::FMAJOR;
-  }
-  if (scale == "FSHARPMAJOR" || scale == "DSHARPMINOR") {
-    return Scale::FSHARPMAJOR;
-  }
-  if (scale == "GMAJOR" || scale == "EMINOR") {
-    return Scale::GMAJOR;
-  }
-  if (scale == "GSHARPMAJOR" || scale == "FMINOR") {
-    return Scale::GSHARPMAJOR;
-  }
-  if (scale == "AMAJOR" || scale == "FSHARPMINOR") {
-    return Scale::AMAJOR;
-  }
-  if (scale == "ASHARPMAJOR" || scale == "GMINOR") {
-    return Scale::ASHARPMAJOR;
-  }
-  if (scale == "BMAJOR" || scale == "GSHARPMINOR") {
-    return Scale::BMAJOR;
-  }
-  return Scale::CHROMATIC;
+enum class FxStageKind { None, MelodyRetune, Flanger };
+
+bool isFxMelodyPreset(const std::string &preset) {
+  return preset == "hard-tune" || preset == "natural-tune";
 }
 
-Superpowered::AutomaticVocalPitchCorrection::TunerSpeed parseAutotuneSpeed(
-  const std::string &speed
-) {
-  using Speed = Superpowered::AutomaticVocalPitchCorrection::TunerSpeed;
-  if (speed == "SUBTLE") {
-    return Speed::SUBTLE;
-  }
-  if (speed == "EXTREME") {
-    return Speed::EXTREME;
-  }
-  return Speed::MEDIUM;
+bool isFxStockPreset(const std::string &preset) {
+  return isFxMelodyPreset(preset) || preset == "big-chorus";
 }
 
-Superpowered::AutomaticVocalPitchCorrection::TunerClamp parseAutotuneClamp(
-  const std::string &speed,
-  const std::string &scale
-) {
-  using Clamp = Superpowered::AutomaticVocalPitchCorrection::TunerClamp;
-  if (speed == "SUBTLE") {
-    return Clamp::LOOSE;
+struct FxStage {
+  FxStageKind kind = FxStageKind::None;
+  MelodyRetuneEngine melody;
+  Superpowered::Flanger *flanger = nullptr;
+
+  bool isActive() const { return kind != FxStageKind::None; }
+  bool isMelody() const { return kind == FxStageKind::MelodyRetune; }
+
+  void destroy() {
+    melody.destroy();
+    delete flanger;
+    flanger = nullptr;
+    kind = FxStageKind::None;
   }
-  if (speed == "MEDIUM") {
-    return Clamp::TIGHT;
+
+  void process(float *buffer, unsigned int frames, unsigned int samplerate) {
+    if (buffer == nullptr || frames == 0) {
+      return;
+    }
+    if (kind == FxStageKind::MelodyRetune) {
+      melody.process(buffer, frames);
+      return;
+    }
+    if (kind == FxStageKind::Flanger && flanger != nullptr) {
+      flanger->samplerate = samplerate;
+      flanger->process(buffer, buffer, frames);
+    }
   }
-  if (speed == "EXTREME") {
-    // Always TIGHT — clamp OFF tears consonants and low notes into crackle.
-    return Clamp::TIGHT;
-  }
-  return Clamp::TIGHT;
-}
+};
 
-Superpowered::AutomaticVocalPitchCorrection::TunerRange parseAutotuneRange(
-  const std::string &speed
-) {
-  using Range = Superpowered::AutomaticVocalPitchCorrection::TunerRange;
-  // WIDE covers low and high voices (40–3000 Hz); TENOR breaks low pitches.
-  (void)speed;
-  return Range::WIDE;
-}
-
-/** Autotune chip — user scale + speed. */
-Superpowered::AutomaticVocalPitchCorrection *buildAutotune(
-  const EffectSpec &spec,
-  unsigned int samplerate
-) {
-  Superpowered::AutomaticVocalPitchCorrection *autotune =
-    new Superpowered::AutomaticVocalPitchCorrection();
-  autotune->samplerate = samplerate;
-  autotune->scale = parseAutotuneScale(spec.scale);
-  autotune->speed = parseAutotuneSpeed(spec.speed);
-  autotune->range = parseAutotuneRange(spec.speed);
-  autotune->clamp = parseAutotuneClamp(spec.speed, spec.scale);
-  autotune->frequencyOfA = 440.0f;
-  return autotune;
-}
-
-/**
- * FX Hard/Natural Snap — Superpowered AVPC only (no TimeStretching, no FxPost).
- * Pipeline for FX: AVPC → (optional mix chips) → light limiter.
- * TIGHT clamp protects consonants; LOOSE/OFF was crackle-prone.
- */
-Superpowered::AutomaticVocalPitchCorrection *buildFx(
-  const EffectSpec &spec,
-  unsigned int samplerate
-) {
-  using Clamp = Superpowered::AutomaticVocalPitchCorrection::TunerClamp;
-  using Range = Superpowered::AutomaticVocalPitchCorrection::TunerRange;
-  using Speed = Superpowered::AutomaticVocalPitchCorrection::TunerSpeed;
-
-  Superpowered::AutomaticVocalPitchCorrection *fx =
-    new Superpowered::AutomaticVocalPitchCorrection();
-  fx->samplerate = samplerate;
-  fx->scale = parseAutotuneScale(spec.scale.empty() ? "CMAJOR" : spec.scale);
-  fx->range = Range::WIDE;
-  fx->frequencyOfA = 440.0f;
-
-  // Defaults from preset, then optional JSON speed/clamp overrides.
-  if (spec.preset == "natural-snap") {
-    fx->speed = Speed::SUBTLE;
-    fx->clamp = Clamp::TIGHT;
+FxStage buildFxMelody(const EffectSpec &spec, unsigned int samplerate) {
+  FxStage stage;
+  stage.kind = FxStageKind::MelodyRetune;
+  MelodyRetuneParams rp;
+  if (spec.preset == "hard-tune") {
+    rp.strength = spec.hasStrength ? spec.strength : 0.92f;
+    rp.slewMs = spec.hasSlewMs ? spec.slewMs : 1.0f;
+    rp.vibratoCents = spec.hasVibratoCents ? spec.vibratoCents : 0.0f;
+    rp.wet = spec.hasWet ? spec.wet : 0.85f;
   } else {
-    fx->speed = Speed::MEDIUM;
-    fx->clamp = Clamp::TIGHT;
+    // natural-tune
+    rp.strength = spec.hasStrength ? spec.strength : 0.68f;
+    rp.slewMs = spec.hasSlewMs ? spec.slewMs : 40.0f;
+    rp.vibratoCents = spec.hasVibratoCents ? spec.vibratoCents : 18.0f;
+    rp.wet = spec.hasWet ? spec.wet : 0.75f;
   }
-
-  if (spec.speed == "SUBTLE") {
-    fx->speed = Speed::SUBTLE;
-  } else if (spec.speed == "MEDIUM") {
-    fx->speed = Speed::MEDIUM;
-  } else if (spec.speed == "EXTREME") {
-    fx->speed = Speed::EXTREME;
-  }
-
-  if (spec.clamp == "LOOSE") {
-    fx->clamp = Clamp::LOOSE;
-  } else if (spec.clamp == "TIGHT") {
-    fx->clamp = Clamp::TIGHT;
-  }
-
+  stage.melody.reset(samplerate, rp);
   EFFECTS_LOG(
-    "fx preset=%s scale=%s speed=%s clamp=%s",
+    "fx %s melody strength=%.2f slew=%.1f vib=%.1f wet=%.2f",
     spec.preset.c_str(),
-    spec.scale.c_str(),
-    spec.speed.c_str(),
-    spec.clamp.c_str());
+    rp.strength,
+    rp.slewMs,
+    rp.vibratoCents,
+    rp.wet);
+  return stage;
+}
 
-  return fx;
+FxStage buildFxFlanger(const EffectSpec &spec, unsigned int samplerate) {
+  FxStage stage;
+  stage.kind = FxStageKind::Flanger;
+  stage.flanger = new Superpowered::Flanger(samplerate);
+  stage.flanger->enabled = true;
+  stage.flanger->stereo = true;
+  stage.flanger->wet = spec.hasWet ? clampf(spec.wet, 0.4f, 1.0f) : 0.7f;
+  stage.flanger->depth = spec.hasDepth ? clampf(spec.depth, 0.1f, 1.0f) : 0.45f;
+  stage.flanger->bpm = 120.0f;
+  stage.flanger->lfoBeats = 16.0f;
+  EFFECTS_LOG(
+    "fx big-chorus flanger wet=%.2f depth=%.2f",
+    stage.flanger->wet,
+    stage.flanger->depth);
+  return stage;
+}
+
+/** Dispatcher: melody retune | big-chorus. Clean / unknown = no-op. */
+FxStage buildFxStage(const EffectSpec &spec, unsigned int samplerate) {
+  if (isFxMelodyPreset(spec.preset)) {
+    return buildFxMelody(spec, samplerate);
+  }
+  if (spec.preset == "big-chorus") {
+    return buildFxFlanger(spec, samplerate);
+  }
+  EFFECTS_LOG("fx preset=%s no-op (unknown or pass-through)", spec.preset.c_str());
+  return FxStage();
 }
 
 Superpowered::Compressor *buildCompressor(
@@ -1415,27 +1399,23 @@ extern "C" int SuperpoweredEffects_processFile(
     return 5;
   }
 
-  Superpowered::AutomaticVocalPitchCorrection *pitch = nullptr;
-  bool pitchIsFx = false;
   Superpowered::Compressor *compressor = nullptr;
   EffectSpec compressorSpec;
   bool hasCompressorSpec = false;
+  FxStage fxStage;
   EqBank eqBank;
   StereoEchoEngine stereoEcho;
   ReverbSend reverbSend;
   Superpowered::Limiter *limiter = nullptr;
 
-  bool wantsPitchFx = false;
-  bool wantsPitchAutotune = false;
+  bool wantsFx = false;
   bool wantsComp = false;
   bool wantsEq = false;
   bool wantsEcho = false;
   bool wantsReverb = false;
   for (const EffectSpec &spec : specs) {
-    if (spec.id == "fx") {
-      wantsPitchFx = true;
-    } else if (spec.id == "autotune") {
-      wantsPitchAutotune = true;
+    if (spec.id == "fx" && isFxStockPreset(spec.preset)) {
+      wantsFx = true;
     } else if (spec.id == "compressor") {
       wantsComp = true;
     } else if (spec.id == "eq") {
@@ -1446,41 +1426,26 @@ extern "C" int SuperpoweredEffects_processFile(
       wantsReverb = true;
     }
   }
-  const bool wantsPitch = wantsPitchFx || wantsPitchAutotune;
+  const bool wantsPitch = wantsFx;
   const int mixStages =
     (wantsComp ? 1 : 0) + (wantsEq ? 1 : 0) + (wantsEcho ? 1 : 0) + (wantsReverb ? 1 : 0);
   const bool denseStack =
     mixStages >= 3 || (wantsPitch && wantsComp && wantsEq) ||
     (wantsComp && wantsEq && (wantsEcho || wantsReverb));
-  const bool fxAware = wantsPitchFx;
+  const bool fxAware = wantsFx;
 
-  // Prefer FX AVPC over Autotune if both appear (JS should only send one).
-  auto buildPitchFromSpecs = [&]() {
+  auto buildFxFromSpecs = [&]() {
     for (const EffectSpec &spec : specs) {
-      if (spec.id == "fx" && pitch == nullptr) {
-        EffectSpec fxSpec = spec;
-        if (fxSpec.preset.empty()) {
-          fxSpec.preset = "hard-snap";
-        }
-        if (fxSpec.scale.empty()) {
-          fxSpec.scale = "CMAJOR";
-        }
-        pitch = buildFx(fxSpec, samplerate);
-        pitchIsFx = true;
-        break;
-      }
-    }
-    if (pitch == nullptr) {
-      for (const EffectSpec &spec : specs) {
-        if (spec.id == "autotune") {
-          pitch = buildAutotune(spec, samplerate);
-          break;
+      if (spec.id == "fx") {
+        fxStage = buildFxStage(spec, samplerate);
+        if (fxStage.isActive()) {
+          return;
         }
       }
     }
   };
 
-  buildPitchFromSpecs();
+  buildFxFromSpecs();
 
   for (const EffectSpec &spec : specs) {
     if (spec.id == "compressor" && compressor == nullptr) {
@@ -1506,7 +1471,7 @@ extern "C" int SuperpoweredEffects_processFile(
 
   // Dense mix-only stacks: pull Echo/Reverb so space doesn't crackle into the limiter.
   // Skip when Voloco wetLevel was explicitly provided.
-  if (denseStack && !pitchIsFx) {
+  if (denseStack && !fxStage.isMelody()) {
     bool echoTuned = false;
     bool reverbTuned = false;
     for (const EffectSpec &spec : specs) {
@@ -1532,31 +1497,26 @@ extern "C" int SuperpoweredEffects_processFile(
       reverbSend.sendGain);
   }
 
-  if (pitch != nullptr || compressor != nullptr || !eqBank.isEmpty() ||
+  if (fxStage.isActive() || compressor != nullptr || !eqBank.isEmpty() ||
       stereoEcho.active || reverbSend.reverb != nullptr) {
     limiter = new Superpowered::Limiter(samplerate);
     limiter->ceilingDb = -1.0f;
-    // FX-only: more headroom so exports aren't slammed (Voloco peak ~0.39)
-    const bool fxOnly =
-      pitchIsFx && compressor == nullptr && eqBank.isEmpty() && !stereoEcho.active &&
+    const bool melodyOnly =
+      fxStage.isMelody() && compressor == nullptr && eqBank.isEmpty() && !stereoEcho.active &&
       reverbSend.reverb == nullptr;
-    if (fxOnly) {
-      // FX = AVPC + light limiter only (no FxPost). Keep headroom so exports stay clean.
+    if (melodyOnly) {
       limiter->ceilingDb = -8.3f;
       limiter->thresholdDb = -9.0f;
       limiter->releaseSec = 0.10f;
-    } else if (denseStack && !pitchIsFx) {
-      // Mix-only dense stack: more headroom after normalize + calmer sends
+    } else if (denseStack && !fxStage.isMelody()) {
       limiter->ceilingDb = -1.5f;
       limiter->thresholdDb = -5.0f;
       limiter->releaseSec = 0.10f;
-    } else if (!pitchIsFx) {
-      // Mix with normalize: lighter limiting when gain staging is under control
+    } else if (!fxStage.isMelody()) {
       limiter->ceilingDb = -1.0f;
       limiter->thresholdDb = denseStack ? -3.8f : -2.5f;
       limiter->releaseSec = 0.08f;
     } else {
-      // FX + mix chips: AVPC then mix; moderate headroom
       limiter->thresholdDb = denseStack ? -4.0f : -3.2f;
       limiter->releaseSec = 0.08f;
     }
@@ -1568,16 +1528,20 @@ extern "C" int SuperpoweredEffects_processFile(
   float *floatBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
   float *dryBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
   float *wetBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
+  float *workBuffer = (float *)std::malloc(framesPerChunk * 2 * sizeof(float) + 16384);
+  float *monoBuffer = (float *)std::malloc(framesPerChunk * sizeof(float) + 16384);
 
   if (intBuffer == nullptr || floatBuffer == nullptr || dryBuffer == nullptr ||
-      wetBuffer == nullptr) {
+      wetBuffer == nullptr || workBuffer == nullptr || monoBuffer == nullptr) {
     setError("Out of memory allocating audio buffers.");
     std::free(intBuffer);
     std::free(floatBuffer);
     std::free(dryBuffer);
     std::free(wetBuffer);
+    std::free(workBuffer);
+    std::free(monoBuffer);
     delete limiter;
-    delete pitch;
+    fxStage.destroy();
     delete compressor;
     eqBank.destroy();
     stereoEcho.destroy();
@@ -1587,38 +1551,96 @@ extern "C" int SuperpoweredEffects_processFile(
     return 6;
   }
 
+  if (fxStage.isMelody()) {
+    while (true) {
+      int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
+      if (framesDecoded < 1) {
+        break;
+      }
+      const unsigned int frames = (unsigned int)framesDecoded;
+      Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
+      fxStage.melody.addAnalysis(floatBuffer, frames);
+    }
+    fxStage.melody.finishAnalysis();
+    if (!decoder->setPositionPrecise(0)) {
+      setError("Could not rewind decoder after melody analysis.");
+      std::free(intBuffer);
+      std::free(floatBuffer);
+      std::free(dryBuffer);
+      std::free(wetBuffer);
+      std::free(workBuffer);
+      std::free(monoBuffer);
+      delete limiter;
+      fxStage.destroy();
+      delete compressor;
+      eqBank.destroy();
+      stereoEcho.destroy();
+      reverbSend.destroy();
+      Superpowered::closeWAV(destinationFile);
+      delete decoder;
+      return 7;
+    }
+    fxStage.melody.resetApply();
+  }
+
   // -------------------------------------------------------------------------
   // Canonical offline order (user chip tap order is irrelevant):
-  //   pitch (FX/Autotune AVPC only — no FxPost) → input-normalize → Comp → EQ
+  //   FX (melody / Flanger) → input-normalize → Comp → EQ
   //   → Echo send → Reverb send → limiter
-  // FX-only path: AVPC → normalize → light limiter.
-  // Pass 1: measure peak after pitch (or after decode if no pitch).
+  // Pass 1: measure peak after FX (or after decode if none).
   // Pass 2: apply constant normalize gain, then mix stages.
   // -------------------------------------------------------------------------
+  auto applyFx = [&](float *buffer, unsigned int frames) {
+    if (fxStage.isActive()) {
+      fxStage.process(buffer, frames, samplerate);
+    }
+  };
+
   float filePeak = 0.0f;
   double sumSquares = 0.0;
   uint64_t sampleCount = 0;
-  while (true) {
-    int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
-    if (framesDecoded < 1) {
-      break;
+  if (fxStage.isMelody()) {
+    // Peak from already-rendered wet — skip a full second decode.
+    fxStage.melody.measureRendered(&filePeak, &sumSquares, &sampleCount);
+  } else {
+    while (true) {
+      int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
+      if (framesDecoded < 1) {
+        break;
+      }
+      const unsigned int frames = (unsigned int)framesDecoded;
+      Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
+      applyFx(floatBuffer, frames);
+      const float chunkPeak = bufferPeak(floatBuffer, frames);
+      if (chunkPeak > filePeak) {
+        filePeak = chunkPeak;
+      }
+      const unsigned int samples = frames * 2;
+      for (unsigned int i = 0; i < samples; ++i) {
+        const double s = (double)floatBuffer[i];
+        sumSquares += s * s;
+      }
+      sampleCount += samples;
     }
-    const unsigned int frames = (unsigned int)framesDecoded;
-    Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
-    if (pitch != nullptr) {
-      pitch->samplerate = samplerate;
-      pitch->process(floatBuffer, floatBuffer, true, frames);
+
+    if (!decoder->setPositionPrecise(0)) {
+      setError("Could not rewind decoder for normalize pass.");
+      std::free(intBuffer);
+      std::free(floatBuffer);
+      std::free(dryBuffer);
+      std::free(wetBuffer);
+      std::free(workBuffer);
+      std::free(monoBuffer);
+      delete limiter;
+      fxStage.destroy();
+      delete compressor;
+      eqBank.destroy();
+      stereoEcho.destroy();
+      reverbSend.destroy();
+      Superpowered::closeWAV(destinationFile);
+      delete decoder;
+      return 7;
     }
-    const float chunkPeak = bufferPeak(floatBuffer, frames);
-    if (chunkPeak > filePeak) {
-      filePeak = chunkPeak;
-    }
-    const unsigned int samples = frames * 2;
-    for (unsigned int i = 0; i < samples; ++i) {
-      const double s = (double)floatBuffer[i];
-      sumSquares += s * s;
-    }
-    sampleCount += samples;
   }
 
   const float inputNormalizeGain = computeInputNormalizeGain(filePeak);
@@ -1632,88 +1654,79 @@ extern "C" int SuperpoweredEffects_processFile(
     applyCompressorAutoThreshold(compressor, compressorSpec, inputLoudnessDb);
   }
 
-  // Rewind + rebuild pitch so pass 2 starts with clean processor state.
-  if (!decoder->setPositionPrecise(0)) {
-    setError("Could not rewind decoder for normalize pass.");
-    std::free(intBuffer);
-    std::free(floatBuffer);
-    std::free(dryBuffer);
-    std::free(wetBuffer);
-    delete limiter;
-    delete pitch;
-    delete compressor;
-    eqBank.destroy();
-    stereoEcho.destroy();
-    reverbSend.destroy();
-    Superpowered::closeWAV(destinationFile);
-    delete decoder;
-    return 7;
+  // Rebuild FX so pass 2 starts with clean processor state (melody: just rewind read).
+  if (fxStage.isMelody()) {
+    fxStage.melody.resetApply();
+  } else {
+    fxStage.destroy();
+    buildFxFromSpecs();
   }
-  delete pitch;
-  pitch = nullptr;
-  pitchIsFx = false;
-  buildPitchFromSpecs();
 
-  while (true) {
-    int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
-    if (framesDecoded < 1) {
-      break;
-    }
+  auto mixAndWriteChunk = [&](float *buffer, unsigned int frames) {
+    applyGain(buffer, frames, inputNormalizeGain);
 
-    const unsigned int frames = (unsigned int)framesDecoded;
-    Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
-
-    // 1) Pitch: FX AVPC or Autotune AVPC (never both). No FxPost after FX.
-    if (pitch != nullptr) {
-      pitch->samplerate = samplerate;
-      pitch->process(floatBuffer, floatBuffer, true, frames);
-    }
-
-    // 2) Input peak normalize (constant gain for whole file)
-    applyGain(floatBuffer, frames, inputNormalizeGain);
-
-    // 3) Comp
     if (compressor != nullptr) {
       compressor->samplerate = samplerate;
-      compressor->process(floatBuffer, floatBuffer, frames);
+      compressor->process(buffer, buffer, frames);
     }
-    // 4) EQ
-    eqBank.process(floatBuffer, frames, samplerate);
+    eqBank.process(buffer, frames, samplerate);
 
-    // 5) Voloco-style stereo echo (dry/wet + duck + L/R + x-over)
-    // 6) Reverb send from pre-echo dry (parallel), then limiter
     if (stereoEcho.active || reverbSend.reverb != nullptr) {
-      std::memcpy(dryBuffer, floatBuffer, frames * 2 * sizeof(float));
+      std::memcpy(dryBuffer, buffer, frames * 2 * sizeof(float));
 
       if (stereoEcho.active) {
         stereoEcho.samplerate = samplerate;
-        stereoEcho.processInPlace(floatBuffer, frames);
+        stereoEcho.processInPlace(buffer, frames);
       }
 
       if (reverbSend.reverb != nullptr) {
         std::memcpy(wetBuffer, dryBuffer, frames * 2 * sizeof(float));
         reverbSend.reverb->samplerate = samplerate;
         reverbSend.reverb->process(wetBuffer, wetBuffer, frames);
-        sumSendIntoDry(floatBuffer, wetBuffer, frames, reverbSend.sendGain);
+        sumSendIntoDry(buffer, wetBuffer, frames, reverbSend.sendGain);
       }
     }
 
-    // 7) Limiter
     if (limiter != nullptr) {
       limiter->samplerate = samplerate;
-      limiter->process(floatBuffer, floatBuffer, frames);
+      limiter->process(buffer, buffer, frames);
     }
 
-    Superpowered::FloatToShortInt(floatBuffer, intBuffer, frames);
+    Superpowered::FloatToShortInt(buffer, intBuffer, frames);
     Superpowered::writeWAV(destinationFile, intBuffer, frames * 4);
+  };
+
+  if (fxStage.isMelody()) {
+    // Write from rendered wet only — no third decode.
+    unsigned int remaining = fxStage.melody.renderedFrames();
+    while (remaining > 0) {
+      const unsigned int frames = std::min(framesPerChunk, remaining);
+      std::memset(floatBuffer, 0, frames * 2 * sizeof(float));
+      fxStage.melody.process(floatBuffer, frames);
+      mixAndWriteChunk(floatBuffer, frames);
+      remaining -= frames;
+    }
+  } else {
+    while (true) {
+      int framesDecoded = decoder->decodeAudio(intBuffer, framesPerChunk);
+      if (framesDecoded < 1) {
+        break;
+      }
+      const unsigned int frames = (unsigned int)framesDecoded;
+      Superpowered::ShortIntToFloat(intBuffer, floatBuffer, frames);
+      applyFx(floatBuffer, frames);
+      mixAndWriteChunk(floatBuffer, frames);
+    }
   }
 
   std::free(intBuffer);
   std::free(floatBuffer);
   std::free(dryBuffer);
   std::free(wetBuffer);
+  std::free(workBuffer);
+  std::free(monoBuffer);
   delete limiter;
-  delete pitch;
+  fxStage.destroy();
   delete compressor;
   eqBank.destroy();
   stereoEcho.destroy();

@@ -11,18 +11,14 @@ import {
   defaultReverbParams,
 } from '@/features/audio/domain/chip-tune-params';
 import {
-  AUTOTUNE_SCALES,
-  AUTOTUNE_SPEEDS,
   COMPRESSOR_PRESETS,
   ECHO_PRESETS,
   EMPTY_EDIT_CHAIN,
   EQ_PRESETS,
   FX_PRESETS,
+  FX_SCALES,
   isEditChainEmpty,
   REVERB_PRESETS,
-  type AutotuneScaleId,
-  type AutotuneSelection,
-  type AutotuneSpeedId,
   type CompressorPresetId,
   type CompressorSelection,
   type EchoPresetId,
@@ -31,6 +27,7 @@ import {
   type EqPresetId,
   type EqSelection,
   type FxPresetId,
+  type FxScaleId,
   type FxSelection,
   type ReverbPresetId,
   type ReverbSelection,
@@ -53,32 +50,30 @@ function isReverbPresetId(value: unknown): value is ReverbPresetId {
   return REVERB_PRESETS.some((item) => item.id === value);
 }
 
-function isAutotuneScaleId(value: unknown): value is AutotuneScaleId {
-  return AUTOTUNE_SCALES.some((item) => item.id === value);
-}
-
-function isAutotuneSpeedId(value: unknown): value is AutotuneSpeedId {
-  return AUTOTUNE_SPEEDS.some((item) => item.id === value);
+function isFxScaleId(value: unknown): value is FxScaleId {
+  return FX_SCALES.some((item) => item.id === value);
 }
 
 function isFxPresetId(value: unknown): value is FxPresetId {
   return FX_PRESETS.some((item) => item.id === value);
 }
 
-function parseAutotune(value: unknown): AutotuneSelection | null {
-  if (!value || typeof value !== 'object') {
+/** Map legacy Hard/Natural Snap / dropped Super Vocoder ids. */
+function migrateFxPresetId(value: unknown): FxPresetId | null {
+  if (isFxPresetId(value)) {
+    return value;
+  }
+  if (value === 'hard-snap') {
+    return 'hard-tune';
+  }
+  if (value === 'natural-snap') {
+    return 'natural-tune';
+  }
+  // Dropped preset — clear FX rather than map to a different style.
+  if (value === 'super-vocoder') {
     return null;
   }
-
-  const candidate = value as Partial<AutotuneSelection>;
-  if (!isAutotuneScaleId(candidate.scale) || !isAutotuneSpeedId(candidate.speed)) {
-    return null;
-  }
-
-  return {
-    scale: candidate.scale,
-    speed: candidate.speed,
-  };
+  return null;
 }
 
 function parseFx(value: unknown): FxSelection | null {
@@ -87,18 +82,23 @@ function parseFx(value: unknown): FxSelection | null {
   }
 
   const candidate = value as Partial<FxSelection> & { params?: unknown };
-  if (!isFxPresetId(candidate.preset) || !isAutotuneScaleId(candidate.scale)) {
+  const preset = migrateFxPresetId(candidate.preset);
+  if (!preset) {
     return null;
+  }
+  // Legacy Key scale ids → chromatic (Key UI removed; Autotune chip dropped).
+  if (candidate.scale != null && !isFxScaleId(candidate.scale) && candidate.scale !== 'chromatic') {
+    // Accept any old scale string by collapsing to chromatic.
   }
 
   const rawParams =
     candidate.params && typeof candidate.params === 'object'
       ? (candidate.params as Partial<FxSelection['params']>)
-      : defaultFxParams(candidate.preset);
+      : defaultFxParams(preset);
 
   return {
-    preset: candidate.preset,
-    scale: candidate.scale,
+    preset,
+    scale: 'chromatic',
     params: clampFxParams(rawParams),
   };
 }
@@ -158,9 +158,6 @@ function migrateReverbPresetId(value: unknown): ReverbPresetId | null {
   }
   if (value === 'hall') {
     return 'large-hall';
-  }
-  if (value === 'soft-plate') {
-    return 'small-club';
   }
   return null;
 }
@@ -245,39 +242,22 @@ function parseReverbSelection(value: unknown): ReverbSelection | null {
   return { preset, params: clampReverbParams(raw) };
 }
 
-/** Migrate v2 fx { preset, scale } → fx + optional autotune mirror. */
-function migrateV2Fx(value: unknown): {
-  fx: FxSelection | null;
-  autotune: AutotuneSelection | null;
-} {
-  const fx = parseFx(value);
-  if (!fx) {
-    return { fx: null, autotune: null };
-  }
-
-  return {
-    fx,
-    autotune: {
-      scale: fx.scale,
-      speed: fx.preset === 'hard-snap' ? 'extreme' : 'subtle',
-    },
-  };
+/** Migrate v2 fx { preset, scale } → fx only (Autotune chip dropped). */
+function migrateV2Fx(value: unknown): FxSelection | null {
+  return parseFx(value);
 }
 
-/** Migrate v3 fx preset-only → { preset, scale from autotune or c-major }. */
-function migrateV3Fx(
-  fxValue: unknown,
-  autotuneValue: unknown,
-): FxSelection | null {
-  if (!isFxPresetId(fxValue)) {
+/** Migrate v3 fx preset-only → { preset, chromatic scale }. */
+function migrateV3Fx(fxValue: unknown): FxSelection | null {
+  const preset = migrateFxPresetId(fxValue);
+  if (!preset) {
     return null;
   }
 
-  const autotune = parseAutotune(autotuneValue);
   return {
-    preset: fxValue,
-    scale: autotune?.scale ?? 'c-major',
-    params: defaultFxParams(fxValue),
+    preset,
+    scale: 'chromatic',
+    params: defaultFxParams(preset),
   };
 }
 
@@ -303,9 +283,8 @@ export function toStoredEditChain(
   }
 
   return {
-    version: 6,
+    version: 7,
     cleanVoice: selection.cleanVoice,
-    autotune: selection.autotune,
     fx: selection.fx,
     compressor: selection.compressor,
     eq: selection.eq,
@@ -330,20 +309,18 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
 
   const mix = parseMixSelections(stored);
 
-  if (stored.version === 6) {
+  if (stored.version === 7) {
     return {
       cleanVoice: Boolean(stored.cleanVoice),
-      autotune: parseAutotune(stored.autotune),
       fx: parseFx(stored.fx),
       ...mix,
     };
   }
 
-  // v4–v5: preset ids only (or legacy strings); attach default tune params.
-  if (stored.version === 5 || stored.version === 4) {
+  // v4–v6: drop legacy Autotune chip; keep FX + mix.
+  if (stored.version === 6 || stored.version === 5 || stored.version === 4) {
     return {
       cleanVoice: Boolean(stored.cleanVoice),
-      autotune: parseAutotune(stored.autotune),
       fx: parseFx(stored.fx),
       ...mix,
     };
@@ -352,18 +329,15 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
   if (stored.version === 3) {
     return {
       cleanVoice: Boolean(stored.cleanVoice),
-      autotune: parseAutotune(stored.autotune),
-      fx: migrateV3Fx(stored.fx, stored.autotune),
+      fx: migrateV3Fx(stored.fx),
       ...mix,
     };
   }
 
   if (stored.version === 2) {
-    const migrated = migrateV2Fx(stored.fx);
     return {
       cleanVoice: Boolean(stored.cleanVoice),
-      autotune: migrated.autotune,
-      fx: migrated.fx,
+      fx: migrateV2Fx(stored.fx),
       ...mix,
     };
   }
@@ -371,7 +345,6 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
   if (stored.version === 1) {
     return {
       cleanVoice: Boolean(stored.cleanVoice),
-      autotune: parseAutotune(stored.autotune),
       fx: null,
       ...mix,
     };

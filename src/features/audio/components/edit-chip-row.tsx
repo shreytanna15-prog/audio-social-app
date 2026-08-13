@@ -15,8 +15,6 @@ import {
   ECHO_PRESETS,
   EQ_PRESETS,
   REVERB_PRESETS,
-  getAutotuneScaleLabel,
-  getAutotuneSpeedLabel,
   getFxPresetLabel,
   type EditChainSelection,
 } from '@/features/audio/types/edit-chips';
@@ -27,7 +25,6 @@ type EditChipRowProps = {
   isProcessing?: boolean;
   processingLabel?: string;
   onCleanVoicePress: () => void;
-  onOpenAutotune: () => void;
   onOpenFx: () => void;
   onOpenCompressor: () => void;
   onOpenEq: () => void;
@@ -49,7 +46,6 @@ export function EditChipRow({
   isProcessing = false,
   processingLabel,
   onCleanVoicePress,
-  onOpenAutotune,
   onOpenFx,
   onOpenCompressor,
   onOpenEq,
@@ -71,22 +67,9 @@ export function EditChipRow({
       onPress: onCleanVoicePress,
     },
     {
-      key: 'autotune',
-      label: selection.autotune
-        ? `Autotune · ${getAutotuneScaleLabel(selection.autotune.scale)} · ${getAutotuneSpeedLabel(selection.autotune.speed)}`
-        : 'Autotune',
-      icon: {
-        ios: 'music.quarternote.3',
-        android: 'piano',
-        web: 'piano',
-      },
-      active: selection.autotune != null,
-      onPress: onOpenAutotune,
-    },
-    {
       key: 'fx',
       label: selection.fx
-        ? `FX · ${getFxPresetLabel(selection.fx.preset)} · ${getAutotuneScaleLabel(selection.fx.scale)}`
+        ? `FX · ${getFxPresetLabel(selection.fx.preset)}`
         : 'FX',
       icon: {
         ios: 'music.note',

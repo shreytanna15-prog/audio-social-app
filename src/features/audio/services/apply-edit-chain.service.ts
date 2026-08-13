@@ -9,9 +9,8 @@ import {
   processFileWithSuperpoweredEffects,
 } from '@/features/audio/services/superpowered-audio.service';
 import {
-  getAutotuneNativeScale,
-  getAutotuneNativeSpeed,
   isEditChainEmpty,
+  isNativeFxPreset,
   type EditChainSelection,
 } from '@/features/audio/types/edit-chips';
 import { toFileUri } from '@/features/audio/utils/ffmpeg-path';
@@ -22,32 +21,41 @@ type EffectJsonItem = {
   params: Record<string, string | number | boolean>;
 };
 
-/** One pitch stage only: FX wins over Autotune. FX owns its Key. */
+/** FX pitch/style stage. Clean is pass-through (no stage). */
 function resolvePitchEffects(selection: EditChainSelection): EffectJsonItem[] {
-  if (selection.fx) {
-    return [
-      {
-        id: 'fx',
-        params: {
-          preset: selection.fx.preset,
-          scale: getAutotuneNativeScale(selection.fx.scale),
-          speed: selection.fx.params.speed,
-          clamp: selection.fx.params.clamp,
+  if (selection.fx && isNativeFxPreset(selection.fx.preset)) {
+    const params = selection.fx.params;
+    if (
+      selection.fx.preset === 'hard-tune' ||
+      selection.fx.preset === 'natural-tune'
+    ) {
+      return [
+        {
+          id: 'fx',
+          params: {
+            preset: selection.fx.preset,
+            scale: 'CHROMATIC',
+            strength: params.strength,
+            slewMs: params.slewMs,
+            vibratoCents: params.vibratoCents,
+            wet: params.wet,
+            formant: params.formant,
+          },
         },
-      },
-    ];
-  }
-
-  if (selection.autotune) {
-    return [
-      {
-        id: 'autotune',
-        params: {
-          scale: getAutotuneNativeScale(selection.autotune.scale),
-          speed: getAutotuneNativeSpeed(selection.autotune.speed),
+      ];
+    }
+    if (selection.fx.preset === 'big-chorus') {
+      return [
+        {
+          id: 'fx',
+          params: {
+            preset: 'big-chorus',
+            wet: params.wet,
+            depth: params.depth,
+          },
         },
-      },
-    ];
+      ];
+    }
   }
 
   return [];
@@ -55,7 +63,9 @@ function resolvePitchEffects(selection: EditChainSelection): EffectJsonItem[] {
 
 /**
  * Build effects JSON for native. Chip tap order is irrelevant — selection is a set.
- * Native always runs: pitch → input-normalize → Comp → EQ → Echo → Reverb → limiter.
+ * Native always runs: FX → input-normalize → Comp → EQ → Echo → Reverb → limiter.
+ * FX presets: hard-tune / natural-tune (YIN + Signalsmith), big-chorus (Flanger).
+ * Clean is pass-through (no native FX stage). Autotune chip removed.
  * Params are native Superpowered values (no fake 0–100 send scale).
  */
 function buildSuperpoweredEffectsJson(selection: EditChainSelection): string {
@@ -142,13 +152,9 @@ export async function applyEditChain(input: {
       throw new Error('Clean Voice needs the original pre-gate recording.');
     }
 
-    const { isDeepFilterDenoiseAvailable, denoiseRecordingWithDeepFilter } = await import(
+    const { denoiseRecordingWithDeepFilter } = await import(
       '@/features/audio/services/deepfilter-denoise.service'
     );
-
-    if (!(await isDeepFilterDenoiseAvailable())) {
-      throw new Error('Clean Voice requires DeepFilterNet on this device.');
-    }
 
     cleanVoiceTempUri = toFileUri(
       getProcessedRecordingUri('clean-voice', Crypto.randomUUID()),
@@ -158,14 +164,13 @@ export async function applyEditChain(input: {
       parent.create({ intermediates: true, idempotent: true });
     }
 
-    console.warn('[EditChain] Clean Voice (DeepFilter) from pre-gate…');
     await denoiseRecordingWithDeepFilter(sourcePreGateUri, cleanVoiceTempUri);
     chainInputUri = cleanVoiceTempUri;
   }
 
+  const hasNativeFx = selection.fx != null && isNativeFxPreset(selection.fx.preset);
   const hasSuperpoweredFx =
-    selection.autotune != null ||
-    selection.fx != null ||
+    hasNativeFx ||
     selection.compressor != null ||
     selection.eq != null ||
     selection.echo != null ||

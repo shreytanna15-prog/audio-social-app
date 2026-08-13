@@ -88,9 +88,34 @@ export type ReverbTuneParams = {
 export type FxTuneSpeed = 'SUBTLE' | 'MEDIUM' | 'EXTREME';
 export type FxTuneClamp = 'TIGHT' | 'LOOSE';
 
+/** Locked recipes per FX preset. Unused fields still persist for a stable shape. */
 export type FxTuneParams = {
   speed: FxTuneSpeed;
   clamp: FxTuneClamp;
+  /** 0–1 wet. Tune presets mix dry+wet after Signalsmith. */
+  wet: number;
+  tap1Ms: number;
+  tap2Ms: number;
+  lfoHz: number;
+  lfoDepthMs: number;
+  /** Reserved (legacy robot / Bitcrusher fields). */
+  carrierHz: number;
+  /** Fraction of pitch error to correct (Hard/Natural). */
+  strength: number;
+  /** Cents slew time in ms (Natural/Clean slower; Hard ~1). */
+  slewMs: number;
+  /** Ignore pitch error smaller than this (vibrato keep). */
+  vibratoCents: number;
+  /** Reserved / Signalsmith formant (unused in v1 render). */
+  formant: number;
+  /** Flanger depth 0–1. */
+  depth: number;
+  /** Reserved (legacy Bitcrusher / robot). */
+  bits: number;
+  /** Reserved (legacy Bitcrusher). */
+  crushHz: number;
+  /** Reserved (legacy pitch shift). */
+  pitchCents: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -279,9 +304,26 @@ export function clampFxParams(params: Partial<FxTuneParams>): FxTuneParams {
   const speed =
     params.speed === 'SUBTLE' || params.speed === 'MEDIUM' || params.speed === 'EXTREME'
       ? params.speed
-      : 'MEDIUM';
+      : 'SUBTLE';
   const clampMode = params.clamp === 'LOOSE' ? 'LOOSE' : 'TIGHT';
-  return { speed, clamp: clampMode };
+  return {
+    speed,
+    clamp: clampMode,
+    wet: roundToStep(clamp(params.wet ?? 0.32, 0, 1), 0.01),
+    tap1Ms: roundToStep(clamp(params.tap1Ms ?? 23, 10, 50), 0.5),
+    tap2Ms: roundToStep(clamp(params.tap2Ms ?? 31, 10, 50), 0.5),
+    lfoHz: roundToStep(clamp(params.lfoHz ?? 0.38, 0.05, 2), 0.01),
+    lfoDepthMs: roundToStep(clamp(params.lfoDepthMs ?? 3.5, 0, 12), 0.1),
+    carrierHz: roundToStep(clamp(params.carrierHz ?? 120, 40, 400), 1),
+    strength: roundToStep(clamp(params.strength ?? 0.8, 0, 1), 0.01),
+    slewMs: roundToStep(clamp(params.slewMs ?? 40, 1, 200), 1),
+    vibratoCents: roundToStep(clamp(params.vibratoCents ?? 18, 0, 80), 1),
+    formant: roundToStep(clamp(params.formant ?? 0.6, 0, 1), 0.01),
+    depth: roundToStep(clamp(params.depth ?? 0.45, 0.1, 1), 0.01),
+    bits: roundToStep(clamp(params.bits ?? 8, 2, 12), 1),
+    crushHz: roundToStep(clamp(params.crushHz ?? 9500, 1000, 12000), 1),
+    pitchCents: roundToStep(clamp(params.pitchCents ?? 0, -1200, 0), 1),
+  };
 }
 
 /**
@@ -598,9 +640,34 @@ export function defaultReverbParams(preset: ReverbPresetId): ReverbTuneParams {
 }
 
 export function defaultFxParams(preset: FxPresetId): FxTuneParams {
-  if (preset === 'natural-snap') {
-    return clampFxParams({ speed: 'SUBTLE', clamp: 'TIGHT' });
+  if (preset === 'clean') {
+    return clampFxParams({
+      wet: 0,
+    });
   }
-  // hard-snap
-  return clampFxParams({ speed: 'MEDIUM', clamp: 'TIGHT' });
+  if (preset === 'big-chorus') {
+    return clampFxParams({
+      wet: 0.7,
+      depth: 0.45,
+    });
+  }
+  if (preset === 'hard-tune') {
+    return clampFxParams({
+      strength: 0.92,
+      slewMs: 1,
+      vibratoCents: 0,
+      wet: 0.85,
+      formant: 0.6,
+    });
+  }
+  if (preset === 'natural-tune') {
+    return clampFxParams({
+      strength: 0.68,
+      slewMs: 40,
+      vibratoCents: 18,
+      wet: 0.75,
+      formant: 0.6,
+    });
+  }
+  return clampFxParams({ strength: 0.68, slewMs: 40, vibratoCents: 18, wet: 0.75 });
 }

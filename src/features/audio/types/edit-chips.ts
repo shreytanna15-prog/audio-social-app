@@ -14,8 +14,10 @@ import {
 } from '@/features/audio/domain/chip-tune-params';
 
 export const FX_PRESETS = [
-  { id: 'hard-snap', label: 'Hard Snap' },
-  { id: 'natural-snap', label: 'Natural Snap' },
+  { id: 'hard-tune', label: 'Hard Tune' },
+  { id: 'natural-tune', label: 'Natural Tune' },
+  { id: 'clean', label: 'Clean' },
+  { id: 'big-chorus', label: 'Big Chorus' },
 ] as const;
 
 /** Voloco free compressor presets. */
@@ -55,39 +57,12 @@ export const REVERB_PRESETS = [
   { id: 'medium-room', label: 'Medium Room' },
 ] as const;
 
-/** Superpowered TunerScale names used in native effects JSON. Chromatic last — light correction only. */
-export const AUTOTUNE_SCALES = [
-  { id: 'c-major', label: 'C Major', native: 'CMAJOR' },
-  { id: 'a-minor', label: 'A Minor', native: 'AMINOR' },
-  { id: 'c-sharp-major', label: 'C♯ Major', native: 'CSHARPMAJOR' },
-  { id: 'a-sharp-minor', label: 'A♯ Minor', native: 'ASHARPMINOR' },
-  { id: 'd-major', label: 'D Major', native: 'DMAJOR' },
-  { id: 'b-minor', label: 'B Minor', native: 'BMINOR' },
-  { id: 'd-sharp-major', label: 'D♯ Major', native: 'DSHARPMAJOR' },
-  { id: 'c-minor', label: 'C Minor', native: 'CMINOR' },
-  { id: 'e-major', label: 'E Major', native: 'EMAJOR' },
-  { id: 'c-sharp-minor', label: 'C♯ Minor', native: 'CSHARPMINOR' },
-  { id: 'f-major', label: 'F Major', native: 'FMAJOR' },
-  { id: 'd-minor', label: 'D Minor', native: 'DMINOR' },
-  { id: 'f-sharp-major', label: 'F♯ Major', native: 'FSHARPMAJOR' },
-  { id: 'd-sharp-minor', label: 'D♯ Minor', native: 'DSHARPMINOR' },
-  { id: 'g-major', label: 'G Major', native: 'GMAJOR' },
-  { id: 'e-minor', label: 'E Minor', native: 'EMINOR' },
-  { id: 'g-sharp-major', label: 'G♯ Major', native: 'GSHARPMAJOR' },
-  { id: 'f-minor', label: 'F Minor', native: 'FMINOR' },
-  { id: 'a-major', label: 'A Major', native: 'AMAJOR' },
-  { id: 'f-sharp-minor', label: 'F♯ Minor', native: 'FSHARPMINOR' },
-  { id: 'a-sharp-major', label: 'A♯ Major', native: 'ASHARPMAJOR' },
-  { id: 'g-minor', label: 'G Minor', native: 'GMINOR' },
-  { id: 'b-major', label: 'B Major', native: 'BMAJOR' },
-  { id: 'g-sharp-minor', label: 'G♯ Minor', native: 'GSHARPMINOR' },
-  { id: 'chromatic', label: 'Chromatic (light correction)', native: 'CHROMATIC' },
-] as const;
-
-export const AUTOTUNE_SPEEDS = [
-  { id: 'subtle', label: 'Subtle', native: 'SUBTLE' },
-  { id: 'medium', label: 'Medium', native: 'MEDIUM' },
-  { id: 'extreme', label: 'Extreme', native: 'EXTREME' },
+/**
+ * Pitch scale ids kept for FX persistence compatibility (always chromatic in UI).
+ * Not an Autotune chip — that chip was removed.
+ */
+export const FX_SCALES = [
+  { id: 'chromatic', label: 'Chromatic', native: 'CHROMATIC' },
 ] as const;
 
 export type FxPresetId = (typeof FX_PRESETS)[number]['id'];
@@ -95,34 +70,28 @@ export type CompressorPresetId = (typeof COMPRESSOR_PRESETS)[number]['id'];
 export type EqPresetId = (typeof EQ_PRESETS)[number]['id'];
 export type EchoPresetId = (typeof ECHO_PRESETS)[number]['id'];
 export type ReverbPresetId = (typeof REVERB_PRESETS)[number]['id'];
-export type AutotuneScaleId = (typeof AUTOTUNE_SCALES)[number]['id'];
-export type AutotuneSpeedId = (typeof AUTOTUNE_SPEEDS)[number]['id'];
-
-export const AUTOTUNE_CHROMATIC_HINT =
-  'Light correction only. Pick a key above for stronger snap to the scale.';
-
-export const AUTOTUNE_SPEED_HINTS: Record<AutotuneSpeedId, string> = {
-  subtle: 'Natural — gentle pitch smoothing.',
-  medium: 'Standard — noticeable correction.',
-  extreme: 'Hard tune — strong snap to the key.',
-};
-
-export const FX_KEY_HINT = 'Key is required for snap — pick the song key (same role as Voloco Key).';
+export type FxScaleId = (typeof FX_SCALES)[number]['id'];
 
 export const FX_PRESET_HINTS: Record<FxPresetId, string> = {
-  'hard-snap': 'Strong pitch-style snap (Hard Tune feel) with formant-safe shifting.',
-  'natural-snap': 'Softer pitch-style smoothing with formant-safe shifting.',
+  'hard-tune': 'Snaps toward the nearest note. Your melody stays.',
+  'natural-tune': 'Gently pulls toward the nearest note. Vibrato mostly stays.',
+  clean: 'Your voice as recorded — no pitch style. Instant.',
+  'big-chorus': 'Wider, thicker voice. Not echo repeats.',
 };
 
-export type AutotuneSelection = {
-  scale: AutotuneScaleId;
-  speed: AutotuneSpeedId;
-};
+/** Native pitch/style FX that actually process audio (Clean is UI-only / pass-through). */
+export function isNativeFxPreset(preset: FxPresetId): boolean {
+  return (
+    preset === 'big-chorus' ||
+    preset === 'hard-tune' ||
+    preset === 'natural-tune'
+  );
+}
 
-/** FX owns its own Key (separate from Autotune). */
+/** Scale is always chromatic (no Key UI). Kept for persistence compatibility. */
 export type FxSelection = {
   preset: FxPresetId;
-  scale: AutotuneScaleId;
+  scale: FxScaleId;
   params: FxTuneParams;
 };
 
@@ -148,7 +117,6 @@ export type ReverbSelection = {
 
 export type EditChipKind =
   | 'clean-voice'
-  | 'autotune'
   | 'fx'
   | 'compressor'
   | 'eq'
@@ -158,7 +126,6 @@ export type EditChipKind =
 /** Selected edit tools (all optional except baseline soft gate). */
 export type EditChainSelection = {
   cleanVoice: boolean;
-  autotune: AutotuneSelection | null;
   fx: FxSelection | null;
   compressor: CompressorSelection | null;
   eq: EqSelection | null;
@@ -168,9 +135,8 @@ export type EditChainSelection = {
 
 /** Persisted edit recipe stored on AudioRecording (current write format). */
 export type StoredEditChain = {
-  version: 6;
+  version: 7;
   cleanVoice: boolean;
-  autotune: AutotuneSelection | null;
   fx: FxSelection | null;
   compressor: CompressorSelection | null;
   eq: EqSelection | null;
@@ -180,7 +146,6 @@ export type StoredEditChain = {
 
 export const EMPTY_EDIT_CHAIN: EditChainSelection = {
   cleanVoice: false,
-  autotune: null,
   fx: null,
   compressor: null,
   eq: null,
@@ -188,15 +153,10 @@ export const EMPTY_EDIT_CHAIN: EditChainSelection = {
   reverb: null,
 };
 
-export const DEFAULT_AUTOTUNE_SELECTION: AutotuneSelection = {
-  scale: 'c-major',
-  speed: 'extreme',
-};
-
 export const DEFAULT_FX_SELECTION: FxSelection = {
-  preset: 'hard-snap',
-  scale: 'c-major',
-  params: defaultFxParams('hard-snap'),
+  preset: 'hard-tune',
+  scale: 'chromatic',
+  params: defaultFxParams('hard-tune'),
 };
 
 export function createCompressorSelection(preset: CompressorPresetId): CompressorSelection {
@@ -215,10 +175,7 @@ export function createReverbSelection(preset: ReverbPresetId): ReverbSelection {
   return { preset, params: defaultReverbParams(preset) };
 }
 
-export function createFxSelection(
-  preset: FxPresetId,
-  scale: AutotuneScaleId,
-): FxSelection {
+export function createFxSelection(preset: FxPresetId, scale: FxScaleId = 'chromatic'): FxSelection {
   return { preset, scale, params: defaultFxParams(preset) };
 }
 
@@ -230,30 +187,9 @@ export function getFxPresetHint(preset: FxPresetId): string {
   return FX_PRESET_HINTS[preset];
 }
 
-export function getAutotuneScaleLabel(scale: AutotuneScaleId): string {
-  return AUTOTUNE_SCALES.find((item) => item.id === scale)?.label ?? scale;
-}
-
-export function getAutotuneSpeedLabel(speed: AutotuneSpeedId): string {
-  return AUTOTUNE_SPEEDS.find((item) => item.id === speed)?.label ?? speed;
-}
-
-export function getAutotuneSpeedHint(speed: AutotuneSpeedId): string {
-  return AUTOTUNE_SPEED_HINTS[speed];
-}
-
-export function getAutotuneNativeScale(scale: AutotuneScaleId): string {
-  return AUTOTUNE_SCALES.find((item) => item.id === scale)?.native ?? 'CHROMATIC';
-}
-
-export function getAutotuneNativeSpeed(speed: AutotuneSpeedId): string {
-  return AUTOTUNE_SPEEDS.find((item) => item.id === speed)?.native ?? 'MEDIUM';
-}
-
 export function isEditChainEmpty(selection: EditChainSelection): boolean {
   return (
     !selection.cleanVoice &&
-    selection.autotune == null &&
     selection.fx == null &&
     selection.compressor == null &&
     selection.eq == null &&
@@ -268,15 +204,8 @@ export function getEditChainLabel(selection: EditChainSelection): string | null 
   if (selection.cleanVoice) {
     parts.push('Clean Voice');
   }
-  if (selection.autotune) {
-    parts.push(
-      `Autotune: ${getAutotuneScaleLabel(selection.autotune.scale)} · ${getAutotuneSpeedLabel(selection.autotune.speed)}`,
-    );
-  }
   if (selection.fx) {
-    parts.push(
-      `FX: ${getFxPresetLabel(selection.fx.preset)} · ${getAutotuneScaleLabel(selection.fx.scale)}`,
-    );
+    parts.push(`FX: ${getFxPresetLabel(selection.fx.preset)}`);
   }
   if (selection.compressor) {
     const preset = COMPRESSOR_PRESETS.find((item) => item.id === selection.compressor?.preset);
@@ -301,9 +230,6 @@ export function getEditChainLabel(selection: EditChainSelection): string | null 
 export function getEditChainProcessingLabel(selection: EditChainSelection): string {
   if (selection.cleanVoice && isEditChainEmpty({ ...selection, cleanVoice: false })) {
     return 'Applying Clean Voice…';
-  }
-  if (selection.autotune && isEditChainEmpty({ ...selection, autotune: null })) {
-    return 'Applying Autotune…';
   }
   if (selection.fx && isEditChainEmpty({ ...selection, fx: null })) {
     return 'Applying FX…';

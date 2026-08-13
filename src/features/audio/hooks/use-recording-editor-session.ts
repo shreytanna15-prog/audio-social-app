@@ -19,7 +19,6 @@ import {
   getEditChainLabel,
   getEditChainProcessingLabel,
   isEditChainEmpty,
-  type AutotuneSelection,
   type CompressorPresetId,
   type EchoPresetId,
   type EditChainSelection,
@@ -29,7 +28,7 @@ import {
   type StoredEditChain,
 } from '@/features/audio/types/edit-chips';
 
-type PresetSheetKind = 'autotune' | 'fx' | 'compressor' | 'eq' | 'echo' | 'reverb';
+type PresetSheetKind = 'fx' | 'compressor' | 'eq' | 'echo' | 'reverb';
 
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
@@ -194,50 +193,6 @@ export function useRecordingEditorSession({
     setPresetSheet(null);
   }, [isProcessing]);
 
-  const selectAutotune = useCallback(
-    (value: AutotuneSelection | null) => {
-      if (isProcessing || isSaving) {
-        return;
-      }
-
-      if (value == null) {
-        setPresetSheet(null);
-        void rebuildChain({
-          ...selection,
-          autotune: null,
-        });
-        return;
-      }
-
-      const alreadyOn = selection.autotune != null;
-      const apply = () => {
-        setPresetSheet(null);
-        void rebuildChain({
-          ...selection,
-          autotune: value,
-        });
-      };
-
-      if (alreadyOn) {
-        apply();
-        return;
-      }
-
-      Alert.alert(
-        'Autotune',
-        'Autotune is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse or pull notes to the wrong pitch.\n\nProcessing can take a little while. Please wait until it finishes.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Continue',
-            onPress: apply,
-          },
-        ],
-      );
-    },
-    [isProcessing, isSaving, rebuildChain, selection],
-  );
-
   const selectFx = useCallback(
     (value: FxSelection | null) => {
       if (isProcessing || isSaving) {
@@ -262,7 +217,7 @@ export function useRecordingEditorSession({
 
       Alert.alert(
         'FX',
-        'FX pitch styles are made for singing and speech — not instruments. On guitar, piano, or other instruments they can make the sound worse or pull notes to the wrong pitch.\n\nProcessing can take a little while. Please wait until it finishes.',
+        'FX is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse.\n\nProcessing can take a little while. Please wait until it finishes.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -403,7 +358,6 @@ export function useRecordingEditorSession({
     openPresetSheet,
     closePresetSheet,
     presetSheet,
-    selectAutotune,
     selectFx,
     selectCompressor,
     selectEq,

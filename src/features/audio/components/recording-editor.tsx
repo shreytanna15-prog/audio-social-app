@@ -8,7 +8,6 @@ import {
   eqSheetOptions,
   reverbSheetOptions,
 } from '@/features/audio/components/edit-chip-row';
-import { AutotuneSheet } from '@/features/audio/components/autotune-sheet';
 import { FxSheet } from '@/features/audio/components/fx-sheet';
 import { IconButton } from '@/features/audio/components/icon-button';
 import { PlaybackScrubber } from '@/features/audio/components/playback-scrubber';
@@ -81,7 +80,7 @@ export function RecordingEditor({
           <Text style={styles.appliedEffect}>Applied: {session.effectLabel}</Text>
         ) : (
           <Text style={styles.hint}>
-            Soft cleanup is already on. Tap Autotune, FX, Comp, EQ, Echo, or Reverb and pick a
+            Soft cleanup is already on. Tap FX, Comp, EQ, Echo, or Reverb and pick a
             preset — it applies right away. Reset brings back the cleaned take.
           </Text>
         )}
@@ -126,7 +125,6 @@ export function RecordingEditor({
           isProcessing={session.isProcessing}
           processingLabel={session.processingLabel}
           onCleanVoicePress={session.toggleCleanVoice}
-          onOpenAutotune={() => session.openPresetSheet('autotune')}
           onOpenFx={() => session.openPresetSheet('fx')}
           onOpenCompressor={() => session.openPresetSheet('compressor')}
           onOpenEq={() => session.openPresetSheet('eq')}
@@ -143,13 +141,6 @@ export function RecordingEditor({
         />
       </ScrollView>
 
-      <AutotuneSheet
-        visible={session.presetSheet === 'autotune'}
-        selection={session.selection.autotune}
-        onApply={(value) => session.selectAutotune(value)}
-        onClear={() => session.selectAutotune(null)}
-        onClose={session.closePresetSheet}
-      />
       <FxSheet
         visible={session.presetSheet === 'fx'}
         selection={session.selection.fx}

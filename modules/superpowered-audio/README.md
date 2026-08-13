@@ -10,7 +10,8 @@ Offline Clean engine (post-record):
 
 Editor effects (offline file process):
 
-- **FX / Autotune / Comp / EQ / Echo / Reverb** via `processEffectsFile` (Voloco-style named presets with fixed values)
+- **FX / Comp / EQ / Echo / Reverb** via `processEffectsFile` (Voloco-style named presets with fixed values)
+- **FX presets:** Hard Tune / Natural Tune = YIN + Signalsmith Stretch (half-rate, small STFT — chromatic, melody-preserving). Clean = pass-through (instant, no pitch engine). Big Chorus = Superpowered Flanger. Super Vocoder and Autotune chips removed. No Key picker.
 - **EQ** uses Voloco Custom EQ: high-pass + 7 bands (200…8000 Hz) + high shelf; free presets are locked recipes of those knobs
 - **Comp** uses Voloco Custom Compressor: mix, input/output gain, attack, release, ratio, auto-threshold / threshold diff
 - **Echo** uses a stereo delay engine matching Voloco Custom controls: duck, tempo sync, L/R delay + feedback, x-over (ping-pong), dry/wet
@@ -42,6 +43,8 @@ EXPO_PUBLIC_SUPERPOWERED_LICENSE_KEY=ExampleLicenseKey-WillExpire-OnNextUpdate
 native/superpowered/include/
 native/superpowered/android/
 native/superpowered/ios/libSuperpoweredAudio.xcframework
+native/signalsmith-stretch/   (MIT — FX melody retune)
+native/signalsmith-linear/    (MIT — Stretch dependency)
 ```
 
 ## Rebuild required
@@ -53,3 +56,15 @@ npm run android:dev
 # or
 npx expo run:ios
 ```
+
+## FX ear check (after native rebuild)
+
+Sung “do re mi” vs Off:
+
+1. **Hard Tune:** audible snap; still hear do, then re, then mi. Should feel clearly faster than the old full-rate `presetCheaper` path.
+2. **Natural Tune:** softer pull; vibrato mostly there; scale intact.
+3. **Clean:** same as raw take (instant — no pitch render).
+4. **Big Chorus:** thicker/wider (Flanger); not Echo repeats.
+5. **Clear FX:** back to the raw take.
+
+Success bar: “I still hear the notes I sang.”
