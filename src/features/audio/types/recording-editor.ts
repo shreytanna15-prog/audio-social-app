@@ -18,5 +18,12 @@ export type RecordingEditorProps = {
   isSaving: boolean;
   /** Returns true when the recording was saved successfully. */
   onSave: (payload: RecordingEditorSavePayload) => Promise<boolean>;
+  /**
+   * Background save that keeps the editor open. Absent for pending takes, which
+   * only exist in the index once `onSave` runs.
+   */
+  onPersist?: (payload: RecordingEditorSavePayload) => Promise<boolean>;
+  /** Leaves the editor without touching storage, for when disk is already current. */
+  onClose: () => void;
   onDiscard: () => void;
 };

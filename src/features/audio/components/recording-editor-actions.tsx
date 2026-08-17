@@ -4,6 +4,7 @@ type RecordingEditorActionsProps = {
   isPending: boolean;
   canReset: boolean;
   isSaving: boolean;
+  isProcessing?: boolean;
   onReset: () => void;
   onDiscard: () => void;
   onSave: () => void;
@@ -13,15 +14,18 @@ export function RecordingEditorActions({
   isPending,
   canReset,
   isSaving,
+  isProcessing = false,
   onReset,
   onDiscard,
   onSave,
 }: RecordingEditorActionsProps) {
+  const busy = isSaving || isProcessing;
+
   return (
     <View style={styles.actions}>
       <Pressable
-        style={[styles.secondaryButton, (!canReset || isSaving) && styles.buttonDisabled]}
-        disabled={!canReset || isSaving}
+        style={[styles.secondaryButton, (!canReset || busy) && styles.buttonDisabled]}
+        disabled={!canReset || busy}
         onPress={onReset}>
         <Text style={styles.secondaryButtonText}>Reset to original</Text>
       </Pressable>
@@ -29,14 +33,14 @@ export function RecordingEditorActions({
       {isPending ? (
         <View style={styles.primaryActions}>
           <Pressable
-            style={[styles.dangerButton, isSaving && styles.buttonDisabled]}
-            disabled={isSaving}
+            style={[styles.dangerButton, busy && styles.buttonDisabled]}
+            disabled={busy}
             onPress={onDiscard}>
             <Text style={styles.dangerButtonText}>Discard</Text>
           </Pressable>
           <Pressable
-            style={[styles.saveButton, isSaving && styles.buttonDisabled]}
-            disabled={isSaving}
+            style={[styles.saveButton, busy && styles.buttonDisabled]}
+            disabled={busy}
             onPress={onSave}>
             {isSaving ? (
               <ActivityIndicator color="#ffffff" />
@@ -47,8 +51,8 @@ export function RecordingEditorActions({
         </View>
       ) : (
         <Pressable
-          style={[styles.saveButton, styles.doneButton, isSaving && styles.buttonDisabled]}
-          disabled={isSaving}
+          style={[styles.saveButton, styles.doneButton, busy && styles.buttonDisabled]}
+          disabled={busy}
           onPress={onSave}>
           {isSaving ? (
             <ActivityIndicator color="#ffffff" />

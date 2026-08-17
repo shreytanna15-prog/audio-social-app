@@ -293,7 +293,7 @@ export function toStoredEditChain(
   };
 }
 
-export function fromStoredEditChain(stored?: StoredEditChain | null | {
+type StoredEditChainLike = StoredEditChain | null | {
   version?: number;
   cleanVoice?: unknown;
   fx?: unknown;
@@ -302,11 +302,20 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
   eq?: unknown;
   echo?: unknown;
   reverb?: unknown;
-}): EditChainSelection {
-  if (!stored || typeof stored.version !== 'number') {
-    return { ...EMPTY_EDIT_CHAIN };
-  }
+};
 
+function hasStoredChipFields(stored: NonNullable<StoredEditChainLike>): boolean {
+  return (
+    stored.cleanVoice != null ||
+    stored.fx != null ||
+    stored.compressor != null ||
+    stored.eq != null ||
+    stored.echo != null ||
+    stored.reverb != null
+  );
+}
+
+function parseStoredVersion(stored: NonNullable<StoredEditChainLike>): EditChainSelection {
   const mix = parseMixSelections(stored);
 
   if (stored.version === 7) {
@@ -347,6 +356,26 @@ export function fromStoredEditChain(stored?: StoredEditChain | null | {
       cleanVoice: Boolean(stored.cleanVoice),
       fx: null,
       ...mix,
+    };
+  }
+
+  return { ...EMPTY_EDIT_CHAIN };
+}
+
+export function fromStoredEditChain(stored?: StoredEditChainLike): EditChainSelection {
+  if (!stored || typeof stored !== 'object') {
+    return { ...EMPTY_EDIT_CHAIN };
+  }
+
+  if (typeof stored.version === 'number') {
+    return parseStoredVersion(stored);
+  }
+
+  if (hasStoredChipFields(stored)) {
+    return {
+      cleanVoice: Boolean(stored.cleanVoice),
+      fx: parseFx(stored.fx),
+      ...parseMixSelections(stored),
     };
   }
 

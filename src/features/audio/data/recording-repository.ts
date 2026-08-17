@@ -44,6 +44,11 @@ type UpdateRecordingInput = {
   durationSeconds: number;
   editChain?: StoredEditChain;
   sourcePreGateUri?: string | null;
+  /**
+   * Keep the temporary `_processed/` source after copying. Auto-save runs while
+   * the editor still plays that file, so deleting it would break playback.
+   */
+  keepSourceFile?: boolean;
 };
 
 export type StageAudioResult = {
@@ -274,6 +279,7 @@ export async function updateRecording({
   durationSeconds,
   editChain,
   sourcePreGateUri,
+  keepSourceFile = false,
 }: UpdateRecordingInput): Promise<AudioRecording> {
   const recordings = await readIndex();
   const existing = recordings.find((item) => item.id === id);
@@ -306,7 +312,9 @@ export async function updateRecording({
     await persistRecordingFile(sourceUri, destinationUri);
   }
 
-  await cleanupTemporarySourceUri(sourceUri, destinationUri);
+  if (!keepSourceFile) {
+    await cleanupTemporarySourceUri(sourceUri, destinationUri);
+  }
 
   const now = new Date().toISOString();
   const updated: AudioRecording = {

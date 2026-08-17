@@ -1,11 +1,13 @@
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { RecordingCard } from '@/features/audio/components/recording-card';
+import { useOpenRecordingEditor } from '@/features/audio/hooks/use-open-recording-editor';
 import { useRecordingsStore } from '@/features/audio/store';
 
 export function RecordingsList() {
   const recordings = useRecordingsStore((state) => state.recordings);
   const isLoading = useRecordingsStore((state) => state.isLoading);
+  const openRecordingEditor = useOpenRecordingEditor();
 
   return (
     <View style={styles.container}>
@@ -13,14 +15,23 @@ export function RecordingsList() {
       {isLoading ? (
         <ActivityIndicator style={styles.loader} />
       ) : (
-        <FlatList
-          data={recordings}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>No recordings yet</Text>}
-          renderItem={({ item, index }) => <RecordingCard recording={item} index={index} />}
-        />
+        // A virtualized list cannot measure itself inside the screen's
+        // ScrollView, so it only added clipping churn that desynced the
+        // renderer on save. The list is short and never scrolls on its own.
+        <View style={styles.list}>
+          {recordings.length === 0 ? (
+            <Text style={styles.empty}>No recordings yet</Text>
+          ) : (
+            recordings.map((item, index) => (
+              <RecordingCard
+                key={item.id}
+                recording={item}
+                index={index}
+                onOpen={openRecordingEditor}
+              />
+            ))
+          )}
+        </View>
       )}
     </View>
   );

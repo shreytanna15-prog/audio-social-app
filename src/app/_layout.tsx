@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/shared/components/animated-icon';
-import AppTabs from '@/app/app-tabs';
+import AppTabs from '@/shared/navigation/app-tabs';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();

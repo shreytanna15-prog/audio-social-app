@@ -1,10 +1,11 @@
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
 import { RecordingEditor } from '@/features/audio/components/recording-editor';
 import { RecordingEditorScreenState } from '@/features/audio/components/recording-editor-screen-state';
 import { useRecordingEditorRoute } from '@/features/audio/hooks/use-recording-editor-route';
 
 export default function RecordingScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const routeState = useRecordingEditorRoute();
 
   if (routeState.status === 'loading') {
@@ -20,14 +21,14 @@ export default function RecordingScreen() {
     );
   }
 
+  const editorKey = routeState.editor.isPending
+    ? routeState.editor.source.pristineUri
+    : String(id);
+
   return (
     <>
       <Stack.Screen options={{ title: routeState.editor.isPending ? "New recording" : "Edit recording" }} />
-      {/* Key by take URI so each new recording remounts editor state (Expo reuses /recording/new). */}
-      <RecordingEditor
-        key={routeState.editor.source.pristineUri}
-        {...routeState.editor}
-      />
+      <RecordingEditor key={editorKey} {...routeState.editor} />
     </>
   );
 }

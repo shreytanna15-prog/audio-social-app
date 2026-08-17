@@ -32,6 +32,9 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
   const isSaving = useRecordingsStore((state) => state.isSaving);
   const saveRecording = useRecordingsStore((state) => state.saveRecording);
   const updateRecording = useRecordingsStore((state) => state.updateRecording);
+  const persistRecordingEdits = useRecordingsStore(
+    (state) => state.persistRecordingEdits,
+  );
   const isPending = id === 'new';
 
   const savedRecording = useMemo(() => {
@@ -68,6 +71,18 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
 
   const recordingIndex = recordings.findIndex((item) => item.id === id);
 
+  /**
+   * `dismissTo` rather than `back`: it pops through any editor screens that got
+   * stacked, and when there is no history to pop — a deep link or a dev reload
+   * straight onto this route — it replaces instead of failing, so leaving always
+   * lands on the list. A bare `back()` warns that GO_BACK went unhandled.
+   */
+  const leave = useCallback(() => {
+    router.dismissTo('/audio');
+  }, [router]);
+
+  // Persists only. Navigation is the caller's decision, because the unsaved
+  // guard has to save first and then release its own intercepted action.
   const handleSave = useCallback(
     async ({
       sourceUri,
@@ -96,12 +111,7 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
             sourcePreGateUri: saveSourcePreGateUri ?? resolvedSourcePreGateUri,
           });
 
-      if (saved) {
-        router.back();
-        return true;
-      }
-
-      return false;
+      return saved != null;
     },
     [
       durationSeconds,
@@ -109,10 +119,30 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       isPending,
       isSaving,
       resolvedSourcePreGateUri,
-      router,
       saveRecording,
       updateRecording,
     ],
+  );
+
+  const handlePersist = useCallback(
+    async ({
+      sourceUri,
+      baselineUri,
+      editChain,
+      sourcePreGateUri: saveSourcePreGateUri,
+    }: RecordingEditorSavePayload): Promise<boolean> => {
+      const persisted = await persistRecordingEdits({
+        id,
+        sourceUri,
+        baselineUri,
+        durationSeconds,
+        editChain,
+        sourcePreGateUri: saveSourcePreGateUri ?? resolvedSourcePreGateUri,
+      });
+
+      return persisted != null;
+    },
+    [durationSeconds, id, persistRecordingEdits, resolvedSourcePreGateUri],
   );
 
   const handleDiscard = useCallback(async () => {
@@ -120,8 +150,8 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       await discardPreviewRecording(playbackUri, resolvedSourcePreGateUri);
     }
 
-    router.back();
-  }, [isPending, playbackUri, resolvedSourcePreGateUri, router]);
+    leave();
+  }, [isPending, leave, playbackUri, resolvedSourcePreGateUri]);
 
   if (!isPending && isLoading) {
     return { status: 'loading' };
@@ -147,6 +177,8 @@ export function useRecordingEditorRoute(): RecordingEditorRouteState {
       isPending,
       isSaving,
       onSave: handleSave,
+      onPersist: isPending ? undefined : handlePersist,
+      onClose: leave,
       onDiscard: handleDiscard,
     },
   };

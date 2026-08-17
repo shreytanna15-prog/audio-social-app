@@ -34,6 +34,11 @@ export type RecordingsState = {
   refreshRecordings: () => Promise<void>;
   saveRecording: (params: SaveRecordingParams) => Promise<AudioRecording | null>;
   updateRecording: (params: UpdateRecordingParams) => Promise<AudioRecording | null>;
+  /**
+   * Background save used by the editor after every applied chip. Keeps the
+   * temporary working file and stays out of `isSaving` so the UI does not flicker.
+   */
+  persistRecordingEdits: (params: UpdateRecordingParams) => Promise<AudioRecording | null>;
   deleteRecording: (id: string) => Promise<boolean>;
 };
 
@@ -89,6 +94,24 @@ export const useRecordingsStore = create<RecordingsState>((set) => ({
       return null;
     } finally {
       set({ isSaving: false });
+    }
+  },
+
+  persistRecordingEdits: async (params) => {
+    try {
+      const recording = await updateRecordingInRepository({
+        ...params,
+        keepSourceFile: true,
+      });
+      set((state) => ({
+        recordings: state.recordings.map((item) =>
+          item.id === recording.id ? recording : item,
+        ),
+      }));
+      return recording;
+    } catch (error) {
+      console.log('Error auto-saving recording edits:', error);
+      return null;
     }
   },
 
