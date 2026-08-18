@@ -15,3 +15,5 @@ export { RecordingsList } from '@/features/audio/components/recordings-list';
 export { RecordingEditorScreenState } from '@/features/audio/components/recording-editor-screen-state';
 export { PlaybackScrubber } from '@/features/audio/components/playback-scrubber';
 export { WaveformDisplay } from '@/features/audio/components/waveform-display';
+export { StudioEditor } from '@/features/audio/components/studio/studio-editor';
+export { StudioEntryToolbar } from '@/features/audio/components/studio/studio-entry-toolbar';

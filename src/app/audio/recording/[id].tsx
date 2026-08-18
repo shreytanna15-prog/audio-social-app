@@ -1,12 +1,14 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 
-import { RecordingEditor } from '@/features/audio/components/recording-editor';
 import { RecordingEditorScreenState } from '@/features/audio/components/recording-editor-screen-state';
-import { useRecordingEditorRoute } from '@/features/audio/hooks/use-recording-editor-route';
+import { StudioEditor } from '@/features/audio/components/studio/studio-editor';
+import { useAudioRecorderBinding } from '@/features/audio/hooks/use-audio-recorder-binding';
+import { useStudioRoute } from '@/features/audio/hooks/use-studio-route';
 
 export default function RecordingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const routeState = useRecordingEditorRoute();
+  useAudioRecorderBinding();
+  const routeState = useStudioRoute();
 
   if (routeState.status === 'loading') {
     return <RecordingEditorScreenState variant="loading" />;
@@ -22,13 +24,17 @@ export default function RecordingScreen() {
   }
 
   const editorKey = routeState.editor.isPending
-    ? routeState.editor.source.pristineUri
+    ? `pending-${routeState.editor.initialProject.layers[0]?.id ?? 'empty'}`
     : String(id);
 
   return (
     <>
-      <Stack.Screen options={{ title: routeState.editor.isPending ? "New recording" : "Edit recording" }} />
-      <RecordingEditor key={editorKey} {...routeState.editor} />
+      <Stack.Screen
+        options={{
+          title: routeState.editor.isPending ? 'New recording' : 'Edit recording',
+        }}
+      />
+      <StudioEditor key={editorKey} {...routeState.editor} />
     </>
   );
 }

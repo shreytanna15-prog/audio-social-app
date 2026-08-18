@@ -3,4 +3,5 @@ export type RecordingEditorRouteParams = {
   uri?: string;
   duration?: string;
   sourcePreGateUri?: string;
+  kind?: 'import' | 'vocal';
 };

@@ -37,6 +37,11 @@ type UseRecordingEditorSessionOptions = {
   initialEditChain?: StoredEditChain;
   durationSeconds?: number;
   isSaving: boolean;
+  /**
+   * Replay the take right after a chip finishes processing. Off in the studio,
+   * where the transport plays every layer instead of this one stem.
+   */
+  autoPlayAfterProcessing?: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
 };
 
@@ -47,6 +52,7 @@ export function useRecordingEditorSession({
   initialEditChain,
   durationSeconds = 0,
   isSaving = false,
+  autoPlayAfterProcessing = true,
   onEffectError,
 }: UseRecordingEditorSessionOptions) {
   const baselineUri = pristineUri;
@@ -138,12 +144,17 @@ export function useRecordingEditorSession({
       return;
     }
     autoPlayUriRef.current = workingUri;
+
+    if (!autoPlayAfterProcessing) {
+      return;
+    }
+
     // Replay from last scrubbed spot so EQ/Echo A/B stays on the same line.
     const timer = setTimeout(() => {
       playback.playFromAnchor();
     }, 80);
     return () => clearTimeout(timer);
-  }, [isProcessing, playback, workingUri]);
+  }, [autoPlayAfterProcessing, isProcessing, playback, workingUri]);
 
   const toggleCleanVoice = useCallback(() => {
     if (isProcessing || isSaving) {

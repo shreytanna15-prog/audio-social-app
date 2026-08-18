@@ -1,0 +1,917 @@
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
+index 992239b..6385dba 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
+@@ -634,6 +634,8 @@ class AudioModule : Module() {
+         AudioStream(appContext, options)
+       }
+ 
++      Events("audioStreamBuffer", "audioStreamStatus", "audioStreamTick")
++
+       Property("id") { stream: AudioStream ->
+         stream.id
+       }
+@@ -650,14 +652,50 @@ class AudioModule : Module() {
+         stream.isStreaming
+       }
+ 
++      Property("isPaused") { stream: AudioStream ->
++        stream.isPaused
++      }
++
++      Property("supportsNativeWrite") { stream: AudioStream ->
++        stream.supportsNativeWrite
++      }
++
++      Property("outputUri") { stream: AudioStream ->
++        stream.outputUri
++      }
++
++      Property("writtenPcmBytes") { stream: AudioStream ->
++        stream.writtenPcmBytes.toDouble()
++      }
++
++      Property("durationMillis") { stream: AudioStream ->
++        stream.durationMillis.toDouble()
++      }
++
++      Property("lastMeteringDb") { stream: AudioStream ->
++        stream.lastMeteringDb
++      }
++
+       AsyncFunction("start") Coroutine { stream: AudioStream ->
+         checkRecordingPermission()
+         stream.start()
+       }
+ 
++      Function("pause") { stream: AudioStream ->
++        stream.pause()
++      }
++
++      Function("resume") { stream: AudioStream ->
++        stream.resume()
++      }
++
+       Function("stop") { stream: AudioStream ->
+         stream.stop()
+       }
++
++      Function("abort") { stream: AudioStream ->
++        stream.abort()
++      }
+     }
+ 
+     Class(AudioPlaylist::class) {
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
+index 86880d9..f394ae7 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
+@@ -137,6 +137,14 @@ class AudioStreamOptions : Record {
+   @Field var channels: Int = 1
+ 
+   @Field var encoding: AudioStreamEncoding = AudioStreamEncoding.FLOAT32
++
++  /** When set with nativeWrite, PCM is appended to this WAV on the capture thread. */
++  @Field var outputUri: String? = null
++
++  @Field var nativeWrite: Boolean = false
++
++  /** When false, full PCM buffers are not posted to JS. */
++  @Field var emitBuffersToJs: Boolean = true
+ }
+ 
+ enum class RecordingSource(val value: String) : Enumerable {
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
+index 8ecdcc1..dfdd403 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
+@@ -15,10 +15,16 @@ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.launch
+ import java.nio.ByteBuffer
+ import java.nio.ByteOrder
++import kotlin.math.abs
++import kotlin.math.log10
++import kotlin.math.max
++import kotlin.math.min
+ 
+ internal const val AUDIO_STREAM_BUFFER = "audioStreamBuffer"
+ internal const val AUDIO_STREAM_STATUS = "audioStreamStatus"
++internal const val AUDIO_STREAM_TICK = "audioStreamTick"
+ private const val DEFAULT_BUFFER_DURATION_MS = 100
++private const val METERING_STRIDE = 32
+ private val FALLBACK_SAMPLE_RATES = intArrayOf(48000, 44100, 16000, 22050, 8000)
+ 
+ private data class ResolvedAudioConfig(
+@@ -41,6 +47,8 @@ class AudioStream(
+   private var audioRecord: AudioRecord? = null
+   private var captureJob: Job? = null
+   private val coroutineScope = CoroutineScope(Dispatchers.IO)
++  private val writeLock = Any()
++  private var wavWriter: WavStreamWriter? = null
+ 
+   var sampleRate: Int = 0
+     private set
+@@ -48,8 +56,28 @@ class AudioStream(
+     private set
+   var isStreaming: Boolean = false
+     private set
++  var isPaused: Boolean = false
++    private set
++
++  val supportsNativeWrite: Boolean = true
++
++  val outputUri: String?
++    get() = wavWriter?.uri ?: options.outputUri
++
++  val writtenPcmBytes: Long
++    get() = synchronized(writeLock) { wavWriter?.writtenPcmBytes ?: 0L }
++
++  val durationMillis: Long
++    get() = synchronized(writeLock) {
++      wavWriter?.durationMillis(sampleRate, channels) ?: 0L
++    }
++
++  var lastMeteringDb: Double = -160.0
++    private set
+ 
+   private var startTimeNanos: Long = 0
++  private val nativeWrite = options.nativeWrite && !options.outputUri.isNullOrEmpty()
++  private val emitBuffersToJs = options.emitBuffersToJs
+ 
+   @RequiresPermission(Manifest.permission.RECORD_AUDIO)
+   fun start() {
+@@ -57,6 +85,13 @@ class AudioStream(
+       return
+     }
+ 
++    if (nativeWrite) {
++      synchronized(writeLock) {
++        wavWriter?.discard()
++        wavWriter = WavStreamWriter(options.outputUri!!)
++      }
++    }
++
+     val config = resolveAudioConfig()
+     val recorder = createAudioRecord(config)
+ 
+@@ -64,6 +99,10 @@ class AudioStream(
+       recorder.startRecording()
+     } catch (e: IllegalStateException) {
+       recorder.release()
++      synchronized(writeLock) {
++        wavWriter?.discard()
++        wavWriter = null
++      }
+       throw AudioStreamInitializationException(
+         "Failed to start the audio stream. The microphone is likely held by another app or by the system"
+       )
+@@ -73,20 +112,63 @@ class AudioStream(
+     channels = config.channelCount
+     audioRecord = recorder
+     startTimeNanos = System.nanoTime()
++    isPaused = false
++    lastMeteringDb = -160.0
+     isStreaming = true
+     emitStatus()
+ 
+     startCaptureLoop(recorder, config)
+   }
+ 
++  fun pause() {
++    if (!isStreaming || isPaused) {
++      return
++    }
++    isPaused = true
++  }
++
++  fun resume() {
++    if (!isStreaming || !isPaused) {
++      return
++    }
++    isPaused = false
++  }
++
+   fun stop() {
+-    if (!isStreaming) return
++    if (!isStreaming) {
++      return
++    }
+     isStreaming = false
++    isPaused = false
+     captureJob?.cancel()
+     captureJob = null
+     audioRecord?.stop()
+     audioRecord?.release()
+     audioRecord = null
++    synchronized(writeLock) {
++      wavWriter?.finalize(sampleRate, channels)
++    }
++    emitStatus()
++  }
++
++  fun abort() {
++    isStreaming = false
++    isPaused = false
++    captureJob?.cancel()
++    captureJob = null
++    try {
++      audioRecord?.stop()
++    } catch (_: Exception) {
++    }
++    try {
++      audioRecord?.release()
++    } catch (_: Exception) {
++    }
++    audioRecord = null
++    synchronized(writeLock) {
++      wavWriter?.discard()
++      wavWriter = null
++    }
+     emitStatus()
+   }
+ 
+@@ -163,7 +245,7 @@ class AudioStream(
+       val readSizeBytes = config.readSize
+ 
+       while (isActive && isStreaming) {
+-        readAndEmit(recorder, readSizeBytes, config.channelCount, config.sampleRate)
++        readAndEmit(recorder, readSizeBytes, config.channelCount, config.sampleRate, config.bytesPerSample)
+       }
+     }
+   }
+@@ -172,16 +254,94 @@ class AudioStream(
+     recorder: AudioRecord,
+     readSizeBytes: Int,
+     channels: Int,
+-    sampleRate: Int
++    sampleRate: Int,
++    bytesPerSample: Int
+   ) {
+     val byteBuffer = ByteBuffer.allocateDirect(readSizeBytes).order(ByteOrder.nativeOrder())
+     val bytesRead = recorder.read(byteBuffer, readSizeBytes, AudioRecord.READ_BLOCKING)
+-    if (bytesRead > 0) {
+-      byteBuffer.limit(bytesRead)
++    if (bytesRead <= 0 || !isStreaming) {
++      return
++    }
++
++    byteBuffer.limit(bytesRead)
++    byteBuffer.position(0)
++
++    if (nativeWrite && !isPaused) {
++      val pcm = toLittleEndianInt16(byteBuffer, bytesRead, bytesPerSample)
++      lastMeteringDb = dbFromPeak(peakLevelFromInt16(pcm))
++      synchronized(writeLock) {
++        if (isStreaming && !isPaused) {
++          wavWriter?.append(pcm)
++        }
++      }
++      emitTickEvent()
++    }
++
++    if (emitBuffersToJs) {
++      byteBuffer.position(0)
+       emitBufferEvent(NativeArrayBuffer(byteBuffer), channels, sampleRate)
+     }
+   }
+ 
++  private fun toLittleEndianInt16(buffer: ByteBuffer, bytesRead: Int, bytesPerSample: Int): ByteArray {
++    buffer.position(0)
++    if (bytesPerSample == 2) {
++      val bytes = ByteArray(bytesRead)
++      buffer.get(bytes)
++      if (buffer.order() == ByteOrder.LITTLE_ENDIAN) {
++        return bytes
++      }
++      var index = 0
++      while (index + 1 < bytes.size) {
++        val lo = bytes[index]
++        bytes[index] = bytes[index + 1]
++        bytes[index + 1] = lo
++        index += 2
++      }
++      return bytes
++    }
++
++    val sampleCount = bytesRead / 4
++    val out = ByteArray(sampleCount * 2)
++    val floats = buffer.order(ByteOrder.nativeOrder()).asFloatBuffer()
++    val le = ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN)
++    for (index in 0 until sampleCount) {
++      var value = (floats.get(index) * 32768f).toInt()
++      if (value > 32767) {
++        value = 32767
++      } else if (value < -32768) {
++        value = -32768
++      }
++      le.clear()
++      le.putShort(value.toShort())
++      out[index * 2] = le.get(0)
++      out[index * 2 + 1] = le.get(1)
++    }
++    return out
++  }
++
++  private fun peakLevelFromInt16(pcm: ByteArray): Double {
++    if (pcm.size < 2) {
++      return 0.0
++    }
++    var peak = 0
++    var index = 0
++    while (index + 1 < pcm.size) {
++      val sample = (pcm[index].toInt() and 0xFF) or (pcm[index + 1].toInt() shl 8)
++      val signed = sample.toShort().toInt()
++      peak = max(peak, abs(signed))
++      index += 2 * METERING_STRIDE
++    }
++    return min(1.0, peak / 32768.0)
++  }
++
++  private fun dbFromPeak(peak01: Double): Double {
++    if (peak01 <= 0.00001) {
++      return -160.0
++    }
++    return max(-160.0, min(0.0, 20.0 * log10(peak01)))
++  }
++
+   private fun emitStatus() {
+     appContext?.mainQueue?.launch {
+       emit(
+@@ -191,6 +351,22 @@ class AudioStream(
+     }
+   }
+ 
++  private fun emitTickEvent() {
++    val duration = durationMillis
++    val metering = lastMeteringDb
++    appContext?.mainQueue?.launch {
++      emit(
++        AUDIO_STREAM_TICK,
++        mapOf(
++          "durationMillis" to duration,
++          "meteringDb" to metering,
++          "sampleRate" to sampleRate,
++          "channels" to channels
++        )
++      )
++    }
++  }
++
+   private fun emitBufferEvent(data: NativeArrayBuffer, channels: Int, sampleRate: Int) {
+     val timestamp = (System.nanoTime() - startTimeNanos) / 1_000_000_000.0
+ 
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/WavStreamWriter.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/WavStreamWriter.kt
+new file mode 100644
+index 0000000..f1591e1
+--- /dev/null
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/WavStreamWriter.kt
+@@ -0,0 +1,110 @@
++package expo.modules.audio
++
++import java.io.File
++import java.io.RandomAccessFile
++import java.net.URLDecoder
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++
++/**
++ * Streaming 16-bit PCM WAV writer. Matches the JS `createWavHeader` layout so
++ * Superpowered / FFmpeg keep seeing the same file shape.
++ */
++internal class WavStreamWriter(uri: String) {
++  val uri: String = uri
++
++  private val file: File = File(pathFromUri(uri))
++  private val raf: RandomAccessFile
++  private var pcmBytes: Long = 0
++  private var closed = false
++
++  val writtenPcmBytes: Long
++    get() = pcmBytes
++
++  init {
++    file.parentFile?.mkdirs()
++    if (file.exists()) {
++      file.delete()
++    }
++    file.createNewFile()
++    raf = RandomAccessFile(file, "rw")
++    raf.write(createHeader(0, 48_000, 1))
++  }
++
++  fun append(pcm: ByteArray) {
++    if (closed || pcm.isEmpty()) {
++      return
++    }
++    raf.write(pcm)
++    pcmBytes += pcm.size
++  }
++
++  fun finalize(sampleRate: Int, channels: Int) {
++    if (closed) {
++      return
++    }
++    closed = true
++    raf.seek(0)
++    raf.write(createHeader(pcmBytes.toInt(), sampleRate, channels.coerceAtLeast(1)))
++    raf.close()
++  }
++
++  fun discard() {
++    if (!closed) {
++      closed = true
++      try {
++        raf.close()
++      } catch (_: Exception) {
++      }
++    }
++    pcmBytes = 0
++    if (file.exists()) {
++      file.delete()
++    }
++  }
++
++  fun durationMillis(sampleRate: Int, channels: Int): Long {
++    val bytesPerFrame = channels.coerceAtLeast(1) * 2
++    val rate = if (sampleRate > 0) sampleRate else 48_000
++    return Math.round((pcmBytes.toDouble() / bytesPerFrame / rate) * 1000.0)
++  }
++
++  companion object {
++    private const val HEADER_SIZE = 44
++    private const val BITS_PER_SAMPLE = 16
++
++    fun pathFromUri(uri: String): String {
++      if (uri.startsWith("file://")) {
++        return URLDecoder.decode(uri.substring("file://".length), "UTF-8")
++      }
++      return uri
++    }
++
++    fun createHeader(dataSize: Int, sampleRate: Int, channels: Int): ByteArray {
++      val blockAlign = (channels * BITS_PER_SAMPLE) / 8
++      val byteRate = sampleRate * blockAlign
++      val buffer = ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN)
++
++      fun ascii(value: String) {
++        for (index in value.indices) {
++          buffer.put(value[index].code.toByte())
++        }
++      }
++
++      ascii("RIFF")
++      buffer.putInt(36 + dataSize)
++      ascii("WAVE")
++      ascii("fmt ")
++      buffer.putInt(16)
++      buffer.putShort(1)
++      buffer.putShort(channels.toShort())
++      buffer.putInt(sampleRate)
++      buffer.putInt(byteRate)
++      buffer.putShort(blockAlign.toShort())
++      buffer.putShort(BITS_PER_SAMPLE.toShort())
++      ascii("data")
++      buffer.putInt(dataSize)
++      return buffer.array()
++    }
++  }
++}
+diff --git a/node_modules/expo-audio/ios/AudioModule.swift b/node_modules/expo-audio/ios/AudioModule.swift
+index 12d7de0..87cd5c1 100644
+--- a/node_modules/expo-audio/ios/AudioModule.swift
++++ b/node_modules/expo-audio/ios/AudioModule.swift
+@@ -523,14 +523,50 @@ public class AudioModule: Module {
+         stream.isStreaming
+       }
+ 
++      Property("isPaused") { (stream: AudioStream) in
++        stream.isPaused
++      }
++
++      Property("supportsNativeWrite") { (stream: AudioStream) in
++        stream.supportsNativeWrite
++      }
++
++      Property("outputUri") { (stream: AudioStream) in
++        stream.outputUri
++      }
++
++      Property("writtenPcmBytes") { (stream: AudioStream) in
++        stream.writtenPcmBytes
++      }
++
++      Property("durationMillis") { (stream: AudioStream) in
++        stream.durationMillis
++      }
++
++      Property("lastMeteringDb") { (stream: AudioStream) in
++        stream.lastMeteringDb
++      }
++
+       AsyncFunction("start") { (stream: AudioStream) in
+         try checkPermissions()
+         try stream.start()
+       }
+ 
++      Function("pause") { (stream: AudioStream) in
++        stream.pause()
++      }
++
++      Function("resume") { (stream: AudioStream) in
++        stream.resume()
++      }
++
+       Function("stop") { (stream: AudioStream) in
+         stream.stop()
+       }
++
++      Function("abort") { (stream: AudioStream) in
++        stream.abort()
++      }
+     }
+     #endif
+   }
+diff --git a/node_modules/expo-audio/ios/AudioRecords.swift b/node_modules/expo-audio/ios/AudioRecords.swift
+index 33db27c..6a322e5 100644
+--- a/node_modules/expo-audio/ios/AudioRecords.swift
++++ b/node_modules/expo-audio/ios/AudioRecords.swift
+@@ -106,4 +106,7 @@ struct AudioStreamOptions: Record {
+   @Field var sampleRate: Double = 48000
+   @Field var channels: Int = 1
+   @Field var encoding: AudioStreamEncoding = .float32
++  @Field var outputUri: String?
++  @Field var nativeWrite: Bool = false
++  @Field var emitBuffersToJs: Bool = true
+ }
+diff --git a/node_modules/expo-audio/ios/AudioStream.swift b/node_modules/expo-audio/ios/AudioStream.swift
+index f938eff..d0058b6 100644
+--- a/node_modules/expo-audio/ios/AudioStream.swift
++++ b/node_modules/expo-audio/ios/AudioStream.swift
+@@ -3,32 +3,70 @@ import ExpoModulesCore
+ 
+ private let AUDIO_STREAM_BUFFER = "audioStreamBuffer"
+ private let AUDIO_STREAM_STATUS = "audioStreamStatus"
++private let AUDIO_STREAM_TICK = "audioStreamTick"
++private let METERING_STRIDE = 32
+ 
+ class AudioStream: SharedObject {
+   let id = UUID().uuidString
++  let supportsNativeWrite = true
+ 
+   private let requestedSampleRate: Double
+   private let requestedChannels: Int
+   private let encoding: AudioStreamEncoding
++  private let nativeWrite: Bool
++  private let emitBuffersToJs: Bool
++  private let outputUriOption: String?
+ 
+   private var audioEngine: AVAudioEngine?
+   private var converter: AVAudioConverter?
++  private var wavWriter: WavStreamWriter?
++  private let writeLock = NSLock()
+ 
+   private(set) var sampleRate: Double = 0
+   private(set) var channels: Int = 0
+   private(set) var isStreaming: Bool = false
++  private(set) var isPaused: Bool = false
++  private(set) var lastMeteringDb: Double = -160
+   private var startTimestamp: AVAudioTime?
+ 
++  var outputUri: String? {
++    writeLock.lock()
++    defer { writeLock.unlock() }
++    return wavWriter?.uri ?? outputUriOption
++  }
++
++  var writtenPcmBytes: Double {
++    writeLock.lock()
++    defer { writeLock.unlock() }
++    return Double(wavWriter?.writtenPcmBytes ?? 0)
++  }
++
++  var durationMillis: Double {
++    writeLock.lock()
++    defer { writeLock.unlock() }
++    return wavWriter?.durationMillis(sampleRate: Int(sampleRate), channels: channels) ?? 0
++  }
++
+   init(options: AudioStreamOptions) {
+     self.requestedSampleRate = options.sampleRate
+     self.requestedChannels = options.channels
+     self.encoding = options.encoding
++    self.outputUriOption = options.outputUri
++    self.nativeWrite = options.nativeWrite && !(options.outputUri ?? "").isEmpty
++    self.emitBuffersToJs = options.emitBuffersToJs
+     super.init()
+   }
+ 
+   func start() throws {
+     guard !isStreaming else { return }
+ 
++    if nativeWrite, let outputUriOption {
++      writeLock.lock()
++      wavWriter?.discard()
++      wavWriter = try WavStreamWriter(uri: outputUriOption)
++      writeLock.unlock()
++    }
++
+     let session = AVAudioSession.sharedInstance()
+     try session.setCategory(.record, mode: .measurement)
+     try session.setPreferredSampleRate(requestedSampleRate)
+@@ -49,6 +87,10 @@ class AudioStream: SharedObject {
+       channels: targetChannels,
+       interleaved: true
+     ) else {
++      writeLock.lock()
++      wavWriter?.discard()
++      wavWriter = nil
++      writeLock.unlock()
+       throw AudioStreamException(
+         "The audio format (\(Int(targetSampleRate)) Hz, \(Int(targetChannels)) ch, \(encoding.rawValue)) is not supported by this device. "
+         + "Try a different sample rate (48000, 44100, or 16000) or reduce the channel count to 1."
+@@ -66,6 +108,8 @@ class AudioStream: SharedObject {
+         setupTapWithoutConversion(engine: engine, inputNode: inputNode, format: hardwareFormat)
+         self.audioEngine = engine
+         try engine.start()
++        isPaused = false
++        lastMeteringDb = -160
+         isStreaming = true
+         emitStatus()
+         return
+@@ -95,23 +139,55 @@ class AudioStream: SharedObject {
+ 
+     self.audioEngine = engine
+     try engine.start()
++    isPaused = false
++    lastMeteringDb = -160
+     isStreaming = true
+     emitStatus()
+   }
+ 
++  func pause() {
++    guard isStreaming, !isPaused else { return }
++    isPaused = true
++  }
++
++  func resume() {
++    guard isStreaming, isPaused else { return }
++    isPaused = false
++  }
++
+   func stop() {
+     guard isStreaming else { return }
++    isStreaming = false
++    isPaused = false
+     audioEngine?.inputNode.removeTap(onBus: 0)
+     audioEngine?.stop()
+     audioEngine = nil
+     converter = nil
+-    isStreaming = false
+     startTimestamp = nil
++    writeLock.lock()
++    wavWriter?.finalize(sampleRate: Int(sampleRate), channels: channels)
++    writeLock.unlock()
+     emitStatus()
+ 
+     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+   }
+ 
++  func abort() {
++    isStreaming = false
++    isPaused = false
++    audioEngine?.inputNode.removeTap(onBus: 0)
++    audioEngine?.stop()
++    audioEngine = nil
++    converter = nil
++    startTimestamp = nil
++    writeLock.lock()
++    wavWriter?.discard()
++    wavWriter = nil
++    writeLock.unlock()
++    emitStatus()
++    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
++  }
++
+   private func setupTapWithoutConversion(engine: AVAudioEngine, inputNode: AVAudioInputNode, format: AVAudioFormat) {
+     let bufferSize = AVAudioFrameCount(format.sampleRate * 0.1)
+     inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: format) {
+@@ -160,10 +236,31 @@ class AudioStream: SharedObject {
+     ])
+   }
+ 
++  private func emitTick() {
++    emit(event: AUDIO_STREAM_TICK, payload: [
++      "durationMillis": durationMillis,
++      "meteringDb": lastMeteringDb,
++      "sampleRate": sampleRate,
++      "channels": channels
++    ])
++  }
++
+   private func emitBuffer(buffer: AVAudioPCMBuffer, when: AVAudioTime) {
+     let frameLength = Int(buffer.frameLength)
+     guard frameLength > 0 else { return }
+ 
++    if nativeWrite && isStreaming && !isPaused, let pcm = int16Data(from: buffer) {
++      lastMeteringDb = dbFromPeak(peakLevelFromInt16(pcm))
++      writeLock.lock()
++      if isStreaming && !isPaused {
++        wavWriter?.append(pcm)
++      }
++      writeLock.unlock()
++      emitTick()
++    }
++
++    guard emitBuffersToJs else { return }
++
+     let timestamp = timestampSinceStart(when)
+     let channelCount = Int(buffer.format.channelCount)
+     let data: NativeArrayBuffer
+@@ -188,6 +285,58 @@ class AudioStream: SharedObject {
+     ])
+   }
+ 
++  private func int16Data(from buffer: AVAudioPCMBuffer) -> Data? {
++    let frameLength = Int(buffer.frameLength)
++    let channelCount = Int(buffer.format.channelCount)
++    guard frameLength > 0 else { return nil }
++
++    if encoding == .int16, let int16Ptr = buffer.int16ChannelData {
++      let sampleCount = frameLength * channelCount
++      return Data(bytes: int16Ptr[0], count: sampleCount * MemoryLayout<Int16>.size)
++    }
++
++    if let floatPtr = buffer.floatChannelData {
++      let sampleCount = frameLength * channelCount
++      var out = Data(count: sampleCount * 2)
++      out.withUnsafeMutableBytes { raw in
++        let dest = raw.bindMemory(to: Int16.self)
++        for index in 0..<sampleCount {
++          var value = Int(floatPtr[0][index] * 32768)
++          if value > 32767 {
++            value = 32767
++          } else if value < -32768 {
++            value = -32768
++          }
++          dest[index] = Int16(value)
++        }
++      }
++      return out
++    }
++
++    return nil
++  }
++
++  private func peakLevelFromInt16(_ pcm: Data) -> Double {
++    if pcm.count < 2 { return 0 }
++    var peak = 0
++    pcm.withUnsafeBytes { raw in
++      let samples = raw.bindMemory(to: Int16.self)
++      var index = 0
++      while index < samples.count {
++        peak = max(peak, abs(Int(samples[index])))
++        index += METERING_STRIDE
++      }
++    }
++    return min(1, Double(peak) / 32768.0)
++  }
++
++  private func dbFromPeak(_ peak01: Double) -> Double {
++    if peak01 <= 0.00001 {
++      return -160
++    }
++    return max(-160, min(0, 20 * log10(peak01)))
++  }
++
+   private func timestampSinceStart(_ when: AVAudioTime) -> Double {
+     guard let startTimestamp else { return 0 }
+     let hostTimeDiff = when.hostTime - startTimestamp.hostTime
+diff --git a/node_modules/expo-audio/ios/WavStreamWriter.swift b/node_modules/expo-audio/ios/WavStreamWriter.swift
+new file mode 100644
+index 0000000..63553f5
+--- /dev/null
++++ b/node_modules/expo-audio/ios/WavStreamWriter.swift
+@@ -0,0 +1,123 @@
++import Foundation
++
++/// Streaming 16-bit PCM WAV writer. Matches the JS `createWavHeader` layout.
++final class WavStreamWriter {
++  let uri: String
++
++  private let url: URL
++  private var handle: FileHandle?
++  private var pcmBytes: Int = 0
++  private var closed = false
++
++  var writtenPcmBytes: Int { pcmBytes }
++
++  init(uri: String) throws {
++    self.uri = uri
++    self.url = Self.urlFrom(uri: uri)
++
++    let directory = url.deletingLastPathComponent()
++    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
++
++    if FileManager.default.fileExists(atPath: url.path) {
++      try FileManager.default.removeItem(at: url)
++    }
++
++    FileManager.default.createFile(atPath: url.path, contents: nil)
++    let handle = try FileHandle(forWritingTo: url)
++    try handle.write(contentsOf: Self.createHeader(dataSize: 0, sampleRate: 48_000, channels: 1))
++    self.handle = handle
++  }
++
++  func append(_ pcm: Data) {
++    guard !closed, !pcm.isEmpty, let handle else { return }
++    do {
++      try handle.write(contentsOf: pcm)
++      pcmBytes += pcm.count
++    } catch {
++      // Keep capturing; JS abort/stop will close the handle.
++    }
++  }
++
++  func finalize(sampleRate: Int, channels: Int) {
++    guard !closed else { return }
++    closed = true
++    guard let handle else { return }
++    do {
++      try handle.seek(toOffset: 0)
++      try handle.write(contentsOf: Self.createHeader(
++        dataSize: pcmBytes,
++        sampleRate: sampleRate,
++        channels: max(channels, 1)
++      ))
++      try handle.close()
++    } catch {
++      try? handle.close()
++    }
++    self.handle = nil
++  }
++
++  func discard() {
++    if !closed {
++      closed = true
++      try? handle?.close()
++      handle = nil
++    }
++    pcmBytes = 0
++    try? FileManager.default.removeItem(at: url)
++  }
++
++  func durationMillis(sampleRate: Int, channels: Int) -> Double {
++    let bytesPerFrame = Double(max(channels, 1) * 2)
++    let rate = sampleRate > 0 ? Double(sampleRate) : 48_000
++    return (Double(pcmBytes) / bytesPerFrame / rate) * 1000.0
++  }
++
++  private static func urlFrom(uri: String) -> URL {
++    if let parsed = URL(string: uri), parsed.isFileURL {
++      return parsed
++    }
++    return URL(fileURLWithPath: uri)
++  }
++
++  private static func createHeader(dataSize: Int, sampleRate: Int, channels: Int) -> Data {
++    let bitsPerSample = 16
++    let blockAlign = (channels * bitsPerSample) / 8
++    let byteRate = sampleRate * blockAlign
++    var data = Data(count: 44)
++
++    func ascii(_ offset: Int, _ value: String) {
++      for (index, scalar) in value.utf8.enumerated() {
++        data[offset + index] = scalar
++      }
++    }
++
++    func le32(_ offset: Int, _ value: Int) {
++      var le = UInt32(truncatingIfNeeded: value).littleEndian
++      Swift.withUnsafeBytes(of: &le) { bytes in
++        data.replaceSubrange(offset..<(offset + 4), with: bytes)
++      }
++    }
++
++    func le16(_ offset: Int, _ value: Int) {
++      var le = UInt16(truncatingIfNeeded: value).littleEndian
++      Swift.withUnsafeBytes(of: &le) { bytes in
++        data.replaceSubrange(offset..<(offset + 2), with: bytes)
++      }
++    }
++
++    ascii(0, "RIFF")
++    le32(4, 36 + dataSize)
++    ascii(8, "WAVE")
++    ascii(12, "fmt ")
++    le32(16, 16)
++    le16(20, 1)
++    le16(22, channels)
++    le32(24, sampleRate)
++    le32(28, byteRate)
++    le16(32, blockAlign)
++    le16(34, bitsPerSample)
++    ascii(36, "data")
++    le32(40, dataSize)
++    return data
++  }
++}

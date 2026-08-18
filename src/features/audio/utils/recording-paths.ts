@@ -134,6 +134,8 @@ export function getPendingSourceUri(pendingId: string): string {
 }
 
 const PROCESSED_FOLDER = '_processed';
+const PROJECT_FILE = 'project.json';
+const MIXDOWN_FILE = 'mixdown.wav';
 
 export function getProcessedDirectory(): string {
   return `${getPendingDirectory()}${PROCESSED_FOLDER}/`;
@@ -141,4 +143,60 @@ export function getProcessedDirectory(): string {
 
 export function getProcessedRecordingUri(effectId: string, fileId: string): string {
   return `${getProcessedDirectory()}${fileId}-${effectId}.wav`;
+}
+
+export function getRecordingProjectFileUri(id: string): string {
+  return `${getRecordingDirectory(id)}${PROJECT_FILE}`;
+}
+
+export function getRecordingProjectRelativePath(id: string): string {
+  return `${RECORDINGS_FOLDER}/${id}/${PROJECT_FILE}`;
+}
+
+export function getRecordingMixdownFileUri(id: string): string {
+  return `${getRecordingDirectory(id)}${MIXDOWN_FILE}`;
+}
+
+export function getRecordingMixdownRelativePath(id: string): string {
+  return `${RECORDINGS_FOLDER}/${id}/${MIXDOWN_FILE}`;
+}
+
+export function getLayerDirectory(recordingId: string, layerId: string): string {
+  return `${getRecordingDirectory(recordingId)}layers/${layerId}/`;
+}
+
+export function getLayerStemFileUri(recordingId: string, layerId: string): string {
+  return `${getLayerDirectory(recordingId, layerId)}stem.wav`;
+}
+
+export function getLayerBaselineFileUri(recordingId: string, layerId: string): string {
+  return `${getLayerDirectory(recordingId, layerId)}baseline.wav`;
+}
+
+export function getLayerSourceFileUri(recordingId: string, layerId: string): string {
+  return `${getLayerDirectory(recordingId, layerId)}source.wav`;
+}
+
+export function getLayerStemRelativePath(recordingId: string, layerId: string): string {
+  return `${RECORDINGS_FOLDER}/${recordingId}/layers/${layerId}/stem.wav`;
+}
+
+export function getLayerBaselineRelativePath(recordingId: string, layerId: string): string {
+  return `${RECORDINGS_FOLDER}/${recordingId}/layers/${layerId}/baseline.wav`;
+}
+
+export function getLayerSourceRelativePath(recordingId: string, layerId: string): string {
+  return `${RECORDINGS_FOLDER}/${recordingId}/layers/${layerId}/source.wav`;
+}
+
+export function getPendingProjectMixdownUri(pendingId: string): string {
+  return `${getPendingDirectory()}mix-${pendingId}.wav`;
+}
+
+export function resolveDocumentRelativeUri(relativePath: string | null | undefined): string | null {
+  if (!relativePath || !documentDirectory) {
+    return null;
+  }
+
+  return `${documentDirectory}${relativePath}`;
 }

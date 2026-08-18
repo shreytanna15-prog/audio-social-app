@@ -12,6 +12,8 @@ export type AudioRecording = {
   baselinePath?: string;
   /** Full chip selection persisted on save. */
   editChain?: StoredEditChain;
+  /** Multi-layer studio metadata. Absent on legacy single-take recordings. */
+  projectPath?: string;
   /** @deprecated Legacy prototype effect metadata — use editChain. */
   appliedEffects?: AppliedEffect[];
   createdAt: string;

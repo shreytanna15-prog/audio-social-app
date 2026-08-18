@@ -5,12 +5,9 @@ import { documentDirectory } from 'expo-file-system/legacy';
 import { stageAudioForPreview, type StageAudioResult } from '@/features/audio/data/recording-repository';
 import { transcodeToMono48kWav } from '@/features/audio/services/ffmpeg.service';
 import { toFileUri } from '@/features/audio/utils/ffmpeg-path';
+import { durationSecondsFromMono48kWav } from '@/features/audio/utils/wav-duration';
 
 const ACCEPTED_EXTENSIONS = ['.wav', '.m4a', '.mp3', '.aac', '.aiff', '.aif', '.caf', '.mp4'];
-const WAV_SAMPLE_RATE = 48_000;
-const WAV_BYTES_PER_SAMPLE = 2;
-const WAV_CHANNELS = 1;
-const WAV_HEADER_BYTES = 44;
 
 function createImportTempWavUri(): string {
   if (!documentDirectory) {
@@ -34,26 +31,16 @@ function isAcceptedAudio(name: string, mimeType?: string | null): boolean {
   return Boolean(mimeType && mimeType.startsWith('audio/'));
 }
 
-function durationSecondsFromMono48kWav(uri: string): number {
-  const file = new File(uri);
-  if (!file.exists) {
-    return 0;
-  }
-
-  const size = file.size;
-  if (!Number.isFinite(size) || size <= WAV_HEADER_BYTES) {
-    return 0;
-  }
-
-  const pcmBytes = size - WAV_HEADER_BYTES;
-  const frameBytes = WAV_SAMPLE_RATE * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE;
-  return Math.max(0, pcmBytes / frameBytes);
-}
+export type PickedAudio = {
+  uri: string;
+  name: string;
+};
 
 /**
- * Pick an audio file, normalize to mono 48 kHz WAV, soft-gate into pending.
+ * Opens the file picker only. Split from `prepareImportedAudio` so callers can
+ * show progress for the decode without flashing a spinner behind the picker.
  */
-export async function importAudioForPreview(): Promise<StageAudioResult | null> {
+export async function pickAudioFile(): Promise<PickedAudio | null> {
   const result = await DocumentPicker.getDocumentAsync({
     type: 'audio/*',
     copyToCacheDirectory: true,
@@ -69,10 +56,15 @@ export async function importAudioForPreview(): Promise<StageAudioResult | null> 
     throw new Error('Please choose a WAV, M4A, MP3, or AAC audio file.');
   }
 
-  const tempWavUri = createImportTempWavUri();
-  console.warn(`[Import] picked name=${asset.name} uri=${asset.uri}`);
+  return { uri: asset.uri, name: asset.name ?? 'Audio' };
+}
 
-  await transcodeToMono48kWav(asset.uri, tempWavUri);
+/** Normalize a picked file to mono 48 kHz WAV, then soft-gate it into pending. */
+export async function prepareImportedAudio(
+  sourceUri: string,
+): Promise<StageAudioResult> {
+  const tempWavUri = createImportTempWavUri();
+  await transcodeToMono48kWav(sourceUri, tempWavUri);
 
   const durationSeconds = durationSecondsFromMono48kWav(tempWavUri);
   const staged = await stageAudioForPreview(tempWavUri, durationSeconds);
@@ -87,4 +79,15 @@ export async function importAudioForPreview(): Promise<StageAudioResult | null> 
   }
 
   return staged;
+}
+
+/** Pick an audio file, normalize to mono 48 kHz WAV, soft-gate into pending. */
+export async function importAudioForPreview(): Promise<StageAudioResult | null> {
+  const picked = await pickAudioFile();
+
+  if (!picked) {
+    return null;
+  }
+
+  return prepareImportedAudio(picked.uri);
 }

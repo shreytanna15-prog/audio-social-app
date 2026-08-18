@@ -6,6 +6,7 @@ import { useTheme } from '@/core/theme/use-theme';
 type IconButtonProps = {
   icon: SymbolViewProps['name'];
   onPress?: () => void;
+  onPressIn?: () => void;
   size?: number;
   color?: string;
   variant?: 'default' | 'primary' | 'danger';
@@ -16,6 +17,7 @@ type IconButtonProps = {
 export function IconButton({
   icon,
   onPress,
+  onPressIn,
   size = 22,
   color,
   variant = 'default',
@@ -28,6 +30,7 @@ export function IconButton({
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={onPressIn}
       disabled={disabled}
       style={({ pressed }) => [
         styles.base,

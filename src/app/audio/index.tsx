@@ -1,24 +1,87 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RecorderSection, RecordingOptimizeOverlay, RecordingsList } from '@/features/audio/components';
-import { useAudioRecorderBinding } from '@/features/audio/hooks/use-audio-recorder-binding';
-import { useOpenEditorOnPreview } from '@/features/audio/hooks/use-open-editor-on-preview';
-import { useAudioSessionStore } from '@/features/audio/store';
+import { RecordingsList } from '@/features/audio/components';
+import { StudioEntryToolbar } from '@/features/audio/components/studio/studio-entry-toolbar';
+import { RecordingOptimizeOverlay } from '@/features/audio/components/recording-optimize-overlay';
+import {
+  pickAudioFile,
+  prepareImportedAudio,
+} from '@/features/audio/services/audio-import.service';
+import { afterNextPaint } from '@/features/audio/utils/next-paint';
 
 export default function AudioScreen() {
   const insets = useSafeAreaInsets();
-  const isOptimizing = useAudioSessionStore((state) => state.status === 'optimizing');
-  useAudioRecorderBinding();
-  useOpenEditorOnPreview();
+  const router = useRouter();
+  const [isImporting, setIsImporting] = useState(false);
+
+  const openQuickRecord = useCallback(() => {
+    router.push({
+      pathname: '/audio/recording/[id]',
+      params: { id: 'new' },
+    });
+  }, [router]);
+
+  const openImport = useCallback(async () => {
+    if (isImporting) {
+      return;
+    }
+
+    try {
+      const picked = await pickAudioFile();
+      if (!picked) {
+        return;
+      }
+
+      // Decoding and cleaning a full song takes seconds — show it before starting.
+      setIsImporting(true);
+      await afterNextPaint();
+
+      const staged = await prepareImportedAudio(picked.uri);
+
+      router.push({
+        pathname: '/audio/recording/[id]',
+        params: {
+          id: 'new',
+          uri: staged.pendingUri,
+          duration: String(staged.durationSeconds),
+          sourcePreGateUri: staged.sourcePreGateUri,
+          kind: 'import',
+        },
+      });
+    } catch (error) {
+      Alert.alert(
+        'Import failed',
+        error instanceof Error ? error.message : 'Could not import that audio file.',
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  }, [isImporting, router]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <RecorderSection />
+        <View style={styles.header}>
+          <Text style={styles.heading}>Audio</Text>
+          <Text style={styles.subheading}>
+            Start a take or bring in a track, then layer it in the studio.
+          </Text>
+        </View>
+        <StudioEntryToolbar
+          disabled={isImporting}
+          onQuickRecord={openQuickRecord}
+          onImportAudio={() => void openImport()}
+        />
         <RecordingsList />
       </ScrollView>
-      <RecordingOptimizeOverlay visible={isOptimizing} />
+      <RecordingOptimizeOverlay
+        visible={isImporting}
+        title="Importing audio…"
+        detail="Decoding and cleaning the track. Long songs take a few seconds."
+      />
     </View>
   );
 }
@@ -29,7 +92,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   content: {
+    gap: 20,
     paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingTop: 28,
+    paddingBottom: 40,
+  },
+  header: {
+    gap: 6,
+  },
+  heading: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1D21',
+    letterSpacing: -0.4,
+  },
+  subheading: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#7A7F87',
   },
 });

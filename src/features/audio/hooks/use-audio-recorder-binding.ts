@@ -1,5 +1,5 @@
-import { useAudioRecorder, useAudioRecorderState } from 'expo-audio';
-import { useEffect } from 'react';
+import { useAudioRecorder } from 'expo-audio';
+import { useEffect, useRef } from 'react';
 
 import { RECORDING_OPTIONS, recorderService } from '@/features/audio/services/recorder.service';
 import { expoPcmCaptureService } from '@/features/audio/services/expo-pcm-capture.service';
@@ -9,11 +9,12 @@ const CAPTURE_TICK_MS = 100;
 
 export function useAudioRecorderBinding(): void {
   const audioRecorder = useAudioRecorder(RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(audioRecorder, CAPTURE_TICK_MS);
 
   const initialize = useAudioSessionStore((state) => state.initialize);
   const syncRecorderState = useAudioSessionStore((state) => state.syncRecorderState);
   const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
+  const hasActiveSessionRef = useRef(hasActiveSession);
+  hasActiveSessionRef.current = hasActiveSession;
 
   useEffect(() => {
     recorderService.bind(audioRecorder);
@@ -29,11 +30,14 @@ export function useAudioRecorderBinding(): void {
 
   useEffect(() => {
     if (!hasActiveSession) {
-      syncRecorderState(recorderState);
       return;
     }
 
     const interval = setInterval(() => {
+      if (!hasActiveSessionRef.current) {
+        return;
+      }
+
       const tick = expoPcmCaptureService.getTick();
       syncRecorderState({
         metering: tick.metering,
@@ -44,5 +48,5 @@ export function useAudioRecorderBinding(): void {
     return () => {
       clearInterval(interval);
     };
-  }, [hasActiveSession, recorderState, syncRecorderState]);
+  }, [hasActiveSession, syncRecorderState]);
 }

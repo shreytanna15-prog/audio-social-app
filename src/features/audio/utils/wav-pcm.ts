@@ -142,9 +142,36 @@ export type StreamingWavWriter = {
   getByteLength: () => number;
 };
 
+type OpenFileHandle = ReturnType<File['open']>;
+
+/** One disk write per ~2s of 48 kHz mono int16 instead of one per audio buffer. */
+const STAGE_BYTES = 192_000;
+
+/**
+ * Number of milliseconds of audio a PCM byte count represents.
+ *
+ * This is the only trustworthy duration for a take. Wall-clock timing counts the
+ * gap between the tap and the handler running, so whenever the JS thread falls
+ * behind the audio callbacks it reports a take longer than the file really is.
+ */
+export function durationMillisFromPcmBytes(
+  byteLength: number,
+  sampleRate: number,
+  channels: number,
+): number {
+  const bytesPerFrame = Math.max(1, channels) * 2;
+  const rate = sampleRate > 0 ? sampleRate : TARGET_SAMPLE_RATE;
+
+  return Math.round((byteLength / bytesPerFrame / rate) * 1000);
+}
+
 /**
  * Creates a WAV file with a placeholder header, then streams int16 PCM chunks.
  * Call finalize() to rewrite RIFF sizes with the actual PCM length.
+ *
+ * Buffers are copied into a staging block and only written when it fills. The
+ * audio callback runs on the JS thread dozens of times a second, so a write per
+ * buffer starved everything else queued there — including the stop tap.
  */
 export function createStreamingWavWriter(uri: string): StreamingWavWriter {
   const file = new File(uri);
@@ -162,23 +189,48 @@ export function createStreamingWavWriter(uri: string): StreamingWavWriter {
   // Placeholder header (sizes updated in finalize).
   file.write(createWavHeader(0, TARGET_SAMPLE_RATE, 1, 16));
 
-  let pcmByteLength = 0;
+  let handle: OpenFileHandle | null = file.open();
+  const stage = new Uint8Array(STAGE_BYTES);
+  let stageLength = 0;
+  let flushedBytes = 0;
   let closed = false;
+
+  const flush = (): void => {
+    if (!handle || stageLength === 0) {
+      return;
+    }
+
+    handle.offset = WAV_HEADER_SIZE + flushedBytes;
+    handle.writeBytes(stage.subarray(0, stageLength));
+    flushedBytes += stageLength;
+    stageLength = 0;
+  };
+
+  const releaseHandle = (): OpenFileHandle | null => {
+    const active = handle;
+    handle = null;
+    return active;
+  };
 
   return {
     uri,
     appendInt16Pcm(pcmBytes: Uint8Array) {
-      if (closed || pcmBytes.byteLength === 0) {
+      if (closed || !handle || pcmBytes.byteLength === 0) {
         return;
       }
 
-      const handle = file.open();
-      try {
-        handle.offset = WAV_HEADER_SIZE + pcmByteLength;
-        handle.writeBytes(pcmBytes);
-        pcmByteLength += pcmBytes.byteLength;
-      } finally {
-        handle.close();
+      // Copied rather than retained: the payload buffer belongs to the native
+      // event and must not outlive this callback.
+      let offset = 0;
+      while (offset < pcmBytes.byteLength) {
+        const take = Math.min(STAGE_BYTES - stageLength, pcmBytes.byteLength - offset);
+        stage.set(pcmBytes.subarray(offset, offset + take), stageLength);
+        stageLength += take;
+        offset += take;
+
+        if (stageLength === STAGE_BYTES) {
+          flush();
+        }
       }
     },
     finalize(sampleRate: number, channels: number) {
@@ -186,18 +238,32 @@ export function createStreamingWavWriter(uri: string): StreamingWavWriter {
         return;
       }
 
-      const header = createWavHeader(pcmByteLength, sampleRate, channels, 16);
-      const handle = file.open();
-      try {
-        handle.offset = 0;
-        handle.writeBytes(header);
-      } finally {
-        handle.close();
-      }
+      flush();
       closed = true;
+      const active = releaseHandle();
+
+      if (!active) {
+        return;
+      }
+
+      try {
+        active.offset = 0;
+        active.writeBytes(createWavHeader(flushedBytes, sampleRate, channels, 16));
+      } finally {
+        active.close();
+      }
     },
     discard() {
       closed = true;
+      stageLength = 0;
+      const active = releaseHandle();
+
+      try {
+        active?.close();
+      } catch {
+        // Handle may already be closed.
+      }
+
       try {
         if (file.exists) {
           file.delete();
@@ -207,13 +273,18 @@ export function createStreamingWavWriter(uri: string): StreamingWavWriter {
       }
     },
     getByteLength() {
-      return pcmByteLength;
+      return flushedBytes + stageLength;
     },
   };
 }
 
-/** Peak metering helper for int16 PCM (0..1). */
-export function peakLevelFromInt16Pcm(pcmBytes: Uint8Array): number {
+/**
+ * Peak metering helper for int16 PCM (0..1).
+ *
+ * `stride` skips samples. A meter bar is 20 px tall, so scanning every sample of
+ * every buffer is wasted work on the thread that also has to handle taps.
+ */
+export function peakLevelFromInt16Pcm(pcmBytes: Uint8Array, stride = 1): number {
   if (pcmBytes.byteLength < 2) {
     return 0;
   }
@@ -223,9 +294,10 @@ export function peakLevelFromInt16Pcm(pcmBytes: Uint8Array): number {
     pcmBytes.byteOffset,
     Math.floor(pcmBytes.byteLength / 2),
   );
+  const step = Math.max(1, Math.floor(stride));
   let peak = 0;
 
-  for (let index = 0; index < samples.length; index += 1) {
+  for (let index = 0; index < samples.length; index += step) {
     const abs = Math.abs(samples[index]);
     if (abs > peak) {
       peak = abs;

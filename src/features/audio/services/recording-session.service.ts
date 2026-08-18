@@ -2,15 +2,20 @@ import { Alert } from 'react-native';
 
 import {
   discardPreviewRecording,
-  stageAudioForPreview,
-  type StageAudioResult,
+  softCleanTake,
+  stageRawTake,
+  type StagedRawTake,
 } from '@/features/audio/data/recording-repository';
 import { expoPcmCaptureService } from '@/features/audio/services/expo-pcm-capture.service';
 import { recorderService } from '@/features/audio/services/recorder.service';
 
-export type FinalizeResult = StageAudioResult & {
+export type RawCapture = {
+  uri: string;
+  durationMillis: number;
+};
+
+export type StagedTake = StagedRawTake & {
   frozenDurationMillis: number;
-  stagedUri: string;
 };
 
 export const recordingSessionService = {
@@ -42,24 +47,49 @@ export const recordingSessionService = {
     await expoPcmCaptureService.start();
   },
 
-  async finalizeRecording(): Promise<FinalizeResult | null> {
+  /**
+   * Same-tick freeze. After this returns, no more PCM is appended, even if the
+   * native stream is still draining.
+   */
+  requestStop(): { durationMillis: number } {
+    return expoPcmCaptureService.requestStop();
+  },
+
+  /**
+   * Closes the native stream and writes the WAV header. Call after `requestStop`.
+   */
+  async stopCapture(): Promise<RawCapture | null> {
     try {
       const result = await expoPcmCaptureService.stop();
-      if (!result.uri) {
-        return null;
-      }
+      return result.uri ? result : null;
+    } catch (error) {
+      console.log('Error stopping capture:', error);
+      return null;
+    }
+  },
 
-      const durationSeconds = result.durationMillis / 1000;
-      const staged = await stageAudioForPreview(result.uri, durationSeconds);
+  /** Fast: copies the capture into the pending folder so it can be shown. */
+  async stageRaw(capture: RawCapture): Promise<StagedTake | null> {
+    try {
+      const staged = await stageRawTake(capture.uri, capture.durationMillis / 1000);
 
-      return {
-        ...staged,
-        frozenDurationMillis: result.durationMillis,
-        stagedUri: staged.pendingUri,
-      };
+      return { ...staged, frozenDurationMillis: capture.durationMillis };
     } catch (error) {
       console.log('Error staging preview recording:', error);
       Alert.alert('Error', 'Could not prepare recording for preview.');
+      return null;
+    }
+  },
+
+  /**
+   * Slow: soft gate over a staged take. Returns null when the gate is
+   * unavailable or fails, in which case the raw take stays as-is.
+   */
+  async softClean(rawUri: string): Promise<string | null> {
+    try {
+      return await softCleanTake(rawUri);
+    } catch (error) {
+      console.warn('[Optimize] background soft clean failed; keeping raw take.', error);
       return null;
     }
   },
@@ -83,5 +113,9 @@ export const recordingSessionService = {
 
   resume(): void {
     expoPcmCaptureService.resume();
+  },
+
+  getTick() {
+    return expoPcmCaptureService.getTick();
   },
 };

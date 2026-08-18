@@ -82,8 +82,7 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
 
     if (
       patch.timerSeconds === session.timerSeconds &&
-      patch.status === session.status &&
-      patch.meteringBars === session.meteringBars
+      patch.status === session.status
     ) {
       return;
     }
@@ -163,30 +162,48 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
       return;
     }
 
+    const { durationMillis } = recordingSessionService.requestStop();
+
     set({
       hasActiveSession: false,
       isPaused: false,
       status: 'optimizing',
+      frozenDurationMillis: durationMillis,
+      timerSeconds: Math.floor(durationMillis / 1000),
     });
 
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
+    const capture = await recordingSessionService.stopCapture();
 
-    const result = await recordingSessionService.finalizeRecording();
-
-    if (result) {
-      set({
-        previewUri: result.stagedUri,
-        sourcePreGateUri: result.sourcePreGateUri,
-        frozenDurationMillis: result.frozenDurationMillis,
-        status: 'preview',
-        timerSeconds: Math.floor(result.frozenDurationMillis / 1000),
-      });
+    if (!capture) {
+      set(IDLE_RECORDING_STATE);
       return;
     }
 
-    set(IDLE_RECORDING_STATE);
+    if (capture.durationMillis <= 0) {
+      set(IDLE_RECORDING_STATE);
+      Alert.alert(
+        'Nothing recorded',
+        'No audio reached the recorder. Check microphone access and try again.',
+      );
+      return;
+    }
+
+    // Only the raw copy is awaited. The soft gate is the multi-second step and
+    // the studio runs it in the background once the take is already on screen.
+    const staged = await recordingSessionService.stageRaw(capture);
+
+    if (!staged) {
+      set(IDLE_RECORDING_STATE);
+      return;
+    }
+
+    set({
+      previewUri: staged.rawUri,
+      sourcePreGateUri: staged.rawUri,
+      frozenDurationMillis: staged.frozenDurationMillis,
+      status: 'preview',
+      timerSeconds: Math.floor(staged.frozenDurationMillis / 1000),
+    });
   },
 
   handlePauseResume: () => {

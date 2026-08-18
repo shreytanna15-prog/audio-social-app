@@ -5,6 +5,7 @@ import type { EventSubscription } from 'expo-modules-core';
 
 import {
   createStreamingWavWriter,
+  durationMillisFromPcmBytes,
   float32PcmToInt16Bytes,
   peakLevelFromFloat32Pcm,
   peakLevelFromInt16Pcm,
@@ -19,18 +20,30 @@ type CaptureTick = {
   metering: number;
 };
 
+type AudioStreamTick = {
+  durationMillis?: number;
+  meteringDb?: number;
+  sampleRate?: number;
+  channels?: number;
+};
+
 type AudioStreamInstance = {
   start: () => Promise<void>;
   stop: () => void;
+  pause?: () => void;
+  resume?: () => void;
+  abort?: () => void;
   sampleRate: number;
   channels: number;
+  supportsNativeWrite?: boolean;
+  outputUri?: string | null;
+  durationMillis?: number;
+  lastMeteringDb?: number;
   addListener: (
     event: string,
-    listener: (payload: {
-      data: ArrayBuffer;
-      sampleRate: number;
-      channels: number;
-      timestamp: number;
+    listener: (payload: AudioStreamTick & {
+      data?: ArrayBuffer;
+      timestamp?: number;
     }) => void,
   ) => EventSubscription;
 };
@@ -40,24 +53,30 @@ type AudioStreamModule = {
     sampleRate: number;
     channels: number;
     encoding: string;
+    outputUri?: string;
+    nativeWrite?: boolean;
+    emitBuffersToJs?: boolean;
   }) => AudioStreamInstance;
 };
 
 const TARGET_SAMPLE_RATE = 48_000;
 const TARGET_CHANNELS = 1;
 const ENCODING = 'int16' as const;
+/** Metering only drives a 20 px bar, so a coarse scan of each buffer is plenty. */
+const METERING_STRIDE = 32;
 
 let stream: AudioStreamInstance | null = null;
 let bufferSub: EventSubscription | null = null;
+let tickSub: EventSubscription | null = null;
 let writer: StreamingWavWriter | null = null;
-let startedAtMs = 0;
-let pausedAtMs = 0;
-let pausedTotalMs = 0;
+let captureUri: string | null = null;
+let nativeWriteActive = false;
 let isRecording = false;
 let isPaused = false;
 let lastMetering = -160;
 let actualSampleRate = TARGET_SAMPLE_RATE;
 let actualChannels = TARGET_CHANNELS;
+let capturedDurationMillis = 0;
 
 function dbFromPeak(peak01: number): number {
   if (peak01 <= 0.00001) {
@@ -84,6 +103,7 @@ function createCaptureWavUri(): string {
 
 function getAudioStreamModule(): AudioStreamModule {
   // Not re-exported from expo-audio root in 56.0.12; use the native module directly.
+  // Native WAV write lives in patches/expo-audio+56.0.12.patch (applied on postinstall).
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const AudioModule = require('expo-audio/build/AudioModule').default as AudioStreamModule;
 
@@ -96,37 +116,91 @@ function getAudioStreamModule(): AudioStreamModule {
   return AudioModule;
 }
 
+function supportsNativeWrite(instance: AudioStreamInstance): boolean {
+  return instance.supportsNativeWrite === true && typeof instance.pause === 'function';
+}
+
 function clearStreamListeners(): void {
   bufferSub?.remove();
   bufferSub = null;
+  tickSub?.remove();
+  tickSub = null;
 }
 
 function resetSessionState(): void {
   isRecording = false;
   isPaused = false;
-  startedAtMs = 0;
-  pausedAtMs = 0;
-  pausedTotalMs = 0;
   lastMetering = -160;
   actualSampleRate = TARGET_SAMPLE_RATE;
   actualChannels = TARGET_CHANNELS;
+  capturedDurationMillis = 0;
+  nativeWriteActive = false;
+  captureUri = null;
 }
 
-function elapsedMillis(): number {
-  if (!isRecording || startedAtMs <= 0) {
-    return 0;
+function deleteCaptureFile(uri: string | null): void {
+  if (!uri) {
+    return;
   }
 
-  const pausedExtra = isPaused && pausedAtMs > 0 ? Date.now() - pausedAtMs : 0;
-  return Math.max(0, Date.now() - startedAtMs - pausedTotalMs - pausedExtra);
+  try {
+    const file = new File(uri);
+    if (file.exists) {
+      file.delete();
+    }
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+/**
+ * Length of the take measured from the PCM actually written, which also makes
+ * pause bookkeeping unnecessary — a paused take simply stops accumulating bytes.
+ */
+function capturedMillis(): number {
+  if (nativeWriteActive && stream) {
+    const fromNative = Number(stream.durationMillis);
+    if (Number.isFinite(fromNative) && fromNative > 0) {
+      return fromNative;
+    }
+  }
+
+  if (!writer) {
+    return capturedDurationMillis;
+  }
+
+  return durationMillisFromPcmBytes(
+    writer.getByteLength(),
+    actualSampleRate,
+    actualChannels,
+  );
+}
+
+function handleTick(payload: AudioStreamTick): void {
+  if (!isRecording) {
+    return;
+  }
+
+  if (typeof payload.sampleRate === 'number' && payload.sampleRate > 0) {
+    actualSampleRate = payload.sampleRate;
+  }
+  if (typeof payload.channels === 'number' && payload.channels > 0) {
+    actualChannels = payload.channels;
+  }
+  if (typeof payload.durationMillis === 'number' && Number.isFinite(payload.durationMillis)) {
+    capturedDurationMillis = payload.durationMillis;
+  }
+  if (typeof payload.meteringDb === 'number' && Number.isFinite(payload.meteringDb)) {
+    lastMetering = payload.meteringDb;
+  }
 }
 
 function handleBuffer(payload: {
-  data: ArrayBuffer;
-  sampleRate: number;
-  channels: number;
+  data?: ArrayBuffer;
+  sampleRate?: number;
+  channels?: number;
 }): void {
-  if (!isRecording || isPaused || !writer) {
+  if (!isRecording || isPaused || !writer || !payload.data) {
     return;
   }
 
@@ -141,7 +215,7 @@ function handleBuffer(payload: {
 
   const peak =
     ENCODING === 'int16'
-      ? peakLevelFromInt16Pcm(pcmBytes)
+      ? peakLevelFromInt16Pcm(pcmBytes, METERING_STRIDE)
       : peakLevelFromFloat32Pcm(raw);
   lastMetering = dbFromPeak(peak);
 }
@@ -151,9 +225,38 @@ export const expoPcmCaptureService = {
     return {
       isRecording,
       isPaused,
-      durationMillis: elapsedMillis(),
+      durationMillis: isRecording ? capturedMillis() : capturedDurationMillis,
       metering: lastMetering,
     };
+  },
+
+  /**
+   * Freeze the take in this JS turn. Native `stop()` is sync and, in native-write
+   * mode, finalizes the WAV on the capture thread so no extra samples are kept.
+   *
+   * Call this from the Stop press itself. Do not put React work in front of it.
+   */
+  requestStop(): { durationMillis: number } {
+    if (!isRecording) {
+      return { durationMillis: capturedDurationMillis };
+    }
+
+    isRecording = false;
+    isPaused = false;
+
+    try {
+      stream?.stop();
+    } catch {
+      // Stream may already be stopped.
+    }
+
+    capturedDurationMillis = capturedMillis();
+    if (stream?.outputUri) {
+      captureUri = stream.outputUri;
+    }
+
+    clearStreamListeners();
+    return { durationMillis: capturedDurationMillis };
   },
 
   async start(): Promise<void> {
@@ -166,24 +269,40 @@ export const expoPcmCaptureService = {
       allowsRecording: true,
     });
 
+    const nextUri = createCaptureWavUri();
     const AudioModule = getAudioStreamModule();
     const nextStream = new AudioModule.AudioStream({
       sampleRate: TARGET_SAMPLE_RATE,
       channels: TARGET_CHANNELS,
       encoding: ENCODING,
+      outputUri: nextUri,
+      nativeWrite: true,
+      emitBuffersToJs: false,
     });
 
-    const nextWriter = createStreamingWavWriter(createCaptureWavUri());
+    const useNativeWrite = supportsNativeWrite(nextStream);
 
     clearStreamListeners();
-    bufferSub = nextStream.addListener('audioStreamBuffer', handleBuffer);
-
-    stream = nextStream;
-    writer = nextWriter;
+    writer?.discard();
+    writer = null;
     resetSessionState();
+    captureUri = nextUri;
+    nativeWriteActive = useNativeWrite;
     isRecording = true;
-    startedAtMs = Date.now();
+    stream = nextStream;
 
+    if (useNativeWrite) {
+      tickSub = nextStream.addListener('audioStreamTick', handleTick);
+      await nextStream.start();
+      console.warn('[CaptureA] Expo WAV started (native-write)');
+      return;
+    }
+
+    console.warn(
+      '[CaptureA] Unpatched expo-audio build — falling back to JS WAV writer. Rebuild the dev client after npm install so patches/expo-audio+56.0.12.patch is compiled in.',
+    );
+    writer = createStreamingWavWriter(nextUri);
+    bufferSub = nextStream.addListener('audioStreamBuffer', handleBuffer);
     await nextStream.start();
     console.warn('[CaptureA] Expo WAV started');
   },
@@ -194,7 +313,11 @@ export const expoPcmCaptureService = {
     }
 
     isPaused = true;
-    pausedAtMs = Date.now();
+    try {
+      stream?.pause?.();
+    } catch {
+      // Unpatched stream has no pause.
+    }
   },
 
   resume(): void {
@@ -202,44 +325,75 @@ export const expoPcmCaptureService = {
       return;
     }
 
-    pausedTotalMs += Date.now() - pausedAtMs;
-    pausedAtMs = 0;
     isPaused = false;
+    try {
+      stream?.resume?.();
+    } catch {
+      // Unpatched stream has no resume.
+    }
   },
 
   async stop(): Promise<{ uri: string; durationMillis: number }> {
-    if (!isRecording || !writer || !stream) {
+    if (!captureUri && !writer) {
       throw new Error('Expo PCM capture is not active.');
     }
 
-    const durationMillis = elapsedMillis();
+    isRecording = false;
+    isPaused = false;
+
     const activeWriter = writer;
     const activeStream = stream;
+    const native = nativeWriteActive;
+    writer = null;
+    stream = null;
 
     try {
-      activeStream.stop();
+      activeStream?.stop();
     } catch {
       // Stream may already be stopped.
     }
 
     clearStreamListeners();
-    stream = null;
 
-    activeWriter.finalize(actualSampleRate, actualChannels);
-    const uri = activeWriter.uri;
-    writer = null;
+    let uri = captureUri ?? activeWriter?.uri ?? activeStream?.outputUri ?? '';
+    if (activeStream?.outputUri) {
+      uri = activeStream.outputUri;
+    }
+
+    if (activeWriter) {
+      activeWriter.finalize(actualSampleRate, actualChannels);
+      uri = activeWriter.uri;
+    }
+
+    const durationMillis = native
+      ? Math.round(
+          Number(activeStream?.durationMillis) || capturedDurationMillis || capturedMillis(),
+        )
+      : durationMillisFromPcmBytes(
+          activeWriter?.getByteLength() ?? 0,
+          actualSampleRate,
+          actualChannels,
+        );
+
+    capturedDurationMillis = durationMillis;
     resetSessionState();
 
     console.warn(
-      `[CaptureA] Expo WAV stopped uri=${uri} durationMs=${durationMillis}`,
+      `[CaptureA] Expo WAV stopped uri=${uri} durationMs=${durationMillis}${native ? ' native-write' : ''}`,
     );
 
     return { uri, durationMillis };
   },
 
   async abort(): Promise<void> {
+    const uri = captureUri ?? writer?.uri ?? stream?.outputUri ?? null;
+
     try {
-      stream?.stop();
+      if (typeof stream?.abort === 'function') {
+        stream.abort();
+      } else {
+        stream?.stop();
+      }
     } catch {
       // ignore
     }
@@ -248,6 +402,9 @@ export const expoPcmCaptureService = {
     stream = null;
     writer?.discard();
     writer = null;
+    if (!nativeWriteActive) {
+      deleteCaptureFile(uri);
+    }
     resetSessionState();
   },
 };

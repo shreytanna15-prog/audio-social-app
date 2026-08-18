@@ -4,22 +4,25 @@ import { getOptimizeOverlayCopy } from '@/features/audio/domain/recording-optimi
 
 type RecordingOptimizeOverlayProps = {
   visible: boolean;
+  title?: string;
+  detail?: string;
 };
 
 export function RecordingOptimizeOverlay({
   visible = false,
+  title,
+  detail,
 }: RecordingOptimizeOverlayProps) {
   if (!visible) {
     return null;
   }
 
-  const { title } = getOptimizeOverlayCopy();
-
   return (
     <View style={styles.backdrop} pointerEvents="auto">
       <View style={styles.card}>
         <ActivityIndicator size="large" color="#1A73E8" />
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title}>{title ?? getOptimizeOverlayCopy().title}</Text>
+        {detail ? <Text style={styles.detail}>{detail}</Text> : null}
       </View>
     </View>
   );
@@ -53,5 +56,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1A1D21',
     textAlign: 'center',
+  },
+  detail: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#7A7F87',
+    textAlign: 'center',
+    marginTop: -8,
   },
 });

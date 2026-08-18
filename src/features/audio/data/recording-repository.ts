@@ -57,6 +57,11 @@ export type StageAudioResult = {
   durationSeconds: number;
 };
 
+export type StagedRawTake = {
+  rawUri: string;
+  durationSeconds: number;
+};
+
 async function readRecordingBytes(sourceUri: string): Promise<Uint8Array> {
   const source = new File(sourceUri);
 
@@ -124,6 +129,32 @@ async function cleanupTemporarySourceUri(
 }
 
 /**
+ * Copies a capture into the pending folder and nothing else.
+ *
+ * Deliberately DSP-free: this is all that stands between the user tapping stop
+ * and seeing their take, so the soft gate runs separately via `softCleanTake`.
+ */
+export async function stageRawTake(
+  rawWavUri: string,
+  durationSeconds?: number,
+): Promise<StagedRawTake> {
+  const rawUri = getPendingSourceUri(Crypto.randomUUID());
+
+  await ensureRecordingsRoot();
+  await persistRecordingFile(rawWavUri, rawUri);
+
+  return { rawUri, durationSeconds: durationSeconds ?? 0 };
+}
+
+/** Soft SpectralGate (mild) over an already-staged take → a new pending WAV. */
+export async function softCleanTake(rawUri: string): Promise<string> {
+  const pendingUri = getPendingRecordingUri(Crypto.randomUUID(), 'wav');
+
+  console.warn('[Optimize] soft SpectralGate mild → pending');
+  return optimizeNsSpectralForPreview(rawUri, pendingUri);
+}
+
+/**
  * Shared record + import staging: keep pre-gate WAV, soft SpectralGate (mild) → pending.
  */
 export async function stageAudioForPreview(
@@ -134,28 +165,22 @@ export async function stageAudioForPreview(
     `[Optimize] stageAudioForPreview ENTER duration=${durationSeconds?.toFixed(2) ?? 'unknown'}s uri=${rawWavUri}`,
   );
 
-  const pendingId = Crypto.randomUUID();
-  const sourcePreGateUri = getPendingSourceUri(pendingId);
-  const pendingUri = getPendingRecordingUri(pendingId, 'wav');
-
-  await ensureRecordingsRoot();
-  await persistRecordingFile(rawWavUri, sourcePreGateUri);
+  const staged = await stageRawTake(rawWavUri, durationSeconds);
 
   try {
-    console.warn('[Optimize] soft SpectralGate mild → pending');
-    const gatedUri = await optimizeNsSpectralForPreview(sourcePreGateUri, pendingUri);
     return {
-      pendingUri: gatedUri,
-      sourcePreGateUri,
-      durationSeconds: durationSeconds ?? 0,
+      pendingUri: await softCleanTake(staged.rawUri),
+      sourcePreGateUri: staged.rawUri,
+      durationSeconds: staged.durationSeconds,
     };
   } catch (error) {
     console.warn('[Optimize] soft SpectralGate failed, using raw capture.', error);
-    await persistRecordingFile(sourcePreGateUri, pendingUri);
+    const pendingUri = getPendingRecordingUri(Crypto.randomUUID(), 'wav');
+    await persistRecordingFile(staged.rawUri, pendingUri);
     return {
       pendingUri,
-      sourcePreGateUri,
-      durationSeconds: durationSeconds ?? 0,
+      sourcePreGateUri: staged.rawUri,
+      durationSeconds: staged.durationSeconds,
     };
   }
 }
