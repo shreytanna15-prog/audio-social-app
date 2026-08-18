@@ -45,6 +45,11 @@ export function useRecordingPlayback(
     [duration, player],
   );
 
+  /** Remember where playback stopped so a bounced file can resume there. */
+  const markResumeAt = useCallback((seconds: number) => {
+    seekAnchorRef.current = Math.max(0, seconds);
+  }, []);
+
   const playFromStart = useCallback(() => {
     seekAnchorRef.current = 0;
     void player.seekTo(0).then(() => {
@@ -52,12 +57,16 @@ export function useRecordingPlayback(
     });
   }, [player]);
 
-  /** Replay from the last scrubbed position (A/B the same line). */
+  /** Resume from the last playhead or scrub — not from 0:00. */
   const playFromAnchor = useCallback(() => {
     const anchor = seekAnchorRef.current;
     void player.seekTo(anchor).then(() => {
       player.play();
     });
+  }, [player]);
+
+  const seekToAnchor = useCallback(() => {
+    void player.seekTo(seekAnchorRef.current);
   }, [player]);
 
   const togglePlayback = useCallback(() => {
@@ -83,8 +92,10 @@ export function useRecordingPlayback(
     seekAnchorSeconds: seekAnchorRef.current,
     pause,
     seekTo,
+    markResumeAt,
     playFromStart,
     playFromAnchor,
+    seekToAnchor,
     togglePlayback,
   };
 }

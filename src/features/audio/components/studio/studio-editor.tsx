@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 
@@ -39,6 +40,41 @@ export function StudioEditor(props: StudioEditorProps) {
   // FX render from the layer's baseline, so they stay locked until the gate has
   // swapped that baseline in — otherwise the render is built on a dead file.
   const isCleaningSelected = selected != null && studio.cleaningLayerIds.includes(selected.id);
+  const playbackRef = useRef(playback);
+  playbackRef.current = playback;
+  const fxResumeRef = useRef<{ at: number; play: boolean } | null>(null);
+
+  const handleFxProcessingChange = useCallback((processing: boolean) => {
+    const transport = playbackRef.current;
+
+    if (processing) {
+      if (fxResumeRef.current != null) {
+        return;
+      }
+
+      fxResumeRef.current = {
+        at: transport.currentTime,
+        play: transport.isPlaying,
+      };
+      transport.pause();
+      return;
+    }
+
+    const resume = fxResumeRef.current;
+    fxResumeRef.current = null;
+    if (!resume) {
+      return;
+    }
+
+    // Stem replace lands after this callback. Seek the new file, not 0:00.
+    setTimeout(() => {
+      const next = playbackRef.current;
+      next.seekTo(resume.at);
+      if (resume.play) {
+        next.play();
+      }
+    }, 80);
+  }, []);
 
   return (
     <View style={styles.screen}>
@@ -133,6 +169,7 @@ export function StudioEditor(props: StudioEditorProps) {
               durationSeconds={selected.durationSeconds}
               isSaving={isSaving || studio.isOptimizing || isCleaningSelected}
               onStemChange={studio.applyVocalStem}
+              onProcessingChange={handleFxProcessingChange}
             />
             {isCleaningSelected ? (
               <Text style={styles.hint}>

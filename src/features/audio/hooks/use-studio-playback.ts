@@ -155,6 +155,12 @@ export function useStudioPlayback(
 
         if (isPlayingRef.current) {
           syncEntry(entry, positionRef.current, true, true);
+          setTimeout(() => {
+            if (entries.get(track.id) !== entry) {
+              return;
+            }
+            syncEntry(entry, positionRef.current, isPlayingRef.current, true);
+          }, 80);
         }
         continue;
       }
@@ -163,11 +169,18 @@ export function useStudioPlayback(
       existing.offsetSeconds = track.offsetSeconds;
 
       if (existing.uri !== track.uri) {
+        const playhead = positionRef.current;
+        const playing = isPlayingRef.current;
         existing.player.replace(track.uri);
         existing.uri = track.uri;
-        if (isPlayingRef.current) {
-          syncEntry(existing, positionRef.current, true, true);
-        }
+        // replace() lands at 0. Put the playhead back after the new file is ready.
+        syncEntry(existing, playhead, playing, true);
+        setTimeout(() => {
+          if (entries.get(track.id) !== existing) {
+            return;
+          }
+          syncEntry(existing, positionRef.current, isPlayingRef.current, true);
+        }, 80);
         continue;
       }
 

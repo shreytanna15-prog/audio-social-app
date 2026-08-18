@@ -27,6 +27,7 @@ type VocalLayerFxProps = {
   durationSeconds: number;
   isSaving: boolean;
   onStemChange: (layerId: string, stemUri: string, editChain?: StoredEditChain) => void;
+  onProcessingChange?: (processing: boolean) => void;
 };
 
 export function VocalLayerFx({
@@ -38,6 +39,7 @@ export function VocalLayerFx({
   durationSeconds,
   isSaving,
   onStemChange,
+  onProcessingChange,
 }: VocalLayerFxProps) {
   const session = useRecordingEditorSession({
     pristineUri: baselineUri,
@@ -53,6 +55,7 @@ export function VocalLayerFx({
   });
 
   const skipFirstRef = useRef(true);
+  const skipProcessingRef = useRef(true);
 
   useEffect(() => {
     if (skipFirstRef.current) {
@@ -62,6 +65,15 @@ export function VocalLayerFx({
 
     onStemChange(layerId, session.workingUri, toStoredEditChain(session.selection));
   }, [layerId, onStemChange, session.selection, session.workingUri]);
+
+  useEffect(() => {
+    if (skipProcessingRef.current) {
+      skipProcessingRef.current = false;
+      return;
+    }
+
+    onProcessingChange?.(session.isProcessing);
+  }, [onProcessingChange, session.isProcessing]);
 
   return (
     <>

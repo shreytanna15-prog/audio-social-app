@@ -64,6 +64,7 @@ export function useRecordingEditorSession({
   const [isProcessing, setIsProcessing] = useState(false);
   const activeBaselineRef = useRef(baselineUri);
   const pendingSelectionRef = useRef<EditChainSelection | null>(null);
+  const resumePlaybackRef = useRef(false);
 
   useEffect(() => {
     if (activeBaselineRef.current === baselineUri) {
@@ -82,6 +83,8 @@ export function useRecordingEditorSession({
   const playback = useRecordingPlayback(workingUri, {
     fallbackDurationSeconds: durationSeconds,
   });
+  const playbackRef = useRef(playback);
+  playbackRef.current = playback;
 
   const canReset = !isEditChainEmpty(selection) && !isProcessing && !isSaving;
   const effectLabel = getEditChainLabel(selection);
@@ -94,6 +97,8 @@ export function useRecordingEditorSession({
     async (nextSelection: EditChainSelection) => {
       pendingSelectionRef.current = nextSelection;
       setIsProcessing(true);
+      resumePlaybackRef.current = playback.isPlaying;
+      playback.markResumeAt(playback.currentTime);
       playback.pause();
 
       try {
@@ -145,16 +150,22 @@ export function useRecordingEditorSession({
     }
     autoPlayUriRef.current = workingUri;
 
-    if (!autoPlayAfterProcessing) {
-      return;
-    }
+    const shouldPlay = autoPlayAfterProcessing || resumePlaybackRef.current;
+    resumePlaybackRef.current = false;
 
-    // Replay from last scrubbed spot so EQ/Echo A/B stays on the same line.
+    // Bounce writes a new file; the player remounts at 0. Seek back to where
+    // playback stopped — no live Superpowered graph.
     const timer = setTimeout(() => {
-      playback.playFromAnchor();
+      const player = playbackRef.current;
+      if (shouldPlay) {
+        player.playFromAnchor();
+        return;
+      }
+
+      player.seekToAnchor();
     }, 80);
     return () => clearTimeout(timer);
-  }, [autoPlayAfterProcessing, isProcessing, playback, workingUri]);
+  }, [autoPlayAfterProcessing, isProcessing, workingUri]);
 
   const toggleCleanVoice = useCallback(() => {
     if (isProcessing || isSaving) {
