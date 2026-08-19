@@ -205,11 +205,17 @@ export async function concatVocalPunchIn(input: {
   assertFfmpegAvailable();
   ensureParentDirectory(input.outputUri);
 
+  const format = 'aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=mono';
+  const oldCount = input.segments.filter((segment) => segment.kind === 'old').length;
   const labels: string[] = [];
   const concatPads: string[] = [];
-  const format = 'aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=mono';
   let silenceIndex = 0;
   let oldIndex = 0;
+
+  if (oldCount > 1) {
+    const splitPads = Array.from({ length: oldCount }, (_, index) => `[as${index}]`).join('');
+    labels.push(`[0:a]asplit=${oldCount}${splitPads}`);
+  }
 
   for (const segment of input.segments) {
     if (segment.kind === 'silence') {
@@ -224,8 +230,9 @@ export async function concatVocalPunchIn(input: {
 
     if (segment.kind === 'old') {
       const pad = `o${oldIndex}`;
+      const source = oldCount > 1 ? `[as${oldIndex}]` : '[0:a]';
       labels.push(
-        `[0:a]atrim=${formatSeconds(segment.startSeconds)}:${formatSeconds(segment.endSeconds)},asetpts=PTS-STARTPTS,${format}[${pad}]`,
+        `${source}atrim=${formatSeconds(segment.startSeconds)}:${formatSeconds(segment.endSeconds)},asetpts=PTS-STARTPTS,${format}[${pad}]`,
       );
       concatPads.push(`[${pad}]`);
       oldIndex += 1;

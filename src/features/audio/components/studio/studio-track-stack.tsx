@@ -15,11 +15,17 @@ import {
   StudioTrackLaneWave,
 } from '@/features/audio/components/studio/studio-track-lane';
 import {
+  RULER_HEIGHT,
+  RULER_MAJOR_SECONDS,
+  TIMELINE_WINDOW_SECONDS,
   clipOffsetPx,
   clipWidthPx,
+  exactClipWidthPx,
   playheadX,
+  pxPerSecond,
   secondsFromTimelineX,
   timelineContentWidth,
+  timelineOriginPx,
 } from '@/features/audio/domain/timeline';
 import { useCaptureElapsed } from '@/features/audio/hooks/use-capture-elapsed';
 import type { ProjectLayer } from '@/features/audio/types/project';
@@ -27,28 +33,76 @@ import { formatDuration } from '@/features/audio/utils/format';
 
 const FOLLOW_RATIO = 0.3;
 const FOLLOW_EDGE_PX = 24;
-/** Extra timeline while Rec is on so the pole can walk without a 10 Hz width update. */
-const REC_HEADROOM_SECONDS = 180;
+/** One extra screen of empty timeline so Rec can walk without resizing every tick. */
+const REC_HEADROOM_SECONDS = TIMELINE_WINDOW_SECONDS;
 
-function StudioTimeRow({
+function formatRulerLabel(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  if (minutes === 0) {
+    return `${seconds}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function StudioRulerClock({
   isRecording,
   recordOriginSeconds,
   currentTime,
-  durationSeconds,
 }: {
   isRecording: boolean;
   recordOriginSeconds: number;
   currentTime: number;
-  durationSeconds: number;
 }) {
   const elapsed = useCaptureElapsed(isRecording);
   const displayTime = isRecording ? recordOriginSeconds + elapsed : currentTime;
-  const displayDuration = Math.max(durationSeconds, displayTime);
 
   return (
-    <View style={styles.timeRow}>
-      <Text style={styles.timeNow}>{formatDuration(displayTime)}</Text>
-      <Text style={styles.timeTotal}>{formatDuration(displayDuration)}</Text>
+    <View style={styles.rulerClock}>
+      <Text style={styles.rulerClockLabel}>{formatDuration(displayTime)}</Text>
+    </View>
+  );
+}
+
+function StudioTimeRuler({
+  width,
+  originPx,
+  durationSeconds,
+  pps,
+}: {
+  width: number;
+  originPx: number;
+  durationSeconds: number;
+  pps: number;
+}) {
+  const span = Math.max(durationSeconds, Math.max(0, (width - originPx) / Math.max(1e-6, pps)));
+  const major = RULER_MAJOR_SECONDS;
+  const marks: { at: number; major: boolean }[] = [];
+
+  for (let at = 0; at <= span + 0.001; at += 1) {
+    const isMajor = at % major === 0;
+    if (isMajor || at % 1 === 0) {
+      marks.push({ at, major: isMajor });
+    }
+  }
+
+  return (
+    <View style={[styles.ruler, { width }]}>
+      {marks.map((mark) => {
+        const left = originPx + mark.at * pps;
+        return (
+          <View
+            key={`tick-${mark.at}-${mark.major ? 'm' : 'n'}`}
+            style={[styles.rulerTickWrap, { left }]}
+            pointerEvents="none">
+            <View style={mark.major ? styles.rulerTickMajor : styles.rulerTickMinor} />
+            {mark.major ? (
+              <Text style={styles.rulerTickLabel}>{formatRulerLabel(mark.at)}</Text>
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -57,6 +111,8 @@ function StudioPlayhead({
   isRecording,
   recordOriginSeconds,
   currentTime,
+  originPx,
+  pps,
   followPlayhead,
   scrollRef,
   viewportWidthRef,
@@ -65,6 +121,8 @@ function StudioPlayhead({
   isRecording: boolean;
   recordOriginSeconds: number;
   currentTime: number;
+  originPx: number;
+  pps: number;
   followPlayhead: boolean;
   scrollRef: RefObject<ScrollView | null>;
   viewportWidthRef: RefObject<number>;
@@ -72,7 +130,7 @@ function StudioPlayhead({
 }) {
   const elapsed = useCaptureElapsed(isRecording);
   const displayTime = isRecording ? recordOriginSeconds + elapsed : currentTime;
-  const x = playheadX(displayTime);
+  const x = playheadX(displayTime, originPx, pps);
 
   useEffect(() => {
     if (!followPlayhead) {
@@ -154,27 +212,33 @@ export function StudioTrackStack({
     : durationSeconds;
   durationRef.current = timelineSeconds;
 
-  const contentWidth = timelineContentWidth(timelineSeconds, viewportWidth);
+  const originPx = timelineOriginPx(viewportWidth);
+  const pps = pxPerSecond(viewportWidth);
+  const contentWidth = timelineContentWidth(timelineSeconds, viewportWidth, pps);
+  const originRef = useRef(originPx);
+  const ppsRef = useRef(pps);
+  originRef.current = originPx;
+  ppsRef.current = pps;
 
   const seekFromContentX = useCallback((x: number) => {
-    onScrubRef.current(secondsFromTimelineX(x, durationRef.current));
+    onScrubRef.current(
+      secondsFromTimelineX(x, durationRef.current, originRef.current, ppsRef.current),
+    );
   }, []);
 
   const hasLanes = layers.length > 0 || importingLabel != null;
 
   return (
     <View style={styles.container}>
-      <StudioTimeRow
-        isRecording={isRecording}
-        recordOriginSeconds={recordOriginSeconds}
-        currentTime={currentTime}
-        durationSeconds={durationSeconds}
-      />
-
       <View style={styles.card}>
         {hasLanes ? (
           <View style={styles.lanesRow}>
             <View style={styles.headerColumn}>
+              <StudioRulerClock
+                isRecording={isRecording}
+                recordOriginSeconds={recordOriginSeconds}
+                currentTime={currentTime}
+              />
               {layers.map((layer) => (
                 <StudioTrackLaneHeader
                   key={layer.id}
@@ -215,12 +279,19 @@ export function StudioTrackStack({
               <Pressable
                 onPress={(event) => seekFromContentX(event.nativeEvent.locationX)}
                 style={{ width: contentWidth }}>
+                <StudioTimeRuler
+                  width={contentWidth}
+                  originPx={originPx}
+                  durationSeconds={timelineSeconds}
+                  pps={pps}
+                />
                 {layers.map((layer) => {
                   const live = layer.id === liveLayerId;
-                  const offsetWidth = live
-                    ? clipOffsetPx(liveOffsetMs)
-                    : clipOffsetPx(layer.offsetMs);
-                  const clipWidth = live ? 0 : clipWidthPx(layer.durationSeconds);
+                  const offsetWidth = clipOffsetPx(layer.offsetMs, originPx, pps);
+                  const clipWidth = live
+                    ? exactClipWidthPx(layer.durationSeconds, pps)
+                    : clipWidthPx(layer.durationSeconds, pps);
+                  const liveOffsetWidth = clipOffsetPx(liveOffsetMs, originPx, pps);
                   const offsetSeconds = layer.offsetMs / 1000;
                   const clipProgress =
                     isRecording || layer.durationSeconds <= 0
@@ -239,9 +310,12 @@ export function StudioTrackStack({
                       progress={layer.stemUri || live ? snappedProgress : 0}
                       offsetWidth={offsetWidth}
                       clipWidth={clipWidth}
+                      liveOffsetWidth={liveOffsetWidth}
+                      pps={pps}
                       contentWidth={contentWidth}
                       cleaning={cleaningLayerIds.includes(layer.id)}
                       live={live}
+                      captureActive={isRecording}
                     />
                   );
                 })}
@@ -256,6 +330,8 @@ export function StudioTrackStack({
                   isRecording={isRecording}
                   recordOriginSeconds={recordOriginSeconds}
                   currentTime={currentTime}
+                  originPx={originPx}
+                  pps={pps}
                   followPlayhead={followPlayhead}
                   scrollRef={scrollRef}
                   viewportWidthRef={viewportWidthRef}
@@ -268,7 +344,7 @@ export function StudioTrackStack({
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>No layers yet</Text>
             <Text style={styles.emptyHint}>
-              Tap Rec to record Vocals 1, or Add Beat to bring in a track.
+              Tap Rec for Vocals 1, or + Beat to import a beat.
             </Text>
           </View>
         )}
@@ -283,32 +359,64 @@ export function StudioTrackStack({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 6,
+    gap: 8,
   },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    paddingHorizontal: 2,
+  rulerClock: {
+    width: LANE_HEADER_WIDTH,
+    height: RULER_HEIGHT,
+    justifyContent: 'center',
+    paddingLeft: 12,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: '#E2E6EB',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E2E6EB',
+    backgroundColor: '#FFFFFF',
   },
-  timeNow: {
-    fontSize: 22,
+  rulerClockLabel: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#1A1D21',
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
-  timeTotal: {
-    fontSize: 13,
+  ruler: {
+    height: RULER_HEIGHT,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E2E6EB',
+    overflow: 'hidden',
+  },
+  rulerTickWrap: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 40,
+    marginLeft: -1,
+    alignItems: 'flex-start',
+    paddingTop: 4,
+  },
+  rulerTickMajor: {
+    width: 1.5,
+    height: 12,
+    backgroundColor: '#5F6368',
+  },
+  rulerTickMinor: {
+    width: 1,
+    height: 6,
+    backgroundColor: '#C5CAD3',
+  },
+  rulerTickLabel: {
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: '600',
     color: '#7A7F87',
     fontVariant: ['tabular-nums'],
   },
   card: {
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E0E4EA',
-    backgroundColor: '#FFFFFF',
     overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderCurve: 'continuous',
   },
   lanesRow: {
     flexDirection: 'row',
@@ -346,36 +454,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: '#E6E9EE',
+    borderRightColor: '#E2E6EB',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E6E9EE',
-    backgroundColor: '#F7F9FC',
+    borderBottomColor: '#E2E6EB',
+    backgroundColor: '#FFFFFF',
   },
   pendingWave: {
     height: LANE_WAVE_HEIGHT,
     justifyContent: 'center',
-    backgroundColor: '#F7F9FC',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E6E9EE',
+    borderBottomColor: '#E2E6EB',
   },
   pendingLabel: {
     paddingLeft: 12,
     fontSize: 12,
-    color: '#5F6368',
+    color: '#7A7F87',
   },
   empty: {
-    gap: 4,
+    gap: 6,
     paddingHorizontal: 16,
-    paddingVertical: 28,
+    paddingVertical: 20,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#3C4043',
+    color: '#1A1D21',
   },
   emptyHint: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#7A7F87',
     textAlign: 'center',
   },

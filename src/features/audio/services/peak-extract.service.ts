@@ -1,4 +1,5 @@
 import { readFileBytes } from '@/features/audio/data/file-persist';
+import { linearAmplitudeToDisplayPeak } from '@/features/audio/domain/recorder-session.helpers';
 import { peakBarCountForDuration } from '@/features/audio/domain/timeline';
 
 const WAV_HEADER_BYTES = 44;
@@ -74,7 +75,7 @@ export async function extractPeaksFromWav(
         }
       }
 
-      peaks.push(Math.max(0.04, Math.min(1, peak)));
+        peaks.push(linearAmplitudeToDisplayPeak(peak));
     }
 
     return peaks;

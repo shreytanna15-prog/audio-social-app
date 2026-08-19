@@ -18,7 +18,7 @@ export type PunchInMergeResult = {
 
 /**
  * After Stop has already frozen capture: either keep the new take as-is, or
- * flatten old + generated silence + new into one stem at offset 0.
+ * flatten old prefix + new take + old tail into one stem at offset 0.
  */
 export async function mergeVocalPunchIn(input: {
   layer: ProjectLayer;
@@ -39,13 +39,14 @@ export async function mergeVocalPunchIn(input: {
     };
   }
 
-  const segments = punchInSegments({
+  const mergeInput = {
     oldStartSeconds: input.layer.offsetMs / 1000,
     oldDurationSeconds: input.layer.durationSeconds,
     originSeconds,
-  });
-
-  const durationSeconds = punchInOutputDurationSeconds(originSeconds, takeDurationSeconds);
+    takeDurationSeconds,
+  };
+  const segments = punchInSegments(mergeInput);
+  const durationSeconds = punchInOutputDurationSeconds(mergeInput);
 
   if (!punchInNeedsFfmpeg(segments)) {
     return {

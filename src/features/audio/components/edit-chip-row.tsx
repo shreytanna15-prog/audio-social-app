@@ -136,7 +136,7 @@ export function EditChipRow({
   return (
     <View style={styles.wrap}>
       <View style={styles.labelRow}>
-        <Text style={styles.sectionLabel}>Edit tools</Text>
+        <Text style={styles.sectionLabel}>Effects</Text>
         {isProcessing ? (
           <View style={styles.processingRow}>
             <ActivityIndicator size="small" color="#1A73E8" />
@@ -271,7 +271,7 @@ export function reverbSheetOptions() {
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: 10,
+    gap: 6,
   },
   labelRow: {
     flexDirection: 'row',
@@ -280,9 +280,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1A1D21',
+    color: '#5F6368',
   },
   processingRow: {
     flexDirection: 'row',
@@ -302,10 +302,10 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
     backgroundColor: '#E8EAED',
   },
   chipActive: {

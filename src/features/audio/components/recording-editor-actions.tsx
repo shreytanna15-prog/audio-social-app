@@ -2,17 +2,19 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 type RecordingEditorActionsProps = {
   isPending: boolean;
-  canReset: boolean;
+  canReset?: boolean;
+  showReset?: boolean;
   isSaving: boolean;
   isProcessing?: boolean;
-  onReset: () => void;
+  onReset?: () => void;
   onDiscard: () => void;
   onSave: () => void;
 };
 
 export function RecordingEditorActions({
   isPending,
-  canReset,
+  canReset = false,
+  showReset = true,
   isSaving,
   isProcessing = false,
   onReset,
@@ -23,12 +25,14 @@ export function RecordingEditorActions({
 
   return (
     <View style={styles.actions}>
-      <Pressable
-        style={[styles.secondaryButton, (!canReset || busy) && styles.buttonDisabled]}
-        disabled={!canReset || busy}
-        onPress={onReset}>
-        <Text style={styles.secondaryButtonText}>Reset to original</Text>
-      </Pressable>
+      {showReset ? (
+        <Pressable
+          style={[styles.secondaryButton, (!canReset || busy) && styles.buttonDisabled]}
+          disabled={!canReset || busy}
+          onPress={onReset}>
+          <Text style={styles.secondaryButtonText}>Reset to original</Text>
+        </Pressable>
+      ) : null}
 
       {isPending ? (
         <View style={styles.primaryActions}>

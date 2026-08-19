@@ -15,6 +15,15 @@ export function normalizeMetering(metering?: number): number {
   return (clamped + 60) / 60;
 }
 
+/** Map WAV sample peaks onto the same 0–1 scale as the live Rec meter. */
+export function linearAmplitudeToDisplayPeak(linear: number): number {
+  if (!Number.isFinite(linear) || linear <= 0) {
+    return 0.08;
+  }
+
+  return normalizeMetering(20 * Math.log10(Math.min(1, linear)));
+}
+
 export function deriveStatus(
   hasActiveSession: boolean,
   isPaused: boolean,

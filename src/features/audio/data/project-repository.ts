@@ -128,8 +128,8 @@ async function persistLayerFiles(
   return {
     ...layer,
     stemUri,
-    baselineUri: layer.kind === 'vocal' ? baselineUri : (layer.baselineUri ?? stemUri),
-    sourceUri: layer.kind === 'vocal' ? sourceUri : (layer.sourceUri ?? stemUri),
+    baselineUri,
+    sourceUri,
   };
 }
 

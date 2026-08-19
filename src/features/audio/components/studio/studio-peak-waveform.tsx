@@ -16,6 +16,8 @@ type StudioPeakWaveformProps = {
   dimmed?: boolean;
   /** When false, keep source bar count (live meter) instead of filling the clip. */
   fillSlots?: boolean;
+  /** Live rec: do not resample or grow a tail — bars stay where they were painted. */
+  pinBars?: boolean;
 };
 
 function resamplePeaks(peaks: number[], count: number): number[] {
@@ -70,13 +72,19 @@ function StudioPeakWaveformComponent({
   progress = 0,
   dimmed = false,
   fillSlots = true,
+  pinBars = false,
 }: StudioPeakWaveformProps) {
   const slots = slotBarCount(width);
-  const source = peaks.length > 0 ? peaks : Array.from({ length: 24 }, () => 0.12);
-  const bars = resamplePeaks(source, fillSlots ? slots : Math.min(source.length, slots));
+  if (peaks.length === 0 || width <= 0 || (!pinBars && slots <= 0)) {
+    return <View style={{ height, width }} />;
+  }
+
+  const bars = pinBars
+    ? peaks
+    : resamplePeaks(peaks, fillSlots ? slots : Math.min(peaks.length, slots));
   const clampedProgress = Math.min(1, Math.max(0, progress));
 
-  if (bars.length === 0 || width <= 0) {
+  if (bars.length === 0) {
     return <View style={{ height, width }} />;
   }
 
@@ -98,7 +106,7 @@ function StudioPeakWaveformComponent({
           />
         );
       })}
-      <View style={styles.quietLine} />
+      {pinBars ? null : <View style={styles.quietLine} />}
     </View>
   );
 }

@@ -76,13 +76,11 @@ export function useStudioSession({
   // subscribing at this level would re-render the whole studio at that rate.
   // The live lane subscribes to it directly instead.
   const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
-  const isPaused = useAudioSessionStore((state) => state.isPaused);
   const previewUri = useAudioSessionStore((state) => state.previewUri);
   const sourcePreGateUri = useAudioSessionStore((state) => state.sourcePreGateUri);
   const frozenDurationMillis = useAudioSessionStore((state) => state.frozenDurationMillis);
   const startRecording = useAudioSessionStore((state) => state.startRecording);
   const handleMainAction = useAudioSessionStore((state) => state.handleMainAction);
-  const handlePauseResume = useAudioSessionStore((state) => state.handlePauseResume);
   const handoffToEditor = useAudioSessionStore((state) => state.handoffToEditor);
   const resetSession = useAudioSessionStore((state) => state.resetSession);
 
@@ -285,7 +283,6 @@ export function useStudioSession({
           sourceUri,
           durationSeconds,
           offsetMs,
-          peaks: [],
           editChain: undefined,
         };
       });
@@ -404,10 +401,10 @@ export function useStudioSession({
     const sourceUri = sourcePreGateUri;
     const takeDuration = frozenDurationMillis / 1000;
     capturingLayerIdRef.current = null;
-    setRecordingLayerId(null);
     handoffToEditor();
 
     if (!layerId) {
+      setRecordingLayerId(null);
       return;
     }
 
@@ -422,6 +419,11 @@ export function useStudioSession({
       })
       .catch((error: unknown) => {
         console.warn('[Studio] could not attach take to layer.', error);
+      })
+      .finally(() => {
+        if (mountedRef.current) {
+          setRecordingLayerId(null);
+        }
       });
   }, [
     attachVocalTake,
@@ -527,6 +529,8 @@ export function useStudioSession({
         kind: 'beat',
         name: nextLayerName(currentProject.layers, 'beat'),
         stemUri: beat.uri,
+        baselineUri: beat.uri,
+        sourceUri: beat.uri,
         durationSeconds: beat.durationSeconds,
         peaks,
       });
@@ -747,7 +751,6 @@ export function useStudioSession({
     recordingLayerId,
     recordOriginSeconds,
     cleaningLayerIds,
-    isPaused,
     isOptimizing,
     isImportingBeat,
     isSaving,
@@ -757,7 +760,6 @@ export function useStudioSession({
     playbackTracks,
     handleRecordPress,
     handleStopPress,
-    handlePauseResume,
     addBeat,
     addVocalLayer,
     selectLayer,
