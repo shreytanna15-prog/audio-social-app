@@ -1,6 +1,10 @@
+export { Button, buttonTextVariants, buttonVariants } from './button';
+export type { ButtonProps } from './button';
 export { Collapsible } from './collapsible';
 export { ExternalLink } from './external-link';
 export { HintRow } from './hint-row';
+export { Input } from './input';
+export { Text, TextClassContext } from './text';
 export { ThemedText } from './themed-text';
 export type { ThemedTextProps } from './themed-text';
 export { ThemedView } from './themed-view';

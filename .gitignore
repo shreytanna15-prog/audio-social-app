@@ -66,3 +66,6 @@ assets/model/*.ort
 # Android local SDK paths
 local.properties
 **/local.properties
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
