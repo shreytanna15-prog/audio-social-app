@@ -6,7 +6,7 @@ import { Platform, Pressable } from 'react-native';
 
 const buttonVariants = cva(
   cn(
-    'group shrink-0 flex-row items-center justify-center gap-2 rounded-md shadow-none',
+    'group shrink-0 flex-row items-center justify-center gap-2 rounded-full shadow-none',
     Platform.select({
       web: "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive whitespace-nowrap outline-none transition-all focus-visible:ring-[3px] disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     })
@@ -15,8 +15,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: cn(
-          'bg-primary active:bg-primary/90 shadow-sm shadow-black/5',
-          Platform.select({ web: 'hover:bg-primary/90' })
+          'bg-brand active:bg-brand-deep shadow-sm shadow-black/5',
+          Platform.select({ web: 'hover:bg-brand-deep' })
         ),
         destructive: cn(
           'bg-destructive active:bg-destructive/90 dark:bg-destructive/60 shadow-sm shadow-black/5',
@@ -25,14 +25,22 @@ const buttonVariants = cva(
           })
         ),
         outline: cn(
-          'border-border bg-background active:bg-accent dark:bg-input/30 dark:border-input dark:active:bg-input/50 border shadow-sm shadow-black/5',
+          'border-outline-variant bg-transparent active:bg-accent border shadow-none',
           Platform.select({
-            web: 'hover:bg-accent dark:hover:bg-input/50',
+            web: 'hover:bg-accent',
           })
         ),
         secondary: cn(
-          'bg-secondary active:bg-secondary/80 shadow-sm shadow-black/5',
-          Platform.select({ web: 'hover:bg-secondary/80' })
+          'border border-white/10 bg-white/5 active:bg-white/10 shadow-none',
+          Platform.select({ web: 'hover:bg-white/10' })
+        ),
+        tonal: cn(
+          'bg-primary-tonal active:bg-primary-soft shadow-sm shadow-primary/20',
+          Platform.select({ web: 'hover:bg-primary-soft' })
+        ),
+        surface: cn(
+          'border-[#272732] bg-surface-container-low active:bg-surface-container border shadow-none',
+          Platform.select({ web: 'hover:bg-surface-container' })
         ),
         ghost: cn(
           'active:bg-accent dark:active:bg-accent/50',
@@ -41,10 +49,10 @@ const buttonVariants = cva(
         link: '',
       },
       size: {
-        default: cn('h-10 px-4 py-2 sm:h-9', Platform.select({ web: 'has-[>svg]:px-3' })),
-        sm: cn('h-9 gap-1.5 rounded-md px-3 sm:h-8', Platform.select({ web: 'has-[>svg]:px-2.5' })),
-        lg: cn('h-11 rounded-md px-6 sm:h-10', Platform.select({ web: 'has-[>svg]:px-4' })),
-        icon: 'h-10 w-10 sm:h-9 sm:w-9',
+        default: cn('h-12 px-5 py-3', Platform.select({ web: 'has-[>svg]:px-4' })),
+        sm: cn('h-10 gap-1.5 rounded-lg px-3.5', Platform.select({ web: 'has-[>svg]:px-2.5' })),
+        lg: cn('h-14 rounded-xl px-6', Platform.select({ web: 'has-[>svg]:px-5' })),
+        icon: 'h-12 w-12',
       },
     },
     defaultVariants: {
@@ -56,22 +64,21 @@ const buttonVariants = cva(
 
 const buttonTextVariants = cva(
   cn(
-    'text-foreground text-sm font-medium',
+    'text-foreground text-[15px] font-semibold',
     Platform.select({ web: 'pointer-events-none transition-colors' })
   ),
   {
     variants: {
       variant: {
-        default: 'text-primary-foreground',
-        destructive: 'text-white',
-        outline: cn(
-          'group-active:text-accent-foreground',
-          Platform.select({ web: 'group-hover:text-accent-foreground' })
-        ),
-        secondary: 'text-secondary-foreground',
-        ghost: 'group-active:text-accent-foreground',
+        default: 'text-ink',
+        destructive: 'text-ink',
+        outline: 'text-on-surface-variant',
+        secondary: 'text-ink',
+        tonal: 'text-on-primary',
+        surface: 'text-on-surface',
+        ghost: 'text-on-surface group-active:text-accent-foreground',
         link: cn(
-          'text-primary group-active:underline',
+          'text-brand group-active:underline',
           Platform.select({ web: 'underline-offset-4 hover:underline group-hover:underline' })
         ),
       },

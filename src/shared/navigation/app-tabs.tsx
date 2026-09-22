@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router/js-tabs';
-import { Image, StyleSheet, useColorScheme } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 
 import { Colors } from '@/core/theme';
 
@@ -15,16 +15,15 @@ const AUDIO_ICON = require('@/assets/images/tabIcons/explore.png');
  * crashed the Fabric mounting layer whenever the editor closed via Done.
  */
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  const colors = Colors.dark;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.text,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: { backgroundColor: colors.background },
+        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
       }}>
       <Tabs.Screen
         name="index"

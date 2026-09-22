@@ -3,106 +3,257 @@
 @import "tailwindcss/utilities.css";
 @import "nativewind/theme";
 
-:root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+/*
+ * VibeOGram — Studio Noir Atmosphere
+ * Dark-first. Use Tailwind: bg-primary, text-on-surface, bg-surface-container, etc.
+ * Spec: /DESIGN.md · TS mirror: src/core/theme/tokens.ts
+ */
 
-  --background: 0 0% 100%;
-  --foreground: 0 0% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 3.9%;
-  --primary: 0 0% 9%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 0 0% 96.1%;
-  --secondary-foreground: 0 0% 9%;
-  --muted: 0 0% 96.1%;
-  --muted-foreground: 0 0% 45.1%;
-  --accent: 0 0% 96.1%;
-  --accent-foreground: 0 0% 9%;
-  --destructive: 0 84.2% 60.2%;
-  --border: 0 0% 89.8%;
-  --input: 0 0% 89.8%;
-  --ring: 0 0% 63%;
-  --radius: 0.625rem;
-  --chart-1: 12 76% 61%;
-  --chart-2: 173 58% 39%;
-  --chart-3: 197 37% 24%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
+:root {
+  --font-sans-stack: Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
+    Segoe UI Symbol, Noto Color Emoji;
+  --font-display-stack: "Space Grotesk", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono-stack: "Space Grotesk", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-rounded-stack: "Space Grotesk", "SF Pro Rounded", ui-rounded, sans-serif;
+  --font-serif-stack: Georgia, "Times New Roman", serif;
+
+  /* ── Semantic (RNR / shadcn utilities) ── */
+  --background: #131319;
+  --foreground: #e4e1ea;
+  --card: #1a1a24;
+  --card-foreground: #e4e1ea;
+  --popover: #222230;
+  --popover-foreground: #e4e1ea;
+  --primary: #8b5cf6;
+  --primary-foreground: #f8fafc;
+  --secondary: #ec4899;
+  --secondary-foreground: #f8fafc;
+  --muted: #1f1f25;
+  --muted-foreground: #94a3b8;
+  --accent: #2a2930;
+  --accent-foreground: #c4b5fd;
+  --destructive: #ef4444;
+  --border: #2a2a3c;
+  --input: #0b0b0f;
+  --ring: #8b5cf6;
+  --radius: 0.75rem;
+
+  /* ── Studio surfaces (MD3 frontmatter) ── */
+  --surface: #131319;
+  --surface-dim: #131319;
+  --surface-bright: #39383f;
+  --surface-container-lowest: #0e0e14;
+  --surface-container-low: #1b1b21;
+  --surface-container: #1f1f25;
+  --surface-container-high: #2a2930;
+  --surface-container-highest: #34343b;
+  --on-surface: #e4e1ea;
+  --on-surface-variant: #cbc3d7;
+  --inverse-surface: #e4e1ea;
+  --inverse-on-surface: #303036;
+  --outline: #958ea0;
+  --outline-variant: #494454;
+  --surface-tint: #d0bcff;
+  --surface-variant: #34343b;
+
+  /* ── MD3 tonal roles ── */
+  --primary-tonal: #d0bcff;
+  --on-primary: #3c0091;
+  --primary-container: #a078ff;
+  --on-primary-container: #340080;
+  --inverse-primary: #6d3bd7;
+  --secondary-tonal: #ffb0cd;
+  --on-secondary: #640039;
+  --secondary-container: #aa0266;
+  --on-secondary-container: #ffbad3;
+  --tertiary: #ccbeff;
+  --on-tertiary: #332664;
+  --tertiary-container: #9587cc;
+  --on-tertiary-container: #2c1f5c;
+  --error: #ffb4ab;
+  --on-error: #690005;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
+  --on-background: #e4e1ea;
+
+  /* ── Brand signal (palette board) ── */
+  --brand: #8b5cf6;
+  --brand-deep: #7c3aed;
+  --magenta: #ec4899;
+  --magenta-deep: #d946ef;
+  --lavender: #c4b5fd;
+  --lavender-soft: #ddd6fe;
+  --neutral: #121218;
+  --canvas: #0b0b0f;
+  --panel: #1a1a24;
+  --float: #222230;
+  --hairline: #2a2a3c;
+  --ink: #f8fafc;
+  --slate: #94a3b8;
+  --slate-muted: #475569;
+
+  /* ── Studio metrics ── */
+  --recording: #ef4444;
+  --monitor: #10b981;
+  --peak: #f59e0b;
+
+  /* ── Charts (keep shadcn slots branded) ── */
+  --chart-1: #8b5cf6;
+  --chart-2: #ec4899;
+  --chart-3: #c4b5fd;
+  --chart-4: #10b981;
+  --chart-5: #f59e0b;
 }
 
+/* Same Studio Noir tokens — brand is dark-first */
 .dark:root,
 .dark {
-  --background: 0 0% 3.9%;
-  --foreground: 0 0% 98%;
-  --card: 0 0% 3.9%;
-  --card-foreground: 0 0% 98%;
-  --popover: 0 0% 3.9%;
-  --popover-foreground: 0 0% 98%;
-  --primary: 0 0% 98%;
-  --primary-foreground: 0 0% 9%;
-  --secondary: 0 0% 14.9%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 0 0% 14.9%;
-  --muted-foreground: 0 0% 63.9%;
-  --accent: 0 0% 14.9%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 70.9% 59.4%;
-  --border: 0 0% 14.9%;
-  --input: 0 0% 14.9%;
-  --ring: 300 0% 45%;
-  --chart-1: 220 70% 50%;
-  --chart-2: 160 60% 45%;
-  --chart-3: 30 80% 55%;
-  --chart-4: 280 65% 60%;
-  --chart-5: 340 75% 55%;
+  --background: #131319;
+  --foreground: #e4e1ea;
+  --card: #1a1a24;
+  --card-foreground: #e4e1ea;
+  --popover: #222230;
+  --popover-foreground: #e4e1ea;
+  --primary: #8b5cf6;
+  --primary-foreground: #f8fafc;
+  --secondary: #ec4899;
+  --secondary-foreground: #f8fafc;
+  --muted: #1f1f25;
+  --muted-foreground: #94a3b8;
+  --accent: #2a2930;
+  --accent-foreground: #c4b5fd;
+  --destructive: #ef4444;
+  --border: #2a2a3c;
+  --input: #0b0b0f;
+  --ring: #8b5cf6;
 }
 
 @theme {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --font-sans: var(--font-sans-stack);
+  --font-display: var(--font-display-stack);
+  --font-mono: var(--font-mono-stack);
+
+  /* Semantic */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Surfaces */
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-inverse-surface: var(--inverse-surface);
+  --color-inverse-on-surface: var(--inverse-on-surface);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-surface-tint: var(--surface-tint);
+  --color-surface-variant: var(--surface-variant);
+  --color-on-background: var(--on-background);
+
+  /* MD3 tonal */
+  --color-primary-tonal: var(--primary-tonal);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-inverse-primary: var(--inverse-primary);
+  --color-secondary-tonal: var(--secondary-tonal);
+  --color-on-secondary: var(--on-secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-tertiary: var(--tertiary);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-on-tertiary-container: var(--on-tertiary-container);
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+
+  /* Brand + studio */
+  --color-primary-soft: #c4aef6;
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-magenta: var(--magenta);
+  --color-magenta-deep: var(--magenta-deep);
+  --color-lavender: var(--lavender);
+  --color-lavender-soft: var(--lavender-soft);
+  --color-neutral: var(--neutral);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-float: var(--float);
+  --color-hairline: var(--hairline);
+  --color-ink: var(--ink);
+  --color-slate: var(--slate);
+  --color-slate-muted: var(--slate-muted);
+  --color-recording: var(--recording);
+  --color-monitor: var(--monitor);
+  --color-peak: var(--peak);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Radius — DESIGN.md */
+  --radius-sm: 0.25rem;
+  --radius-DEFAULT: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Spacing — 4px base */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+  --spacing-gutter: 1rem;
+  --spacing-gutter-desktop: 1.5rem;
+  --spacing-margin: 1rem;
+  --spacing-margin-tablet: 2rem;
+  --spacing-margin-desktop: 3rem;
 }
 
 @media android {
   :root {
-    --font-mono: monospace;
-    --font-rounded: normal;
-    --font-serif: serif;
-    --font-sans: normal;
+    --font-mono-stack: Space Grotesk;
+    --font-rounded-stack: Space Grotesk;
+    --font-serif-stack: serif;
+    --font-sans-stack: Inter;
+    --font-display-stack: Space Grotesk;
   }
 }
 
 @media ios {
   :root {
-    --font-mono: ui-monospace;
-    --font-serif: ui-serif;
-    --font-sans: system-ui;
-    --font-rounded: ui-rounded;
+    --font-mono-stack: Space Grotesk;
+    --font-serif-stack: ui-serif;
+    --font-sans-stack: Inter;
+    --font-display-stack: Space Grotesk;
+    --font-rounded-stack: Space Grotesk;
   }
 }

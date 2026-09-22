@@ -1,17 +1,29 @@
+import { SemanticColors, StudioColors } from './tokens';
+
+/**
+ * Lightweight theme for tabs / StyleSheet consumers.
+ * Prefer Tailwind semantic classes in JSX; use this when you need hex values.
+ */
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: SemanticColors.foreground,
+    background: SemanticColors.background,
+    backgroundElement: StudioColors.surfaceContainer,
+    backgroundSelected: StudioColors.surfaceContainerHigh,
+    textSecondary: StudioColors.slate,
+    primary: SemanticColors.primary,
+    secondary: SemanticColors.secondary,
+    border: SemanticColors.border,
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: SemanticColors.foreground,
+    background: SemanticColors.background,
+    backgroundElement: StudioColors.surfaceContainer,
+    backgroundSelected: StudioColors.surfaceContainerHigh,
+    textSecondary: StudioColors.slate,
+    primary: SemanticColors.primary,
+    secondary: SemanticColors.secondary,
+    border: SemanticColors.border,
   },
 } as const;
 

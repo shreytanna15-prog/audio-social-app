@@ -2,15 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 
+import { clearTokens, hasStoredSession, onAuthInvalidated } from '@/core/api';
+
 type AuthState = {
   isHydrated: boolean;
   hasCompletedOnboarding: boolean;
   isAuthenticated: boolean;
   setHydrated: (value: boolean) => void;
   completeOnboarding: () => void;
-  loginMock: () => void;
-  signupMock: () => void;
-  logoutMock: () => void;
+  setAuthenticated: (value: boolean) => void;
+  logout: () => Promise<void>;
+  hydrateSession: () => Promise<void>;
 };
 
 const ssrSafeStorage: StateStorage = {
@@ -45,19 +47,17 @@ export const useAuthStore = create<AuthState>()(
 
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
 
-      loginMock: () =>
-        set({
-          isAuthenticated: true,
-          hasCompletedOnboarding: true,
-        }),
+      setAuthenticated: (value) => set({ isAuthenticated: value }),
 
-      signupMock: () =>
-        set({
-          isAuthenticated: true,
-          hasCompletedOnboarding: true,
-        }),
+      logout: async () => {
+        await clearTokens();
+        set({ isAuthenticated: false });
+      },
 
-      logoutMock: () => set({ isAuthenticated: false }),
+      hydrateSession: async () => {
+        const hasSession = await hasStoredSession();
+        set({ isAuthenticated: hasSession });
+      },
     }),
     {
       name: 'auth-storage',
@@ -70,8 +70,19 @@ export const useAuthStore = create<AuthState>()(
         if (error) {
           console.log('Auth store rehydration failed:', error);
         }
-        useAuthStore.getState().setHydrated(true);
+
+        void (async () => {
+          try {
+            await useAuthStore.getState().hydrateSession();
+          } finally {
+            useAuthStore.getState().setHydrated(true);
+          }
+        })();
       },
     },
   ),
 );
+
+onAuthInvalidated(() => {
+  void useAuthStore.getState().logout();
+});

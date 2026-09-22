@@ -3,7 +3,8 @@ import { useColorScheme } from './use-color-scheme';
 
 export function useTheme() {
   const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+  // Studio Noir is dark-first; treat unspecified as dark
+  const theme = scheme === 'light' ? 'light' : 'dark';
 
   return Colors[theme];
 }

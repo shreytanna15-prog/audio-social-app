@@ -12,9 +12,72 @@ module.exports = ({ config }) => ({
   plugins: [
     'expo-router',
     [
+      'expo-font',
+      {
+        ios: {
+          fonts: [
+            './node_modules/@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf',
+            './node_modules/@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf',
+            './node_modules/@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf',
+            './node_modules/@expo-google-fonts/inter/700Bold/Inter_700Bold.ttf',
+            './node_modules/@expo-google-fonts/space-grotesk/400Regular/SpaceGrotesk_400Regular.ttf',
+            './node_modules/@expo-google-fonts/space-grotesk/500Medium/SpaceGrotesk_500Medium.ttf',
+            './node_modules/@expo-google-fonts/space-grotesk/600SemiBold/SpaceGrotesk_600SemiBold.ttf',
+            './node_modules/@expo-google-fonts/space-grotesk/700Bold/SpaceGrotesk_700Bold.ttf',
+          ],
+        },
+        android: {
+          fonts: [
+            {
+              fontFamily: 'Inter',
+              fontDefinitions: [
+                {
+                  path: './node_modules/@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf',
+                  weight: 400,
+                },
+                {
+                  path: './node_modules/@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf',
+                  weight: 500,
+                },
+                {
+                  path: './node_modules/@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf',
+                  weight: 600,
+                },
+                {
+                  path: './node_modules/@expo-google-fonts/inter/700Bold/Inter_700Bold.ttf',
+                  weight: 700,
+                },
+              ],
+            },
+            {
+              fontFamily: 'Space Grotesk',
+              fontDefinitions: [
+                {
+                  path: './node_modules/@expo-google-fonts/space-grotesk/400Regular/SpaceGrotesk_400Regular.ttf',
+                  weight: 400,
+                },
+                {
+                  path: './node_modules/@expo-google-fonts/space-grotesk/500Medium/SpaceGrotesk_500Medium.ttf',
+                  weight: 500,
+                },
+                {
+                  path: './node_modules/@expo-google-fonts/space-grotesk/600SemiBold/SpaceGrotesk_600SemiBold.ttf',
+                  weight: 600,
+                },
+                {
+                  path: './node_modules/@expo-google-fonts/space-grotesk/700Bold/SpaceGrotesk_700Bold.ttf',
+                  weight: 700,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    [
       'expo-splash-screen',
       {
-        backgroundColor: '#208AEF',
+        backgroundColor: '#131319',
         android: {
           image: './assets/images/splash-icon.png',
           imageWidth: 76,
@@ -31,6 +94,7 @@ module.exports = ({ config }) => ({
       },
     ],
     'expo-document-picker',
+    'expo-secure-store',
     [
       'expo-file-system',
       {
