@@ -7,9 +7,9 @@ import { useAuthStore } from '@/features/auth';
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
 
-import { OnboardingBackButton } from './onboarding-back-button';
-import { OnboardingIcon } from './onboarding-icon';
-import { OnboardingProgress } from './onboarding-progress';
+import { OnboardingBackButton } from '../components/onboarding-back-button';
+import { OnboardingBackground } from '../components/onboarding-background';
+import { OnboardingProgress } from '../components/onboarding-progress';
 
 const RINGS = [
   { size: 288, color: 'rgba(139, 92, 246, 0.08)' },
@@ -26,7 +26,6 @@ function AppIconCarrier() {
         borderRadius: 32,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#1B1B21',
         shadowColor: '#8B5CF6',
         shadowOpacity: 0.3,
         shadowRadius: 22,
@@ -57,6 +56,7 @@ export function AuthEntryScreen() {
     <View
       className="flex-1 overflow-hidden bg-surface-container-lowest"
       style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }}>
+      <OnboardingBackground />
       <View className="flex-row items-center justify-between px-5 py-1">
         <OnboardingBackButton onPress={() => router.back()} />
         <OnboardingProgress step={3} />
@@ -107,7 +107,6 @@ export function AuthEntryScreen() {
           onPress={() => goTo('/signup')}
           className="h-14 w-full rounded-md">
           <Text>Create Account</Text>
-          <OnboardingIcon name="arrow-forward" size={20} color="#3C0091" />
         </Button>
 
         <Button
@@ -120,8 +119,8 @@ export function AuthEntryScreen() {
 
         <Text variant="caption" className="mt-6 text-center leading-relaxed text-outline">
           By continuing, you agree to VibeOGram&apos;s{' '}
-          <Text className="text-on-surface-variant underline">Terms of Service</Text> &{' '}
-          <Text className="text-on-surface-variant underline">Privacy Policy</Text>.
+          <Text variant="caption" className="text-on-surface-variant underline">Terms of Service</Text> &{' '}
+          <Text variant="caption" className="text-on-surface-variant underline">Privacy Policy</Text>.
         </Text>
       </View>
     </View>

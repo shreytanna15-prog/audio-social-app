@@ -14,7 +14,7 @@ export default function HomeScreen() {
       className="flex-1 items-center justify-center gap-4 bg-background px-6"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
       <Text variant="headline-lg-mobile" className="text-ink">
-        Home
+        VibeOGram Home
       </Text>
       <Text variant="body-md" className="text-center text-slate">
         Placeholder home. Audio tab still works as before.

@@ -1,6 +1,9 @@
 export { useAuthStore } from './store/auth.store';
-export { LoginScreen } from './components/login-screen';
-export { SignupScreen } from './components/signup-screen';
+export { LoginScreen } from './screens/login-screen';
+export { SignupScreenOne } from './screens/signup-screen-one';
+export { SignupScreenTwo } from './screens/signup-screen-two';
+export { SignupScreenThree } from './screens/signup-screen-three';
+export { ForgotPasswordScreen } from './screens/forgot-password-screen';
 export { useLogin, useSignup } from './api/hooks';
 export { login, signup, refresh } from './api/service';
 export type {

@@ -1,5 +1,5 @@
-import { SignupScreen } from '@/features/auth';
+import { SignupScreenOne } from '@/features/auth';
 
 export default function SignupRoute() {
-  return <SignupScreen />;
+  return <SignupScreenOne />;
 }

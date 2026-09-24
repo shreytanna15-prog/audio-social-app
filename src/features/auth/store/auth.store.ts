@@ -4,13 +4,23 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 
 import { clearTokens, hasStoredSession, onAuthInvalidated } from '@/core/api';
 
+export type SignupDraft = {
+  name?: string;
+  username?: string;
+  email?: string;
+};
+
 type AuthState = {
   isHydrated: boolean;
   hasCompletedOnboarding: boolean;
   isAuthenticated: boolean;
+  signupDraft: SignupDraft;
   setHydrated: (value: boolean) => void;
   completeOnboarding: () => void;
+  resetOnboarding: () => void;
   setAuthenticated: (value: boolean) => void;
+  setSignupDraft: (draft: Partial<SignupDraft>) => void;
+  clearSignupDraft: () => void;
   logout: () => Promise<void>;
   hydrateSession: () => Promise<void>;
 };
@@ -42,16 +52,26 @@ export const useAuthStore = create<AuthState>()(
       isHydrated: false,
       hasCompletedOnboarding: false,
       isAuthenticated: false,
+      signupDraft: {},
 
       setHydrated: (value) => set({ isHydrated: value }),
 
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
 
+      resetOnboarding: () => set({ hasCompletedOnboarding: false }),
+
       setAuthenticated: (value) => set({ isAuthenticated: value }),
+
+      setSignupDraft: (draft) =>
+        set((state) => ({
+          signupDraft: { ...state.signupDraft, ...draft },
+        })),
+
+      clearSignupDraft: () => set({ signupDraft: {} }),
 
       logout: async () => {
         await clearTokens();
-        set({ isAuthenticated: false });
+        set({ isAuthenticated: false, signupDraft: {} });
       },
 
       hydrateSession: async () => {

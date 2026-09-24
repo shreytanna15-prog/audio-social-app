@@ -1,6 +1,7 @@
 export type AuthUser = {
   id: string;
   email: string;
+  username: string;
   name: string | null;
   createdAt: string;
   updatedAt: string;
@@ -22,9 +23,10 @@ export type LoginRequest = {
 };
 
 export type SignupRequest = {
+  name: string;
+  username: string;
   email: string;
   password: string;
-  name?: string;
 };
 
 export type RefreshData = {

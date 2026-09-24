@@ -2,7 +2,7 @@ import { TextClassContext } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type * as React from 'react';
-import { Platform, Pressable } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 
 const buttonVariants = cva(
   cn(
@@ -35,8 +35,8 @@ const buttonVariants = cva(
           Platform.select({ web: 'hover:bg-white/10' })
         ),
         tonal: cn(
-          'bg-primary-tonal active:bg-primary-soft shadow-sm shadow-primary/20',
-          Platform.select({ web: 'hover:bg-primary-soft' })
+          'shadow-sm shadow-primary/20',
+          Platform.select({ web: 'hover:opacity-95' })
         ),
         surface: cn(
           'border-[#272732] bg-surface-container-low active:bg-surface-container border shadow-none',
@@ -98,17 +98,29 @@ const buttonTextVariants = cva(
 
 type ButtonProps = React.ComponentProps<typeof Pressable> & React.RefAttributes<typeof Pressable> & VariantProps<typeof buttonVariants>;
 
-function Button({ className, variant, size, ...props }: ButtonProps) {
+function Button({ className, variant, size, style, ...props }: ButtonProps) {
   return (
     <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
       <Pressable
         className={cn(props.disabled && 'opacity-50', buttonVariants({ variant, size }), className)}
         role="button"
+        style={
+          typeof style === 'function'
+            ? (state) => [variant === 'tonal' && styles.tonalGradient, style(state)]
+            : [variant === 'tonal' && styles.tonalGradient, style]
+        }
         {...props}
       />
     </TextClassContext.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  tonalGradient: {
+    experimental_backgroundImage:
+      'linear-gradient(to right, #A078FF 0%, #D0BCFF 50%, #D0BCFF 100%)',
+  },
+});
 
 export { Button, buttonTextVariants, buttonVariants };
 export type { ButtonProps };

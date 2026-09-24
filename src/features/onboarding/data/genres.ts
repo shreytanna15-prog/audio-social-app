@@ -4,7 +4,6 @@ export type Genre = {
   id: string;
   name: string;
   tagline: string;
-  /** BPM readout for pre-selected cards, or a one-word category chip for the rest */
   tag: string;
   accent: GenreAccent;
   selectedByDefault?: boolean;

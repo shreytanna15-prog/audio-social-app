@@ -23,11 +23,13 @@ export function useLogin() {
 export function useSignup() {
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
+  const clearSignupDraft = useAuthStore((s) => s.clearSignupDraft);
 
   return useMutation({
     mutationFn: (body: SignupRequest) => signup(body),
     onSuccess: async (data) => {
       await setTokens(data.tokens);
+      clearSignupDraft();
       completeOnboarding();
       setAuthenticated(true);
     },

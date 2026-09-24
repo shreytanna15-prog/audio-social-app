@@ -9,10 +9,10 @@ function Input({
   return (
     <TextInput
       className={cn(
-        'border-hairline bg-canvas text-foreground w-full rounded-2xl border px-4 text-[16px] font-sans',
+        'border-hairline bg-canvas text-foreground w-full rounded-2xl border p-4 text-[16px] font-sans',
         Platform.select({
-          native: 'min-h-13 py-3.5',
-          web: 'h-12 py-3 outline-none transition-[color,box-shadow] md:text-sm',
+          native: 'min-h-13',
+          web: 'h-12 outline-none transition-[color,box-shadow] md:text-sm',
         }),
         props.editable === false &&
           cn(

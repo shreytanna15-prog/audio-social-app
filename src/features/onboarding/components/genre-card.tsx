@@ -1,10 +1,10 @@
 import { Pressable, View } from 'react-native';
+import { Music } from 'lucide-react-native';
 
 import { cn } from '@/shared/lib/utils';
 import { Text } from '@/shared/components/ui/text';
 
 import type { Genre } from '../data/genres';
-import { OnboardingIcon } from './onboarding-icon';
 
 const accentColor = (genre: Genre) => (genre.accent === 'secondary' ? '#FFB0CD' : '#D0BCFF');
 
@@ -48,13 +48,11 @@ export function GenreCard({
             borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: selected ? accent : 'rgba(149, 142, 160, 0.12)',
+            backgroundColor: 'rgba(149, 142, 160, 0.12)',
+            borderColor: selected ? accent : 'transparent',
+            borderWidth: selected ? 1 : 0,
           }}>
-          <OnboardingIcon
-            name={selected ? 'check' : 'music'}
-            size={selected ? 17 : 18}
-            color={selected ? '#3C0091' : '#958EA0'}
-          />
+          <Music size={18} color={selected ? accent : '#958EA0'} strokeWidth={2} />
         </View>
         <View className={cn('rounded-full px-2.5 py-1', selected ? 'bg-white/10' : 'bg-surface-container')}>
           <Text variant="mono-metric" style={{ color: selected ? accent : '#958EA0' }}>

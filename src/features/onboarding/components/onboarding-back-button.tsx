@@ -1,6 +1,5 @@
 import { Pressable } from 'react-native';
-
-import { OnboardingIcon } from './onboarding-icon';
+import { ArrowLeft } from 'lucide-react-native';
 
 export function OnboardingBackButton({ onPress }: { onPress: () => void }) {
   return (
@@ -9,8 +8,8 @@ export function OnboardingBackButton({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Go back"
       hitSlop={8}
-      className="h-10 w-10 items-center justify-center rounded-full bg-surface-container active:bg-surface-bright">
-      <OnboardingIcon name="arrow-back" size={20} color="#E4E1EA" />
+      className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
+      <ArrowLeft size={20} color="#E4E1EA" />
     </Pressable>
   );
 }

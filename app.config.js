@@ -3,10 +3,9 @@ const IS_DEV = process.env.APP_VARIANT !== 'production';
 /** @param {{ config: import('@expo/config-types').ExpoConfig }} ctx */
 module.exports = ({ config }) => ({
   ...config,
-  name: IS_DEV ? 'audio-social-media-app (Dev)' : 'audio-social-media-app',
+  name: IS_DEV ? 'VibeOGram Dev' : 'VibeOGram',
   extra: {
     ...(config.extra ?? {}),
-    /** Superpowered Evaluation / White Label key — set EXPO_PUBLIC_SUPERPOWERED_LICENSE_KEY */
     superpoweredLicenseKey: process.env.EXPO_PUBLIC_SUPERPOWERED_LICENSE_KEY ?? '',
   },
   plugins: [

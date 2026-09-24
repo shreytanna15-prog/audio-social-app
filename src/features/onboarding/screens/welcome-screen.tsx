@@ -6,10 +6,11 @@ import { useAuthStore } from '@/features/auth';
 import { AppLogo } from '@/shared/components/brand/app-logo';
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
-import { OnboardingIcon } from './onboarding-icon';
 import { SonicStage } from '@/shared/SVGs/sonic-stage';
 
-import { OnboardingProgress } from './onboarding-progress';
+import { OnboardingBackground } from '../components/onboarding-background';
+import { OnboardingIcon } from '../components/onboarding-icon';
+import { OnboardingProgress } from '../components/onboarding-progress';
 
 export function WelcomeScreen() {
   const insets = useSafeAreaInsets();
@@ -33,10 +34,12 @@ export function WelcomeScreen() {
         flex: 1,
         backgroundColor: '#0e0e14',
         alignItems: 'center',
+        overflow: 'hidden',
         paddingTop: insets.top + 10,
         paddingBottom: insets.bottom + 24,
         paddingHorizontal: 16,
       }}>
+      <OnboardingBackground />
       <OnboardingProgress step={1} />
 
       <View style={{ marginTop: 32 }}>
@@ -66,7 +69,6 @@ export function WelcomeScreen() {
           onPress={() => router.push('/genres')}
           className="h-14 w-full rounded-md">
           <Text>Get Started</Text>
-          <OnboardingIcon name="arrow-forward" size={20} color="#3C0091" />
         </Button>
 
         <View className="mt-3 h-12 flex-row items-center justify-center">

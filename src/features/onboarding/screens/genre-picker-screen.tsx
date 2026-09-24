@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
 
 import { GENRES, type Genre } from '../data/genres';
-import { GenreCard } from './genre-card';
-import { OnboardingBackButton } from './onboarding-back-button';
-import { OnboardingIcon } from './onboarding-icon';
-import { OnboardingProgress } from './onboarding-progress';
+import { GenreCard } from '../components/genre-card';
+import { OnboardingBackButton } from '../components/onboarding-back-button';
+import { OnboardingBackground } from '../components/onboarding-background';
+import { OnboardingProgress } from '../components/onboarding-progress';
 
 export function GenrePickerScreen() {
   const insets = useSafeAreaInsets();
@@ -34,8 +34,9 @@ export function GenrePickerScreen() {
 
   return (
     <View
-      className="flex-1 bg-surface-container-lowest"
+      className="flex-1 overflow-hidden bg-surface-container-lowest"
       style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 20 }}>
+      <OnboardingBackground />
       <ScrollView
         contentContainerClassName="px-5 pb-4"
         keyboardShouldPersistTaps="handled"
@@ -79,7 +80,6 @@ export function GenrePickerScreen() {
             onPress={goToEntry}
             className="h-14 w-full rounded-md">
             <Text>Continue</Text>
-            <OnboardingIcon name="arrow-forward" size={20} color="#3C0091" />
           </Button>
 
           <Button
