@@ -1,3 +1,11 @@
 export { HomeScreen } from './screens/home-screen';
 export { FEATURED_ARTISTS } from './data/featured-artists';
 export type { FeaturedArtist } from './data/featured-artists';
+export { MADE_FOR_YOUR_VIBE } from './data/made-for-your-vibe';
+export type { VibeTrack } from './data/made-for-your-vibe';
+export { TRENDING_TRACKS } from './data/trending-tracks';
+export type { TrendingTrack } from './data/trending-tracks';
+export { CURATED_PLAYLISTS } from './data/curated-playlists';
+export type { CuratedPlaylist } from './data/curated-playlists';
+export { RECENTLY_PLAYED } from './data/recently-played';
+export type { RecentlyPlayedTrack } from './data/recently-played';

@@ -1,9 +1,10 @@
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useRouter } from 'expo-router';
+import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { AudioLines, Compass, Home, Plus, User } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 
+import { MiniPlayer } from '@/features/player';
 import { Text } from '@/shared/components/ui/text';
 
 const ACTIVE_COLOR = '#D0BCFF';
@@ -125,6 +126,7 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
     <View
       className="border-t border-white/5"
       style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+      <MiniPlayer />
       <View className="h-16 flex-row items-end px-1">
         {LEFT_TABS.map(renderTab)}
         <CreateTabButton />
