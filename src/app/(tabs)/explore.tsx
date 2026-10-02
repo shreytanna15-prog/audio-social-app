@@ -1,5 +1,5 @@
-import { PlaceholderTabScreen } from '@/shared/components/layout/placeholder-tab-screen';
+import { ExploreScreen } from '@/features/explore';
 
-export default function ExploreScreen() {
-  return <PlaceholderTabScreen title="Explore" />;
+export default function ExploreRoute() {
+  return <ExploreScreen />;
 }

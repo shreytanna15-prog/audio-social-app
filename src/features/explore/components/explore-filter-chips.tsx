@@ -1,0 +1,52 @@
+import { Pressable, ScrollView } from 'react-native';
+
+import { Text } from '@/shared/components/ui/text';
+
+import { EXPLORE_FILTERS, type ExploreFilter } from '../data/explore-filters';
+
+type ExploreFilterChipsProps = {
+  filters?: ExploreFilter[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+};
+
+export function ExploreFilterChips({
+  filters = EXPLORE_FILTERS,
+  selectedId,
+  onSelect,
+}: ExploreFilterChipsProps) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+      {filters.map((filter) => {
+        const selected = filter.id === selectedId;
+
+        return (
+          <Pressable
+            key={filter.id}
+            onPress={() => onSelect(filter.id)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={filter.label}
+            className={
+              selected
+                ? 'rounded-full bg-primary-tonal px-4 py-2.5'
+                : 'rounded-full bg-surface-container-high px-4 py-2.5'
+            }>
+            <Text
+              variant="label-md"
+              className={
+                selected
+                  ? 'font-semibold text-on-primary'
+                  : 'font-medium text-on-surface'
+              }>
+              {filter.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}

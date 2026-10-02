@@ -1,4 +1,4 @@
-import { Award, Clock, Headphones, Upload, Zap } from 'lucide-react-native';
+import { Award, Clock, Headphones, Share2, Upload, Zap } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
@@ -8,9 +8,13 @@ type ChallengeCardProps = {
   description?: string;
   endsIn?: string;
   prize?: string;
+  prizeLabel?: string;
   statusLabel?: string;
-  onEnterPress?: () => void;
-  onListenPress?: () => void;
+  primaryActionLabel?: string;
+  secondaryActionLabel?: string;
+  secondaryAction?: 'listen' | 'share';
+  onPrimaryPress?: () => void;
+  onSecondaryPress?: () => void;
 };
 
 export function ChallengeCard({
@@ -18,9 +22,13 @@ export function ChallengeCard({
   description = 'Submit your original vocal or instrumental track built around the exclusive VibeOGram analog sample kit.',
   endsIn = 'Ends in 2d 14h',
   prize = '$2,500 Studio Grant + Official Release',
+  prizeLabel = 'Grand Prize',
   statusLabel = 'Active Challenge',
-  onEnterPress,
-  onListenPress,
+  primaryActionLabel = 'Enter Contest',
+  secondaryActionLabel = 'Listen Entries',
+  secondaryAction = 'listen',
+  onPrimaryPress,
+  onSecondaryPress,
 }: ChallengeCardProps) {
   return (
     <View className="mx-4 gap-4 rounded-2xl border border-white/5 bg-surface-container p-4">
@@ -55,7 +63,7 @@ export function ChallengeCard({
         </View>
         <View className="min-w-0 flex-1 gap-0.5">
           <Text variant="label-sm" className="uppercase text-on-surface-variant">
-            Grand Prize
+            {prizeLabel}
           </Text>
           <Text variant="title-md" className="text-primary-tonal" numberOfLines={1}>
             {prize}
@@ -65,26 +73,36 @@ export function ChallengeCard({
 
       <View className="flex-row gap-2.5">
         <Pressable
-          onPress={onEnterPress}
+          onPress={onPrimaryPress}
           accessibilityRole="button"
-          accessibilityLabel="Enter contest"
+          accessibilityLabel={primaryActionLabel}
           className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-full bg-primary-tonal px-3">
           <Upload size={15} color="#3C0091" strokeWidth={2.2} />
           <Text variant="label-md" className="font-semibold text-on-primary">
-            Enter Contest
+            {primaryActionLabel}
           </Text>
         </Pressable>
 
-        <Pressable
-          onPress={onListenPress}
-          accessibilityRole="button"
-          accessibilityLabel="Listen to entries"
-          className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-full border border-white/10 bg-surface-container-high px-3">
-          <Headphones size={15} color="#E4E1EA" strokeWidth={2} />
-          <Text variant="label-md" className="font-semibold text-on-surface">
-            Listen Entries
-          </Text>
-        </Pressable>
+        {secondaryAction === 'share' ? (
+          <Pressable
+            onPress={onSecondaryPress}
+            accessibilityRole="button"
+            accessibilityLabel="Share challenge"
+            className="h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-container-high">
+            <Share2 size={16} color="#E4E1EA" strokeWidth={2} />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={onSecondaryPress}
+            accessibilityRole="button"
+            accessibilityLabel={secondaryActionLabel}
+            className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-full border border-white/10 bg-surface-container-high px-3">
+            <Headphones size={15} color="#E4E1EA" strokeWidth={2} />
+            <Text variant="label-md" className="font-semibold text-on-surface">
+              {secondaryActionLabel}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );

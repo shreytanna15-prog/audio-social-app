@@ -3,8 +3,7 @@ import { ListMusic } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
-
-import type { CuratedPlaylist } from '../data/curated-playlists';
+import type { CuratedPlaylist } from '@/shared/data/curated-playlists';
 
 const CARD_WIDTH = 168;
 const COVER_SIZE = 168;
@@ -35,7 +34,7 @@ export function PlaylistCard({ playlist, onPress }: PlaylistCardProps) {
         <View className="absolute bottom-2.5 left-2.5 flex-row items-center gap-1.5 rounded-full bg-black/60 px-2 py-1">
           <ListMusic size={12} color="#D0BCFF" strokeWidth={2} />
           <Text variant="caption" className="font-medium text-primary-tonal">
-            {playlist.trackCount} TRACKS
+            {playlist.trackCount} Tracks
           </Text>
         </View>
       </View>
@@ -45,7 +44,7 @@ export function PlaylistCard({ playlist, onPress }: PlaylistCardProps) {
           {playlist.title}
         </Text>
         <Text variant="caption" className="text-on-surface-variant" numberOfLines={1}>
-          Curated by {playlist.curator} • {playlist.trackCount} tracks
+          {playlist.curator}
         </Text>
       </View>
     </Pressable>

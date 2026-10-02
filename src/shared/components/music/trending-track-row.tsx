@@ -3,8 +3,7 @@ import { Check, Heart, MoreVertical } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
-
-import type { TrendingTrack } from '../data/trending-tracks';
+import type { TrendingTrack } from '@/shared/data/trending-tracks';
 
 type TrendingTrackRowProps = {
   track: TrendingTrack;
