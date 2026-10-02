@@ -28,6 +28,15 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Protected guard={isAuthenticated}>
                   <Stack.Screen name="(tabs)" />
+                  <Stack.Screen
+                    name="player"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_bottom',
+                      gestureEnabled: true,
+                      headerShown: false,
+                    }}
+                  />
                 </Stack.Protected>
 
                 <Stack.Protected guard={!isAuthenticated && !hasCompletedOnboarding}>

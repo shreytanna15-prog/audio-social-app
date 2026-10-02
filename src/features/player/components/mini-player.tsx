@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { Heart, Pause, Play, SkipForward } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
@@ -7,6 +8,7 @@ import { Text } from '@/shared/components/ui/text';
 import { usePlayerStore } from '../store/player.store';
 
 export function MiniPlayer() {
+  const { push } = useRouter();
   const track = usePlayerStore((s) => s.track);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progress = usePlayerStore((s) => s.progress);
@@ -18,7 +20,11 @@ export function MiniPlayer() {
   if (!track) return null;
 
   return (
-    <View className="mx-3 mb-2 overflow-hidden rounded-2xl border border-white/5 bg-surface-container">
+    <Pressable
+      onPress={() => push('/player')}
+      accessibilityRole="button"
+      accessibilityLabel={`Open now playing for ${track.title}`}
+      className="mx-3 mb-2 overflow-hidden rounded-2xl border border-white/5 bg-surface-container">
       <View className="h-0.5 w-full bg-surface-container-highest">
         <View
           className="h-full rounded-full bg-primary-tonal"
@@ -82,6 +88,6 @@ export function MiniPlayer() {
           </Pressable>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }

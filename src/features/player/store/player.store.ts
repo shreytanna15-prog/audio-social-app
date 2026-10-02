@@ -7,10 +7,13 @@ type PlayerState = {
   isPlaying: boolean;
   progress: number;
   isLiked: boolean;
+  isLooping: boolean;
   play: (track: PlayerTrack) => void;
   togglePlay: () => void;
   next: () => void;
+  previous: () => void;
   toggleLike: () => void;
+  toggleLoop: () => void;
   setProgress: (progress: number) => void;
   clear: () => void;
 };
@@ -20,6 +23,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isPlaying: false,
   progress: 0.2,
   isLiked: false,
+  isLooping: false,
 
   play: (track) => {
     const current = get().track;
@@ -45,9 +49,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ progress: 0.1, isPlaying: true });
   },
 
+  previous: () => {
+    // UI stub — real queue later
+    set({ progress: 0, isPlaying: true });
+  },
+
   toggleLike: () => {
     if (!get().track) return;
     set((state) => ({ isLiked: !state.isLiked }));
+  },
+
+  toggleLoop: () => {
+    set((state) => ({ isLooping: !state.isLooping }));
   },
 
   setProgress: (progress) => {
@@ -60,6 +73,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isPlaying: false,
       progress: 0,
       isLiked: false,
+      isLooping: false,
     });
   },
 }));

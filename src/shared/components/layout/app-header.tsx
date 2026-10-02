@@ -12,6 +12,7 @@ const LOGO_HEIGHT = Math.round(LOGO_WIDTH * (340 / 2020));
 type AppHeaderProps = {
   showNotificationBadge?: boolean;
   avatarLabel?: string;
+  transparent?: boolean;
   onNotificationsPress?: () => void;
   onChatPress?: () => void;
   onAvatarPress?: () => void;
@@ -20,6 +21,7 @@ type AppHeaderProps = {
 export function AppHeader({
   showNotificationBadge = false,
   avatarLabel = 'U',
+  transparent = false,
   onNotificationsPress,
   onChatPress,
   onAvatarPress,
@@ -28,7 +30,11 @@ export function AppHeader({
 
   return (
     <View
-      className="border-b border-white/5 bg-background px-4"
+      className={
+        transparent
+          ? 'border-b border-transparent bg-transparent px-4'
+          : 'border-b border-white/5 bg-background px-4'
+      }
       style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}>
       <View className="flex-row items-center justify-between">
         <AppLogo width={LOGO_WIDTH} height={LOGO_HEIGHT} />
