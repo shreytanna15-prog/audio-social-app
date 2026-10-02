@@ -1,10 +1,6 @@
 import { Tabs } from 'expo-router/js-tabs';
-import { Image, StyleSheet } from 'react-native';
 
-import { Colors } from '@/core/theme';
-
-const HOME_ICON = require('@/assets/images/tabIcons/home.png');
-const AUDIO_ICON = require('@/assets/images/tabIcons/explore.png');
+import { AppTabBar } from '@/shared/navigation/app-tab-bar';
 
 /**
  * Lives outside `src/app` on purpose: every file under the routes directory
@@ -15,47 +11,23 @@ const AUDIO_ICON = require('@/assets/images/tabIcons/explore.png');
  * crashed the Fabric mounting layer whenever the editor closed via Done.
  */
 export default function AppTabs() {
-  const colors = Colors.dark;
-
   return (
     <Tabs
+      tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
       }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <Image
-              source={HOME_ICON}
-              style={[styles.icon, { width: size, height: size, tintColor: color }]}
-            />
-          ),
-        }}
-      />
-
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
+      <Tabs.Screen name="feed" options={{ title: 'Feed' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       <Tabs.Screen
         name="audio"
         options={{
+          href: null,
           title: 'Audio',
-          tabBarIcon: ({ color, size }) => (
-            <Image
-              source={AUDIO_ICON}
-              style={[styles.icon, { width: size, height: size, tintColor: color }]}
-            />
-          ),
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  icon: {
-    resizeMode: 'contain',
-  },
-});
