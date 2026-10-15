@@ -19,12 +19,15 @@ type StudioReadyState = {
   editor: StudioEditorProps;
 };
 
-export type StudioRouteState =
+export type MultitrackRouteState =
   | { status: 'loading' }
   | { status: 'error' }
   | StudioReadyState;
 
-export function useStudioRoute(): StudioRouteState {
+/** @deprecated Prefer `MultitrackRouteState`. */
+export type StudioRouteState = MultitrackRouteState;
+
+export function useMultitrackRoute(): MultitrackRouteState {
   const router = useRouter();
   const { id, uri, duration, sourcePreGateUri } =
     useLocalSearchParams<RecordingEditorRouteParams>();

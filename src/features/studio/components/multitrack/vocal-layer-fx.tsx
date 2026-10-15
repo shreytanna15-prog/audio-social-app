@@ -26,6 +26,7 @@ type VocalLayerFxProps = {
   initialEditChain?: StoredEditChain;
   durationSeconds: number;
   isSaving: boolean;
+  chipVariant?: 'light' | 'dark';
   onStemChange: (layerId: string, stemUri: string, editChain?: StoredEditChain) => void;
   onProcessingChange?: (processing: boolean) => void;
 };
@@ -38,6 +39,7 @@ export function VocalLayerFx({
   initialEditChain,
   durationSeconds,
   isSaving,
+  chipVariant = 'light',
   onStemChange,
   onProcessingChange,
 }: VocalLayerFxProps) {
@@ -82,6 +84,7 @@ export function VocalLayerFx({
         disabled={isSaving}
         isProcessing={session.isProcessing}
         processingLabel={session.processingLabel}
+        variant={chipVariant}
         onCleanVoicePress={session.toggleCleanVoice}
         onOpenFx={() => session.openPresetSheet('fx')}
         onOpenCompressor={() => session.openPresetSheet('compressor')}

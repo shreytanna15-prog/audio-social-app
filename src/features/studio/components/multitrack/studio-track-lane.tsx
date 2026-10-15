@@ -2,8 +2,8 @@ import { memo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
-import { StudioLiveClip } from '@/features/audio/components/studio/studio-live-wave';
-import { StudioPeakWaveform } from '@/features/audio/components/studio/studio-peak-waveform';
+import { StudioLiveClip } from '@/features/studio/components/multitrack/studio-live-wave';
+import { StudioPeakWaveform } from '@/features/studio/components/multitrack/studio-peak-waveform';
 import { useCaptureElapsed } from '@/features/audio/hooks/use-capture-elapsed';
 import type { ProjectLayer } from '@/features/audio/types/project';
 import { formatDuration } from '@/features/audio/utils/format';

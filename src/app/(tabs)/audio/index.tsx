@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecordingsList } from '@/features/audio/components';
-import { StudioEntryToolbar } from '@/features/audio/components/studio/studio-entry-toolbar';
+import { StudioEntryToolbar } from '@/features/studio/components/multitrack/studio-entry-toolbar';
 import { RecordingOptimizeOverlay } from '@/features/audio/components/recording-optimize-overlay';
 import {
   pickAudioFile,
@@ -18,10 +18,7 @@ export default function AudioScreen() {
   const [isImporting, setIsImporting] = useState(false);
 
   const openQuickRecord = useCallback(() => {
-    router.push({
-      pathname: '/audio/recording/[id]',
-      params: { id: 'new' },
-    });
+    router.push('/studio/quick-record');
   }, [router]);
 
   const openImport = useCallback(async () => {

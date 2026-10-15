@@ -1,8 +1,10 @@
 import {
   Mic,
+  Pause,
   Play,
   Save,
   Scissors,
+  Square,
   Upload,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -13,44 +15,111 @@ const RECORD = 64;
 const SLOT = 56;
 const RECORD_SLOT = 68;
 
-type Action = {
-  id: string;
-  label: string;
-  Icon: LucideIcon;
-  primary?: boolean;
+type QuickRecordTransportProps = {
+  isRecording: boolean;
+  isOptimizing: boolean;
+  isSaving: boolean;
+  isPlaying: boolean;
+  hasTake: boolean;
+  onSave: () => void;
+  onTogglePlayback: () => void;
+  onToggleRecord: () => void;
+  onStopRecordPressIn?: () => void;
 };
 
-const ACTIONS: Action[] = [
-  { id: 'save', label: 'Save', Icon: Save },
-  { id: 'play-pause', label: 'Play/Pause', Icon: Play },
-  { id: 'record', label: 'Record', Icon: Mic, primary: true },
-  { id: 'trim', label: 'Trim', Icon: Scissors },
-  { id: 'publish', label: 'Publish', Icon: Upload },
-];
+export function QuickRecordTransport({
+  isRecording,
+  isOptimizing,
+  isSaving,
+  isPlaying,
+  hasTake,
+  onSave,
+  onTogglePlayback,
+  onToggleRecord,
+  onStopRecordPressIn,
+}: QuickRecordTransportProps) {
+  const busy = isOptimizing || isSaving;
+  const saveDisabled = busy || isRecording || !hasTake;
+  const playDisabled = busy || isRecording || !hasTake;
+  const recordDisabled = busy;
 
-export function QuickRecordTransport() {
+  const PlayIcon: LucideIcon = isPlaying ? Pause : Play;
+  const RecordIcon: LucideIcon = isRecording ? Square : Mic;
+
   return (
     <View className="items-center">
       <View className="flex-row items-center justify-center gap-4">
-        {ACTIONS.map(({ id, label, Icon, primary }) => (
-          <Pressable
-            key={id}
-            accessibilityRole="button"
-            accessibilityLabel={label}
-            style={({ pressed }) => [
-              styles.slot,
-              primary ? styles.recordSlot : null,
-              { opacity: pressed ? (primary ? 0.92 : 0.8) : 1 },
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save"
+          disabled={saveDisabled}
+          onPress={onSave}
+          style={({ pressed }) => [
+            styles.slot,
+            { opacity: saveDisabled ? 0.35 : pressed ? 0.8 : 1 },
+          ]}>
+          <View style={styles.sideButton}>
+            <Save size={17} color="#E4E1EA" strokeWidth={2} />
+          </View>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+          disabled={playDisabled}
+          onPress={onTogglePlayback}
+          style={({ pressed }) => [
+            styles.slot,
+            { opacity: playDisabled ? 0.35 : pressed ? 0.8 : 1 },
+          ]}>
+          <View style={styles.sideButton}>
+            <PlayIcon size={17} color="#E4E1EA" strokeWidth={2} />
+          </View>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isRecording ? 'Stop' : 'Record'}
+          disabled={recordDisabled}
+          onPress={onToggleRecord}
+          onPressIn={isRecording ? onStopRecordPressIn : undefined}
+          style={({ pressed }) => [
+            styles.slot,
+            styles.recordSlot,
+            { opacity: recordDisabled ? 0.5 : pressed ? 0.92 : 1 },
+          ]}>
+          <View
+            style={[
+              styles.recordButton,
+              isRecording ? styles.recordButtonActive : null,
             ]}>
-            <View style={primary ? styles.recordButton : styles.sideButton}>
-              <Icon
-                size={primary ? 26 : 17}
-                color={primary ? '#3C0091' : '#E4E1EA'}
-                strokeWidth={primary ? 2.3 : 2}
-              />
-            </View>
-          </Pressable>
-        ))}
+            <RecordIcon
+              size={26}
+              color={isRecording ? '#FFFFFF' : '#3C0091'}
+              strokeWidth={2.3}
+            />
+          </View>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Trim"
+          disabled
+          style={[styles.slot, { opacity: 0.35 }]}>
+          <View style={styles.sideButton}>
+            <Scissors size={17} color="#E4E1EA" strokeWidth={2} />
+          </View>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Publish"
+          disabled
+          style={[styles.slot, { opacity: 0.35 }]}>
+          <View style={styles.sideButton}>
+            <Upload size={17} color="#E4E1EA" strokeWidth={2} />
+          </View>
+        </Pressable>
       </View>
     </View>
   );
@@ -84,5 +153,10 @@ const styles = StyleSheet.create({
     experimental_backgroundImage:
       'linear-gradient(to right, #A078FF 0%, #D0BCFF 50%, #D0BCFF 100%)',
     boxShadow: '0 8px 20px rgba(160, 120, 255, 0.38)',
+  },
+  recordButtonActive: {
+    experimental_backgroundImage:
+      'linear-gradient(to right, #C62828 0%, #E53935 50%, #EF5350 100%)',
+    boxShadow: '0 8px 20px rgba(229, 57, 53, 0.38)',
   },
 });

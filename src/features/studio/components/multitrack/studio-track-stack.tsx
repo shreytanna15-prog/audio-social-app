@@ -13,7 +13,7 @@ import {
   LANE_WAVE_HEIGHT,
   StudioTrackLaneHeader,
   StudioTrackLaneWave,
-} from '@/features/audio/components/studio/studio-track-lane';
+} from '@/features/studio/components/multitrack/studio-track-lane';
 import {
   RULER_HEIGHT,
   RULER_MAJOR_SECONDS,

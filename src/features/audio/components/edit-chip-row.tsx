@@ -24,6 +24,7 @@ type EditChipRowProps = {
   disabled?: boolean;
   isProcessing?: boolean;
   processingLabel?: string;
+  variant?: 'light' | 'dark';
   onCleanVoicePress: () => void;
   onOpenFx: () => void;
   onOpenCompressor: () => void;
@@ -45,6 +46,7 @@ export function EditChipRow({
   disabled = false,
   isProcessing = false,
   processingLabel,
+  variant = 'light',
   onCleanVoicePress,
   onOpenFx,
   onOpenCompressor,
@@ -53,6 +55,10 @@ export function EditChipRow({
   onOpenReverb,
 }: EditChipRowProps) {
   const busy = disabled || isProcessing;
+  const dark = variant === 'dark';
+  const accent = dark ? '#A078FF' : '#1A73E8';
+  const iconIdle = dark ? '#CBC3D7' : '#1A1D21';
+  const iconActive = dark ? '#E4E1EA' : '#FFFFFF';
 
   const tools: ToolCard[] = [
     {
@@ -135,19 +141,32 @@ export function EditChipRow({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.labelRow}>
-        <Text style={styles.sectionLabel}>Effects</Text>
-        {isProcessing ? (
-          <View style={styles.processingRow}>
-            <ActivityIndicator size="small" color="#1A73E8" />
-            {processingLabel ? (
-              <Text style={styles.processingText} numberOfLines={1}>
-                {processingLabel}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
+      {dark ? null : (
+        <View style={styles.labelRow}>
+          <Text style={styles.sectionLabel}>Effects</Text>
+          {isProcessing ? (
+            <View style={styles.processingRow}>
+              <ActivityIndicator size="small" color={accent} />
+              {processingLabel ? (
+                <Text style={[styles.processingText, { color: accent }]} numberOfLines={1}>
+                  {processingLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {dark && isProcessing ? (
+        <View style={[styles.processingRow, styles.darkProcessingRow]}>
+          <ActivityIndicator size="small" color={accent} />
+          {processingLabel ? (
+            <Text style={[styles.processingText, styles.darkProcessingText]} numberOfLines={1}>
+              {processingLabel}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <ScrollView
         horizontal
@@ -162,17 +181,22 @@ export function EditChipRow({
             onPress={tool.onPress}
             style={({ pressed }) => [
               styles.chip,
-              tool.active && styles.chipActive,
+              dark ? styles.chipDark : null,
+              tool.active && (dark ? styles.chipActiveDark : styles.chipActive),
               busy && styles.chipDisabled,
               pressed && !busy && styles.chipPressed,
             ]}>
             <SymbolView
               name={tool.icon}
               size={16}
-              tintColor={tool.active ? '#FFFFFF' : '#1A1D21'}
+              tintColor={tool.active ? iconActive : iconIdle}
             />
             <Text
-              style={[styles.chipLabel, tool.active && styles.chipLabelActive]}
+              style={[
+                styles.chipLabel,
+                dark ? styles.chipLabelDark : null,
+                tool.active && (dark ? styles.chipLabelActiveDark : styles.chipLabelActive),
+              ]}
               numberOfLines={1}>
               {tool.label}
             </Text>
@@ -308,8 +332,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#E8EAED',
   },
+  chipDark: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#211F26',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
   chipActive: {
     backgroundColor: '#1A73E8',
+  },
+  chipActiveDark: {
+    backgroundColor: 'rgba(160, 120, 255, 0.22)',
+    borderColor: 'rgba(160, 120, 255, 0.45)',
   },
   chipDisabled: {
     opacity: 0.5,
@@ -322,8 +358,21 @@ const styles = StyleSheet.create({
     color: '#1A1D21',
     fontWeight: '500',
   },
+  chipLabelDark: {
+    color: '#E4E1EA',
+  },
   chipLabelActive: {
     color: '#FFFFFF',
+  },
+  chipLabelActiveDark: {
+    color: '#E4E1EA',
+    fontWeight: '600',
+  },
+  darkProcessingRow: {
+    marginBottom: 8,
+  },
+  darkProcessingText: {
+    color: '#CBC3D7',
   },
   backdrop: {
     flex: 1,

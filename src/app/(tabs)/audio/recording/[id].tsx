@@ -1,14 +1,14 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 
 import { RecordingEditorScreenState } from '@/features/audio/components/recording-editor-screen-state';
-import { StudioEditor } from '@/features/audio/components/studio/studio-editor';
 import { useAudioRecorderBinding } from '@/features/audio/hooks/use-audio-recorder-binding';
-import { useStudioRoute } from '@/features/audio/hooks/use-studio-route';
+import { StudioEditor } from '@/features/studio/components/multitrack/studio-editor';
+import { useMultitrackRoute } from '@/features/studio/hooks/use-multitrack-route';
 
 export default function RecordingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   useAudioRecorderBinding();
-  const routeState = useStudioRoute();
+  const routeState = useMultitrackRoute();
 
   if (routeState.status === 'loading') {
     return <RecordingEditorScreenState variant="loading" />;

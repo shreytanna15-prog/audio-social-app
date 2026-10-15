@@ -4,17 +4,17 @@ import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecordingOptimizeOverlay } from '@/features/audio/components/recording-optimize-overlay';
-import { StudioBackingPlayers } from '@/features/audio/components/studio/studio-backing-players';
-import { StudioTrackStack } from '@/features/audio/components/studio/studio-track-stack';
-import { StudioTransport } from '@/features/audio/components/studio/studio-transport';
-import { VocalLayerFx } from '@/features/audio/components/studio/vocal-layer-fx';
+import { StudioBackingPlayers } from '@/features/studio/components/multitrack/studio-backing-players';
+import { StudioTrackStack } from '@/features/studio/components/multitrack/studio-track-stack';
+import { StudioTransport } from '@/features/studio/components/multitrack/studio-transport';
+import { VocalLayerFx } from '@/features/studio/components/multitrack/vocal-layer-fx';
 import { useRecordingEditorUnsavedGuard } from '@/features/audio/hooks/use-recording-editor-unsaved-guard';
 import { useStudioPlayback } from '@/features/audio/hooks/use-studio-playback';
-import { useStudioSession } from '@/features/audio/hooks/use-studio-session';
+import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import type { StudioEditorProps } from '@/features/audio/types/studio';
 
 export function StudioEditor(props: StudioEditorProps) {
-  const studio = useStudioSession(props);
+  const studio = useMultitrackSession(props);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { StudioPeakWaveform } from '@/features/audio/components/studio/studio-peak-waveform';
+import { StudioPeakWaveform } from '@/features/studio/components/multitrack/studio-peak-waveform';
 import { normalizeMetering } from '@/features/audio/domain/recorder-session.helpers';
 import { liveClipWidthPx, slotBarCount } from '@/features/audio/domain/timeline';
 import { useCaptureElapsed } from '@/features/audio/hooks/use-capture-elapsed';

@@ -11,13 +11,15 @@ import {
   selectedLayer,
 } from '@/features/audio/domain/project';
 import { peakBarCountForDuration } from '@/features/audio/domain/timeline';
+import { useSoftCleanQueue } from '@/features/audio/hooks/use-soft-clean-queue';
 import type { StudioPlaybackTrack } from '@/features/audio/hooks/use-studio-playback';
+import { useTakeCaptureBridge } from '@/features/audio/hooks/use-take-capture-bridge';
+import { attachVocalTake } from '@/features/audio/services/attach-vocal-take.service';
 import {
   pickBeatFile,
   prepareBeatFile,
 } from '@/features/audio/services/beat-import.service';
 import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.service';
-import { mergeVocalPunchIn } from '@/features/audio/services/punch-in-merge.service';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
 import type { StoredEditChain } from '@/features/audio/types/edit-chips';
@@ -25,7 +27,7 @@ import type { AudioProject, ProjectLayer } from '@/features/audio/types/project'
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
 
-type UseStudioSessionOptions = {
+type UseMultitrackSessionOptions = {
   initialProject: AudioProject;
   isPending: boolean;
   isSaving: boolean;
@@ -55,7 +57,7 @@ function fingerprintProject(project: AudioProject): string {
   });
 }
 
-export function useStudioSession({
+export function useMultitrackSession({
   initialProject,
   isPending,
   isSaving,
@@ -63,11 +65,10 @@ export function useStudioSession({
   onPersist,
   onClose,
   onDiscard,
-}: UseStudioSessionOptions) {
+}: UseMultitrackSessionOptions) {
   const [project, setProject] = useState<AudioProject>(initialProject);
   const [recordingLayerId, setRecordingLayerId] = useState<string | null>(null);
   const [recordOriginSeconds, setRecordOriginSeconds] = useState(0);
-  const [cleaningLayerIds, setCleaningLayerIds] = useState<string[]>([]);
   const [isImportingBeat, setIsImportingBeat] = useState(false);
   const [persistStatus, setPersistStatus] = useState<'idle' | 'saving' | 'error'>('idle');
 
@@ -76,12 +77,8 @@ export function useStudioSession({
   // subscribing at this level would re-render the whole studio at that rate.
   // The live lane subscribes to it directly instead.
   const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
-  const previewUri = useAudioSessionStore((state) => state.previewUri);
-  const sourcePreGateUri = useAudioSessionStore((state) => state.sourcePreGateUri);
-  const frozenDurationMillis = useAudioSessionStore((state) => state.frozenDurationMillis);
   const startRecording = useAudioSessionStore((state) => state.startRecording);
   const handleMainAction = useAudioSessionStore((state) => state.handleMainAction);
-  const handoffToEditor = useAudioSessionStore((state) => state.handoffToEditor);
   const resetSession = useAudioSessionStore((state) => state.resetSession);
 
   const initialFingerprint = useMemo(
@@ -98,9 +95,6 @@ export function useStudioSession({
   const peakAttemptsRef = useRef(new Set<string>());
   const projectRef = useRef(project);
   projectRef.current = project;
-  // Cleans are chained so two native gate passes never overlap, and so Done can
-  // wait on whatever is still running.
-  const cleanQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
 
   useEffect(
@@ -228,212 +222,61 @@ export function useStudioSession({
     [enqueuePersist, onPersist],
   );
 
-  const attachVocalTake = useCallback(
+  const getProject = useCallback(() => projectRef.current, []);
+
+  const { cleaningLayerIds, enqueueSoftClean, awaitSoftCleanQueue } = useSoftCleanQueue({
+    getProject,
+    onProjectChange: commitProject,
+  });
+
+  const handleAttachTake = useCallback(
     async (input: {
       layerId: string;
       stemUri: string;
       sourceUri: string | null;
       durationSeconds: number;
     }) => {
-      const currentProject = projectRef.current;
-      const layer = currentProject.layers.find((item) => item.id === input.layerId);
       const originSeconds = recordOriginSecondsRef.current;
       const replaceAll = recordReplaceAllRef.current;
       recordReplaceAllRef.current = false;
 
-      let stemUri = input.stemUri;
-      let durationSeconds = input.durationSeconds;
-      let offsetMs = Math.round(originSeconds * 1000);
-      let merged = false;
-
-      if (layer) {
-        try {
-          const mergedTake = await mergeVocalPunchIn({
-            layer,
-            newUri: input.stemUri,
-            takeDurationSeconds: input.durationSeconds,
-            originSeconds,
-            replaceAll,
-          });
-          stemUri = mergedTake.uri;
-          durationSeconds = mergedTake.durationSeconds;
-          offsetMs = mergedTake.offsetMs;
-          merged = mergedTake.merged;
-        } catch (error) {
-          console.warn('[Studio] punch-in merge failed; keeping offset take.', error);
-          stemUri = input.stemUri;
-          durationSeconds = input.durationSeconds;
-          offsetMs = Math.round(originSeconds * 1000);
-          merged = false;
-        }
-      }
-
-      const sourceUri = stemUri;
-      const previousStemUri = layer?.stemUri ?? null;
-
-      const nextLayers = currentProject.layers.map((item) => {
-        if (item.id !== input.layerId) {
-          return item;
-        }
-
-        return {
-          ...item,
-          stemUri,
-          baselineUri: stemUri,
-          sourceUri,
-          durationSeconds,
-          offsetMs,
-          editChain: undefined,
-        };
+      const result = await attachVocalTake({
+        project: projectRef.current,
+        layerId: input.layerId,
+        stemUri: input.stemUri,
+        sourceUri: input.sourceUri,
+        durationSeconds: input.durationSeconds,
+        originSeconds,
+        replaceAll,
       });
-
-      const nextProject: AudioProject = {
-        ...currentProject,
-        layers: nextLayers,
-        selectedLayerId: input.layerId,
-      };
-      commitProject(nextProject);
-
-      if (
-        (merged || replaceAll) &&
-        previousStemUri &&
-        previousStemUri !== stemUri
-      ) {
-        void discardPreviewRecording(previousStemUri);
-      }
-      if (merged && input.stemUri !== stemUri) {
-        void discardPreviewRecording(input.stemUri, input.sourceUri);
-      }
-
-      const peaks = await extractPeaksFromWav(
-        stemUri,
-        peakBarCountForDuration(durationSeconds),
-      );
 
       if (!mountedRef.current) {
-        return stemUri;
+        return result.stemUri;
       }
 
-      const latest = projectRef.current;
-      const attached = latest.layers.find((item) => item.id === input.layerId);
-      if (attached?.stemUri !== stemUri) {
-        return stemUri;
-      }
-
-      commitProject({
-        ...latest,
-        layers: latest.layers.map((item) =>
-          item.id === input.layerId ? { ...item, peaks } : item,
-        ),
-      });
-
-      return stemUri;
+      commitProject(result.project);
+      return result.stemUri;
     },
     [commitProject],
   );
 
-  /**
-   * Soft-gates a take that is already visible in its lane, then swaps the stem.
-   *
-   * The gate takes seconds, so anything the user does to the layer meanwhile
-   * wins: a removed layer, a re-record, or an applied effect all make the
-   * result stale and it is thrown away rather than clobbering their work.
-   */
-  const runSoftClean = useCallback(
-    (layerId: string, rawUri: string) => {
-      setCleaningLayerIds((ids) => (ids.includes(layerId) ? ids : [...ids, layerId]));
-
-      // Must never reject: Done awaits this chain, so a thrown error here would
-      // leave saving permanently broken.
-      cleanQueueRef.current = cleanQueueRef.current.then(async () => {
-        try {
-          const cleanedUri = await recordingSessionService.softClean(rawUri);
-
-          if (!cleanedUri || !mountedRef.current) {
-            return;
-          }
-
-          const layer = projectRef.current.layers.find((item) => item.id === layerId);
-          const untouched = layer?.stemUri === rawUri && layer?.sourceUri === rawUri;
-
-          if (!untouched) {
-            await discardPreviewRecording(cleanedUri);
-            return;
-          }
-
-          const peaks = await extractPeaksFromWav(
-            cleanedUri,
-            peakBarCountForDuration(layer.durationSeconds),
-          );
-
-          if (!mountedRef.current) {
-            return;
-          }
-
-          const latest = projectRef.current;
-          commitProject({
-            ...latest,
-            layers: latest.layers.map((item) =>
-              item.id === layerId
-                ? { ...item, stemUri: cleanedUri, baselineUri: cleanedUri, peaks }
-                : item,
-            ),
-          });
-        } catch (error) {
-          console.warn('[Optimize] soft clean swap failed; keeping raw take.', error);
-        } finally {
-          if (mountedRef.current) {
-            setCleaningLayerIds((ids) => ids.filter((id) => id !== layerId));
-          }
-        }
-      });
+  const handleTakeAttached = useCallback(
+    (layerId: string, attachedUri: string) => {
+      enqueueSoftClean(layerId, attachedUri);
     },
-    [commitProject],
+    [enqueueSoftClean],
   );
 
-  useEffect(() => {
-    if (status !== 'preview' || !previewUri) {
-      return;
-    }
+  const handleCaptureSettled = useCallback(() => {
+    setRecordingLayerId(null);
+  }, []);
 
-    const layerId = capturingLayerIdRef.current;
-    const stemUri = previewUri;
-    const sourceUri = sourcePreGateUri;
-    const takeDuration = frozenDurationMillis / 1000;
-    capturingLayerIdRef.current = null;
-    handoffToEditor();
-
-    if (!layerId) {
-      setRecordingLayerId(null);
-      return;
-    }
-
-    void attachVocalTake({
-      layerId,
-      stemUri,
-      sourceUri,
-      durationSeconds: takeDuration,
-    })
-      .then((attachedUri) => {
-        runSoftClean(layerId, attachedUri);
-      })
-      .catch((error: unknown) => {
-        console.warn('[Studio] could not attach take to layer.', error);
-      })
-      .finally(() => {
-        if (mountedRef.current) {
-          setRecordingLayerId(null);
-        }
-      });
-  }, [
-    attachVocalTake,
-    frozenDurationMillis,
-    handoffToEditor,
-    previewUri,
-    runSoftClean,
-    sourcePreGateUri,
-    status,
-  ]);
+  useTakeCaptureBridge({
+    capturingLayerIdRef,
+    onAttach: handleAttachTake,
+    onAttached: handleTakeAttached,
+    onSettled: handleCaptureSettled,
+  });
 
   const ensureVocalLayer = useCallback((): ProjectLayer | null => {
     const currentProject = projectRef.current;
@@ -654,7 +497,7 @@ export function useStudioSession({
     // A gate still running holds the final stem for a layer, so it has to land
     // before the project is fingerprinted and mixed down.
     setPersistStatus('saving');
-    await cleanQueueRef.current;
+    await awaitSoftCleanQueue();
     await persistRunRef.current;
     setPersistStatus('idle');
 
@@ -682,7 +525,7 @@ export function useStudioSession({
 
     persistedFingerprintRef.current = currentFingerprint;
     return true;
-  }, [isOptimizing, isPending, isRecording, onSave]);
+  }, [awaitSoftCleanQueue, isOptimizing, isPending, isRecording, onSave]);
 
   const handleDone = useCallback(async () => {
     if (!(await persistPendingWork())) {
