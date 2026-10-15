@@ -37,6 +37,13 @@ export default function RootLayout() {
                       headerShown: false,
                     }}
                   />
+                  <Stack.Screen
+                    name="studio"
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right',
+                    }}
+                  />
                 </Stack.Protected>
 
                 <Stack.Protected guard={!isAuthenticated && !hasCompletedOnboarding}>

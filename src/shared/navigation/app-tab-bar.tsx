@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { AudioLines, Compass, Home, Plus, User } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { AudioLines, Compass, Home, Plus, User, X } from 'lucide-react-native';
+import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/features/player';
+import { CreateSheet, type CreateActionId } from '@/shared/components/create';
 import { Text } from '@/shared/components/ui/text';
 
 const ACTIVE_COLOR = '#D0BCFF';
 const INACTIVE_COLOR = '#CBC3D7';
 const BAR_BG = '#131319';
+const FALLBACK_BAR_HEIGHT = 74;
 
 type TabVisual = {
   routeName: string;
@@ -61,19 +64,27 @@ function TabItem({
   );
 }
 
-function CreateTabButton() {
-  const { push } = useRouter();
-
+function CreateTabButton({
+  open,
+  onPress,
+}: {
+  open: boolean;
+  onPress: () => void;
+}) {
   return (
     <View className="flex-1 items-center justify-center">
       <Pressable
-        onPress={() => push('/audio')}
+        onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel="Create audio"
+        accessibilityLabel={open ? 'Close create menu' : 'Create'}
         className="-mt-5 h-14 w-14 items-center justify-center rounded-full"
         style={styles.plusOuter}>
         <View className="h-11 w-11 items-center justify-center rounded-full bg-[#1B1B21]">
-          <Plus size={26} color="#FFFFFF" strokeWidth={2.4} />
+          {open ? (
+            <X size={24} color="#FFFFFF" strokeWidth={2.4} />
+          ) : (
+            <Plus size={26} color="#FFFFFF" strokeWidth={2.4} />
+          )}
         </View>
       </Pressable>
     </View>
@@ -82,6 +93,27 @@ function CreateTabButton() {
 
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { push } = useRouter();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [barHeight, setBarHeight] = useState(FALLBACK_BAR_HEIGHT + Math.max(insets.bottom, 10));
+  const bottomPad = Math.max(insets.bottom, 10);
+
+  const onBarLayout = (event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.height;
+    setBarHeight((prev) => (prev === next ? prev : next));
+  };
+
+  const onCreateSelect = (action: CreateActionId) => {
+    if (action !== 'quick-record') {
+      return;
+    }
+
+    // Let the sheet start dismissing, then push onto the root stack.
+    setCreateOpen(false);
+    requestAnimationFrame(() => {
+      push('/studio/quick-record');
+    });
+  };
 
   const renderTab = (tab: TabVisual) => {
     const routeIndex = state.routes.findIndex((route) => route.name === tab.routeName);
@@ -92,6 +124,10 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
     const { options } = descriptors[route.key];
 
     const onPress = () => {
+      if (createOpen) {
+        setCreateOpen(false);
+      }
+
       const event = navigation.emit({
         type: 'tabPress',
         target: route.key,
@@ -123,16 +159,29 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
   };
 
   return (
-    <View
-      className="border-t border-white/5"
-      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      <MiniPlayer />
-      <View className="h-16 flex-row items-end px-1">
-        {LEFT_TABS.map(renderTab)}
-        <CreateTabButton />
-        {RIGHT_TABS.map(renderTab)}
+    <>
+      <CreateSheet
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        bottomOffset={barHeight}
+        onSelect={onCreateSelect}
+      />
+
+      <View
+        className="border-t border-white/5"
+        onLayout={onBarLayout}
+        style={[styles.bar, { paddingBottom: bottomPad }]}>
+        <MiniPlayer />
+        <View className="h-16 flex-row items-end px-1">
+          {LEFT_TABS.map(renderTab)}
+          <CreateTabButton
+            open={createOpen}
+            onPress={() => setCreateOpen((prev) => !prev)}
+          />
+          {RIGHT_TABS.map(renderTab)}
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 

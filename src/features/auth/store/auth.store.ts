@@ -4,6 +4,8 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 
 import { clearTokens, hasStoredSession, onAuthInvalidated } from '@/core/api';
 
+export const SKIP_AUTH = process.env.EXPO_PUBLIC_SKIP_AUTH === 'true';
+
 export type SignupDraft = {
   name?: string;
   username?: string;
@@ -50,15 +52,18 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       isHydrated: false,
-      hasCompletedOnboarding: false,
-      isAuthenticated: false,
+      hasCompletedOnboarding: SKIP_AUTH,
+      isAuthenticated: SKIP_AUTH,
       signupDraft: {},
 
       setHydrated: (value) => set({ isHydrated: value }),
 
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
 
-      resetOnboarding: () => set({ hasCompletedOnboarding: false }),
+      resetOnboarding: () => {
+        if (SKIP_AUTH) return;
+        set({ hasCompletedOnboarding: false });
+      },
 
       setAuthenticated: (value) => set({ isAuthenticated: value }),
 
@@ -70,11 +75,16 @@ export const useAuthStore = create<AuthState>()(
       clearSignupDraft: () => set({ signupDraft: {} }),
 
       logout: async () => {
+        if (SKIP_AUTH) return;
         await clearTokens();
         set({ isAuthenticated: false, signupDraft: {} });
       },
 
       hydrateSession: async () => {
+        if (SKIP_AUTH) {
+          set({ isAuthenticated: true, hasCompletedOnboarding: true });
+          return;
+        }
         const hasSession = await hasStoredSession();
         set({ isAuthenticated: hasSession });
       },
@@ -104,5 +114,6 @@ export const useAuthStore = create<AuthState>()(
 );
 
 onAuthInvalidated(() => {
+  if (SKIP_AUTH) return;
   void useAuthStore.getState().logout();
 });
