@@ -41,7 +41,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     }, []),
   );
   const captureEnabled = (options.captureEnabled ?? true) && isFocused;
-  const { back, canGoBack, replace, push } = useRouter();
+  const { replace, push } = useRouter();
 
   const project = useQuickRecordStore((state) => state.project);
   const initialFingerprint = useQuickRecordStore((state) => state.initialFingerprint);
@@ -289,13 +289,12 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const isDirty =
     fingerprintQuickRecordProject(project) !== initialFingerprint;
 
-  const leaveToAudio = useCallback(() => {
-    if (canGoBack()) {
-      back();
-      return;
-    }
-    replace('/(tabs)/audio');
-  }, [back, canGoBack, replace]);
+  const leaveToHome = useCallback(() => {
+    replace('/(tabs)');
+  }, [replace]);
+
+  /** @deprecated Prefer leaveToHome — kept for call sites mid-rename. */
+  const leaveToAudio = leaveToHome;
 
   const discard = useCallback(async () => {
     await resetSession();
@@ -451,6 +450,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     requestClose,
     onStemChange,
     awaitSoftCleanQueue,
+    leaveToHome,
     leaveToAudio,
   };
 }

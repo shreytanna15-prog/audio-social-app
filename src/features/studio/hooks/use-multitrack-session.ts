@@ -23,7 +23,11 @@ import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.serv
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
 import type { StoredEditChain } from '@/features/audio/types/edit-chips';
-import type { AudioProject, ProjectLayer } from '@/features/audio/types/project';
+import {
+  MAX_PROJECT_LAYERS,
+  type AudioProject,
+  type ProjectLayer,
+} from '@/features/audio/types/project';
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
 
@@ -286,7 +290,10 @@ export function useMultitrackSession({
     }
 
     if (!canAddLayer(currentProject.layers)) {
-      Alert.alert('Layer limit', 'This project already has 4 layers.');
+      Alert.alert(
+        'Layer limit',
+        `This project already has ${MAX_PROJECT_LAYERS} layers.`,
+      );
       return null;
     }
 
@@ -348,7 +355,10 @@ export function useMultitrackSession({
     }
 
     if (!canAddLayer(projectRef.current.layers)) {
-      Alert.alert('Layer limit', 'This project already has 4 layers.');
+      Alert.alert(
+        'Layer limit',
+        `This project already has ${MAX_PROJECT_LAYERS} layers.`,
+      );
       return;
     }
 
@@ -397,7 +407,10 @@ export function useMultitrackSession({
     const currentProject = projectRef.current;
     if (!canAddLayer(currentProject.layers) || isRecording || isOptimizing || isImportingBeat) {
       if (!canAddLayer(currentProject.layers)) {
-        Alert.alert('Layer limit', 'This project already has 4 layers.');
+        Alert.alert(
+          'Layer limit',
+          `This project already has ${MAX_PROJECT_LAYERS} layers.`,
+        );
       }
       return;
     }
@@ -423,6 +436,21 @@ export function useMultitrackSession({
       return next;
     });
   }, []);
+
+  const renameLayer = useCallback(
+    (layerId: string, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        return;
+      }
+      const currentProject = projectRef.current;
+      const nextLayers = currentProject.layers.map((layer) =>
+        layer.id === layerId ? { ...layer, name: trimmed } : layer,
+      );
+      commitProject({ ...currentProject, layers: nextLayers });
+    },
+    [commitProject],
+  );
 
   const toggleMute = useCallback(
     (layerId: string) => {
@@ -606,6 +634,7 @@ export function useMultitrackSession({
     addBeat,
     addVocalLayer,
     selectLayer,
+    renameLayer,
     toggleMute,
     removeLayer,
     applyVocalStem,

@@ -1,7 +1,7 @@
 import type { StoredEditChain } from '@/features/audio/types/edit-chips';
 
 export const PROJECT_VERSION = 1;
-export const MAX_PROJECT_LAYERS = 4;
+export const MAX_PROJECT_LAYERS = 5;
 
 export type ProjectLayerKind = 'vocal' | 'beat' | 'import';
 

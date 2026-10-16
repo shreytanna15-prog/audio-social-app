@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 
+import {
+  LIVE_WINDOW_FOLLOW_LEAD_SECONDS,
+  LIVE_WINDOW_SECONDS,
+  buildLiveWindowTicks,
+  clampLiveWindowStart,
+  edgeEnsureLiveWindowStart,
+  followLiveWindowStart,
+  formatLiveWindowTick,
+  playheadLeftInLiveWindow,
+} from '@/features/audio/domain/live-window';
 import { normalizeMetering } from '@/features/audio/domain/recorder-session.helpers';
 import { liveClipWidthPx, slotBarCount } from '@/features/audio/domain/timeline';
 import { useCaptureElapsed } from '@/features/audio/hooks/use-capture-elapsed';
@@ -8,87 +18,11 @@ import { recordingSessionService } from '@/features/audio/services/recording-ses
 import { StudioPeakWaveform } from '@/features/studio/components/multitrack/studio-peak-waveform';
 import { Text } from '@/shared/components/ui/text';
 
-/** Visible time span across the waveform viewport (constant scale). */
-export const LIVE_WINDOW_SECONDS = 30;
-/** Grow from the left until this fraction of the window, then scroll (record/play follow). */
-const FOLLOW_RATIO = 0.8;
-const FOLLOW_LEAD_SECONDS = LIVE_WINDOW_SECONDS * FOLLOW_RATIO;
-/** Soft edge band for scrub/play autoscroll — not full playhead-follow. */
-const EDGE_RATIO = 0.12;
-const EDGE_SECONDS = LIVE_WINDOW_SECONDS * EDGE_RATIO;
-const TICK_COUNT = 6;
+export { LIVE_WINDOW_SECONDS };
+
 const WAVE_HEIGHT = 140;
 const EMPTY_BAR_COUNT = 56;
 const BAR_WIDTH = 3;
-
-function formatTick(seconds: number): string {
-  const safe = Math.max(0, Math.floor(seconds));
-  if (safe < 60) {
-    return `${safe}s`;
-  }
-  const minutes = Math.floor(safe / 60);
-  const rem = safe % 60;
-  return `${minutes}:${rem.toString().padStart(2, '0')}`;
-}
-
-function buildTicks(windowStart: number, windowEnd: number): number[] {
-  const span = Math.max(0.001, windowEnd - windowStart);
-  return Array.from(
-    { length: TICK_COUNT },
-    (_, index) => windowStart + (index / (TICK_COUNT - 1)) * span,
-  );
-}
-
-function maxWindowStart(durationSeconds: number): number {
-  return Math.max(0, durationSeconds - LIVE_WINDOW_SECONDS);
-}
-
-function clampWindowStart(start: number, durationSeconds: number): number {
-  return Math.max(0, Math.min(start, maxWindowStart(durationSeconds)));
-}
-
-/** Record / first-take: keep head near 80% once past the lead. */
-function followWindowStart(playheadSeconds: number): number {
-  const playhead = Math.max(0, playheadSeconds);
-  if (playhead < FOLLOW_LEAD_SECONDS) {
-    return 0;
-  }
-  return playhead - FOLLOW_LEAD_SECONDS;
-}
-
-/**
- * Keep the playhead inside the viewport; only nudge when it hits an edge.
- * Does not continuously re-center — scrub stays still until the edge.
- */
-function edgeEnsureWindowStart(
-  playheadSeconds: number,
-  windowStart: number,
-  durationSeconds: number,
-): number {
-  const playhead = Math.max(0, playheadSeconds);
-  const windowEnd = windowStart + LIVE_WINDOW_SECONDS;
-  let next = windowStart;
-
-  if (playhead < windowStart + EDGE_SECONDS) {
-    next = playhead - EDGE_SECONDS;
-  } else if (playhead > windowEnd - EDGE_SECONDS) {
-    next = playhead - (LIVE_WINDOW_SECONDS - EDGE_SECONDS);
-  }
-
-  return clampWindowStart(next, durationSeconds);
-}
-
-function playheadLeftInWindow(
-  playheadSeconds: number,
-  windowStart: number,
-  viewportWidth: number,
-): number {
-  if (viewportWidth <= 0) {
-    return 0;
-  }
-  const pps = viewportWidth / LIVE_WINDOW_SECONDS;
-  return Math.max(0, (playheadSeconds - windowStart) * pps - 6);
-}
 
 type QuickRecordTimelineProps = {
   isRecording: boolean;
@@ -113,19 +47,19 @@ export function QuickRecordTimeline({
     : 0;
 
   const windowStart = isRecording
-    ? followWindowStart(timelineSeconds)
+    ? followLiveWindowStart(timelineSeconds)
     : Math.max(0, windowStartSeconds);
   const windowEnd = windowStart + LIVE_WINDOW_SECONDS;
-  const ticks = buildTicks(windowStart, windowEnd);
+  const ticks = buildLiveWindowTicks(windowStart, windowEnd);
 
   return (
-    <View className="flex-row justify-between px-1 pt-1">
+    <View className="flex-row justify-between pt-1">
       {ticks.map((at, index) => (
         <Text
           key={`tick-${index}-${Math.floor(at * 10) / 10}`}
           variant="caption"
           className="text-slate-muted">
-          {formatTick(at)}
+          {formatLiveWindowTick(at)}
         </Text>
       ))}
     </View>
@@ -194,9 +128,9 @@ function LiveMeterWave({ viewportWidth }: { viewportWidth: number }) {
     return null;
   }
 
-  const following = elapsed >= FOLLOW_LEAD_SECONDS;
+  const following = elapsed >= LIVE_WINDOW_FOLLOW_LEAD_SECONDS;
   const historyWidth = following
-    ? FOLLOW_LEAD_SECONDS * pps
+    ? LIVE_WINDOW_FOLLOW_LEAD_SECONDS * pps
     : liveClipWidthPx(elapsed, pps);
   const visibleWidth = Math.min(viewportWidth, Math.max(0, historyWidth));
   if (visibleWidth <= 0) {
@@ -224,8 +158,8 @@ function LiveMeterWave({ viewportWidth }: { viewportWidth: number }) {
 
 function QuickRecordLiveCapture({ viewportWidth }: { viewportWidth: number }) {
   const elapsed = useCaptureElapsed(true);
-  const windowStart = followWindowStart(elapsed);
-  const playheadLeft = playheadLeftInWindow(elapsed, windowStart, viewportWidth);
+  const windowStart = followLiveWindowStart(elapsed);
+  const playheadLeft = playheadLeftInLiveWindow(elapsed, windowStart, viewportWidth);
 
   return (
     <>
@@ -256,7 +190,7 @@ function StoredTakeWave({
   const takeStartX = (0 - windowStart) * pps;
   const takeWidth = Math.max(1, takeDuration * pps);
   const takeProgress = Math.min(1, Math.max(0, playhead / takeDuration));
-  const playheadLeft = playheadLeftInWindow(playhead, windowStart, viewportWidth);
+  const playheadLeft = playheadLeftInLiveWindow(playhead, windowStart, viewportWidth);
 
   return (
     <>
@@ -388,8 +322,8 @@ function PunchInLiveCapture({
   const origin = Math.max(0, recordOriginSeconds);
   const timelineSeconds = origin + elapsed;
   // Local follow only — never push 10Hz window updates to parent state.
-  const windowStart = followWindowStart(timelineSeconds);
-  const playheadLeft = playheadLeftInWindow(
+  const windowStart = followLiveWindowStart(timelineSeconds);
+  const playheadLeft = playheadLeftInLiveWindow(
     timelineSeconds,
     windowStart,
     viewportWidth,
@@ -451,7 +385,7 @@ export function QuickRecordWaveform({
   windowStartRef.current = windowStartSeconds;
 
   const emitWindowStart = (next: number) => {
-    const clamped = clampWindowStart(next, durationSeconds);
+    const clamped = clampLiveWindowStart(next, durationSeconds);
     if (Math.abs(clamped - windowStartRef.current) < 0.001) {
       return;
     }
@@ -485,7 +419,7 @@ export function QuickRecordWaveform({
     wasRecordingRef.current = isRecording;
     if (wasRecording && !isRecording && hasTake && durationSeconds > 0) {
       emitWindowStart(
-        edgeEnsureWindowStart(
+        edgeEnsureLiveWindowStart(
           idlePlayheadSeconds,
           windowStartRef.current,
           durationSeconds,
@@ -513,7 +447,7 @@ export function QuickRecordWaveform({
     }
 
     emitWindowStart(
-      edgeEnsureWindowStart(
+      edgeEnsureLiveWindowStart(
         idlePlayheadSeconds,
         windowStartRef.current,
         durationSeconds,
@@ -535,7 +469,7 @@ export function QuickRecordWaveform({
     if (durationSeconds <= 0) {
       return;
     }
-    emitWindowStart(clampWindowStart(windowStartRef.current, durationSeconds));
+    emitWindowStart(clampLiveWindowStart(windowStartRef.current, durationSeconds));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationSeconds]);
 
@@ -561,7 +495,7 @@ export function QuickRecordWaveform({
     lastScrubSecondsRef.current = seconds;
     setScrubSeconds(seconds);
     // Edge-only autoscroll — viewport stays still until the bar hits a side.
-    const nextWindow = edgeEnsureWindowStart(
+    const nextWindow = edgeEnsureLiveWindowStart(
       seconds,
       windowStartRef.current,
       durationSeconds,

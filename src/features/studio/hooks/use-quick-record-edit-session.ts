@@ -74,7 +74,7 @@ export function useQuickRecordEditSession() {
       }
 
       resetStore();
-      session.leaveToAudio();
+      session.leaveToHome();
       return true;
     } finally {
       if (mountedRef.current) {

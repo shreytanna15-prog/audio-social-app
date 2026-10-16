@@ -140,7 +140,7 @@ export function useMultitrackRoute(): MultitrackRouteState {
   ]);
 
   const leave = useCallback(() => {
-    router.dismissTo('/audio');
+    router.replace('/(tabs)');
   }, [router]);
 
   const handleSave = useCallback(

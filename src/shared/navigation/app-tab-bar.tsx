@@ -104,14 +104,21 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
   };
 
   const onCreateSelect = (action: CreateActionId) => {
-    if (action !== 'quick-record') {
+    const route =
+      action === 'quick-record'
+        ? '/studio/quick-record'
+        : action === 'multitrack-studio'
+          ? '/studio/multitrack'
+          : null;
+
+    if (!route) {
       return;
     }
 
     // Let the sheet start dismissing, then push onto the root stack.
     setCreateOpen(false);
     requestAnimationFrame(() => {
-      push('/studio/quick-record');
+      push(route);
     });
   };
 

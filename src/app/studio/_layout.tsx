@@ -4,6 +4,7 @@ export default function StudioLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="quick-record" />
+      <Stack.Screen name="multitrack" />
     </Stack>
   );
 }
