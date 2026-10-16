@@ -13,6 +13,7 @@ import { useRecordingsStore } from '@/features/audio/store';
 import { PROJECT_VERSION, type AudioProject } from '@/features/audio/types/project';
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
+import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 
 function createPendingMultitrackProject(): AudioProject {
   const layer = createLayer({
@@ -35,7 +36,10 @@ export function useMultitrackStudioScreen() {
   const isSaving = useRecordingsStore((state) => state.isSaving);
   const saveProject = useRecordingsStore((state) => state.saveProject);
 
-  const initialProject = useMemo(() => createPendingMultitrackProject(), []);
+  const initialProject = useMemo(() => {
+    const pending = useMultitrackEntryStore.getState().consumePendingProject();
+    return pending ?? createPendingMultitrackProject();
+  }, []);
 
   const leaveToHome = useCallback(() => {
     replace('/(tabs)');

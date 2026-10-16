@@ -109,7 +109,9 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
         ? '/studio/quick-record'
         : action === 'multitrack-studio'
           ? '/studio/multitrack'
-          : null;
+          : action === 'import-audio'
+            ? '/studio/import-audio'
+            : null;
 
     if (!route) {
       return;

@@ -38,11 +38,12 @@ export function useQuickRecordEditSession() {
     if (session.isRecording || session.isBusy || fxProcessing || isSaving) {
       return;
     }
+    // Import-only edit has no capture underneath — leave to Home.
     if (canGoBack()) {
       back();
       return;
     }
-    replace('/studio/quick-record');
+    replace('/(tabs)');
   }, [
     back,
     canGoBack,

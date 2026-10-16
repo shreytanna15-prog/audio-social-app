@@ -40,6 +40,8 @@ type QuickRecordStore = {
   project: AudioProject;
   initialFingerprint: string;
   setProject: (project: AudioProject) => void;
+  /** Seed an imported take and reset dirty baseline to match. */
+  hydrateFromImport: (project: AudioProject) => void;
   applyStem: (
     layerId: string,
     stemUri: string,
@@ -55,6 +57,11 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
     project: initial,
     initialFingerprint: fingerprintQuickRecordProject(initial),
     setProject: (project) => set({ project }),
+    hydrateFromImport: (project) =>
+      set({
+        project,
+        initialFingerprint: fingerprintQuickRecordProject(project),
+      }),
     applyStem: (layerId, stemUri, editChain) => {
       const current = get().project;
       set({

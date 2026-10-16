@@ -140,10 +140,11 @@ export function createImportLayerProject(input: {
   sourceUri: string;
   durationSeconds: number;
   peaks?: number[];
+  name?: string;
 }): AudioProject {
   const layer = createLayer({
     kind: 'import',
-    name: 'Audio 1',
+    name: input.name?.trim() || 'Audio 1',
     stemUri: input.stemUri,
     baselineUri: input.stemUri,
     sourceUri: input.sourceUri,
