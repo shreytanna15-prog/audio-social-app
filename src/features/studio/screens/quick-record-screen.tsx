@@ -1,12 +1,12 @@
-import { ArrowLeft } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAudioRecorderBinding } from '@/features/audio/hooks/use-audio-recorder-binding';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
+import { QuickRecordCaptureTransport } from '@/features/studio/components/quick-record-capture-transport';
+import { QuickRecordProcessingOverlay } from '@/features/studio/components/quick-record-processing-overlay';
 import { QuickRecordTimer } from '@/features/studio/components/quick-record-timer';
-import { QuickRecordToolRow } from '@/features/studio/components/quick-record-tool-row';
-import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
 import {
   QuickRecordTimeline,
   QuickRecordWaveform,
@@ -18,14 +18,17 @@ export function QuickRecordScreen() {
   const insets = useSafeAreaInsets();
   useAudioRecorderBinding();
   const session = useQuickRecordSession();
+  const [windowStartSeconds, setWindowStartSeconds] = useState(0);
 
-  const displaySeconds = session.isPlaying
+  const displaySeconds = session.hasTake || session.isScrubbing
     ? session.currentTime
-    : session.durationSeconds;
+    : 0;
   const progress =
     session.durationSeconds > 0
       ? session.currentTime / session.durationSeconds
       : 0;
+  const overlayTitle = session.isOptimizing ? 'Finishing recording…' : 'Cleaning take…';
+  const discardDisabled = session.isRecording || session.isBusy;
 
   return (
     <View
@@ -34,21 +37,23 @@ export function QuickRecordScreen() {
       <View
         className="border-b border-white/5 px-4"
         style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}>
-        <View className="h-10 flex-row items-center justify-between">
+        <View className="h-10 flex-row items-center justify-center">
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel="Discard"
             hitSlop={8}
+            disabled={discardDisabled}
             onPress={session.requestClose}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
-            <ArrowLeft size={20} color="#E4E1EA" strokeWidth={2} />
+            className="absolute left-0 z-10 h-10 justify-center px-0.5 active:opacity-70"
+            style={{ opacity: discardDisabled ? 0.4 : 1 }}>
+            <Text variant="label-md" className="text-destructive">
+              Discard
+            </Text>
           </Pressable>
 
           <Text variant="title-md" className="text-on-surface">
             Quick Record
           </Text>
-
-          <View className="h-10 w-10" />
         </View>
       </View>
 
@@ -57,18 +62,13 @@ export function QuickRecordScreen() {
           <QuickRecordTimer
             isRecording={session.isRecording}
             displaySeconds={displaySeconds}
-            maxSeconds={session.maxSeconds}
+            totalSeconds={session.durationSeconds}
+            recordOriginSeconds={session.recordOriginSeconds}
           />
 
           <View className="rounded-full border border-white/10 bg-surface-container px-3 py-1.5">
             <Text variant="label-sm" className="text-on-surface">
-              {session.isOptimizing
-                ? 'Processing…'
-                : session.isCleaning
-                  ? 'Cleaning…'
-                  : session.fxProcessing
-                    ? 'Applying FX…'
-                    : 'Untitled take'}
+              Untitled take
             </Text>
           </View>
         </View>
@@ -76,6 +76,8 @@ export function QuickRecordScreen() {
         <QuickRecordTimeline
           isRecording={session.isRecording}
           durationSeconds={session.durationSeconds}
+          recordOriginSeconds={session.recordOriginSeconds}
+          windowStartSeconds={windowStartSeconds}
         />
       </View>
 
@@ -84,35 +86,42 @@ export function QuickRecordScreen() {
           peaks={session.peaks}
           isRecording={session.isRecording}
           hasTake={session.hasTake}
+          isPlaying={session.isPlaying}
           progress={progress}
+          durationSeconds={session.durationSeconds}
+          recordOriginSeconds={session.recordOriginSeconds}
+          windowStartSeconds={windowStartSeconds}
+          onWindowStartChange={setWindowStartSeconds}
+          onScrubStart={session.isBusy ? undefined : session.beginScrub}
+          onSeek={session.isBusy ? undefined : session.scrubTo}
+          onScrubEnd={
+            session.isBusy
+              ? undefined
+              : (seconds) => {
+                  void session.endScrub(seconds);
+                }
+          }
         />
       </View>
 
-      <View className="gap-6 px-4 pt-2 pb-5">
-        <QuickRecordToolRow
-          layerId={session.layerId}
-          baselineUri={session.baselineUri}
-          stemUri={session.stemUri}
-          sourceUri={session.sourceUri}
-          initialEditChain={session.editChain}
-          durationSeconds={session.durationSeconds}
-          isSaving={session.isSaving || session.isRecording || session.isOptimizing}
-          disabled={session.isRecording || session.isOptimizing}
-          onStemChange={session.onStemChange}
-          onProcessingChange={session.setFxProcessing}
-        />
-        <QuickRecordTransport
+      <View className="px-4 pt-2 pb-5">
+        <QuickRecordCaptureTransport
           isRecording={session.isRecording}
           isOptimizing={session.isOptimizing}
-          isSaving={session.isSaving}
           isPlaying={session.isPlaying}
           hasTake={session.hasTake}
-          onSave={() => void session.save()}
+          isCleaning={session.isCleaning}
           onTogglePlayback={session.togglePlayback}
           onToggleRecord={session.toggleRecord}
+          onNext={() => void session.goNext()}
           onStopRecordPressIn={() => recordingSessionService.requestStop()}
         />
       </View>
+
+      <QuickRecordProcessingOverlay
+        visible={session.isBusy}
+        title={overlayTitle}
+      />
     </View>
   );
 }

@@ -1,7 +1,9 @@
 export { EffectChipRow } from '@/features/audio/components/effect-chip-row';
 export { EffectParamField } from '@/features/audio/components/effect-param-field';
+export { EffectPresetSheet } from '@/features/audio/components/effect-preset-sheet';
 export { EffectSettingsDrawer } from '@/features/audio/components/effect-settings-drawer';
-export { EditChipRow } from '@/features/audio/components/edit-chip-row';
+export { EditChipRow, EditPresetSheet } from '@/features/audio/components/edit-chip-row';
+export { FxSheet } from '@/features/audio/components/fx-sheet';
 export { IconButton } from '@/features/audio/components/icon-button';
 export { RecorderControls } from '@/features/audio/components/recorder-controls';
 export { RecorderHeader } from '@/features/audio/components/recorder-header';

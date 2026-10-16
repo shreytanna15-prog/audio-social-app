@@ -3,7 +3,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
 
 type UseTakeCaptureBridgeOptions = {
-  /** Layer that should receive the next preview take. Cleared after handoff. */
+  enabled?: boolean;
   capturingLayerIdRef: MutableRefObject<string | null>;
   onAttach: (input: {
     layerId: string;
@@ -20,6 +20,7 @@ type UseTakeCaptureBridgeOptions = {
  * project attach pipeline and clear the session store.
  */
 export function useTakeCaptureBridge({
+  enabled = true,
   capturingLayerIdRef,
   onAttach,
   onAttached,
@@ -40,7 +41,7 @@ export function useTakeCaptureBridge({
   );
 
   useEffect(() => {
-    if (status !== 'preview' || !previewUri) {
+    if (!enabled || status !== 'preview' || !previewUri) {
       return;
     }
 
@@ -75,6 +76,7 @@ export function useTakeCaptureBridge({
       });
   }, [
     capturingLayerIdRef,
+    enabled,
     frozenDurationMillis,
     handoffToEditor,
     onAttach,

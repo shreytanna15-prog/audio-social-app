@@ -1,5 +1,8 @@
 export { QuickRecordScreen } from './screens/quick-record-screen';
+export { QuickRecordEditScreen } from './screens/quick-record-edit-screen';
 export { useQuickRecordSession } from './hooks/use-quick-record-session';
+export { useQuickRecordEditSession } from './hooks/use-quick-record-edit-session';
+export { useQuickRecordStore } from './store/quick-record.store';
 export { useMultitrackSession } from './hooks/use-multitrack-session';
 export { useMultitrackRoute } from './hooks/use-multitrack-route';
 export { StudioEditor } from './components/multitrack/studio-editor';

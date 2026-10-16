@@ -75,7 +75,7 @@ export type FxScaleId = (typeof FX_SCALES)[number]['id'];
 export const FX_PRESET_HINTS: Record<FxPresetId, string> = {
   'hard-tune': 'Snaps toward the nearest note. Your melody stays.',
   'natural-tune': 'Gently pulls toward the nearest note. Vibrato mostly stays.',
-  clean: 'Your voice as recorded — no pitch style. Instant.',
+  clean: 'Your voice as recorded, no pitch style. Instant.',
   'big-chorus': 'Wider, thicker voice. Not echo repeats.',
 };
 

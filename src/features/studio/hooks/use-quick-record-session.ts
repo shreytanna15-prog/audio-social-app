@@ -1,11 +1,9 @@
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { discardPreviewRecording } from '@/features/audio/data/recording-repository';
-import { toStoredEditChain } from '@/features/audio/domain/edit-chain-persistence';
 import {
-  createEmptyProject,
   createLayer,
   hasRecordableContent,
   nextLayerName,
@@ -18,64 +16,62 @@ import { useTakeCaptureBridge } from '@/features/audio/hooks/use-take-capture-br
 import { attachVocalTake } from '@/features/audio/services/attach-vocal-take.service';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
-import { useRecordingsStore } from '@/features/audio/store/recordings.store';
 import type { StoredEditChain } from '@/features/audio/types/edit-chips';
 import type { AudioProject, ProjectLayer } from '@/features/audio/types/project';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
+import {
+  fingerprintQuickRecordProject,
+  useQuickRecordStore,
+} from '@/features/studio/store/quick-record.store';
 
 /** UI cap shown on Quick Record (matches timer display). */
 export const QUICK_RECORD_MAX_SECONDS = 180;
 
-function fingerprintProject(project: AudioProject): string {
-  return JSON.stringify({
-    selectedLayerId: project.selectedLayerId,
-    layers: project.layers.map((layer) => ({
-      id: layer.id,
-      kind: layer.kind,
-      stemUri: layer.stemUri,
-      muted: layer.muted,
-      editChain: layer.editChain ?? null,
-      durationSeconds: layer.durationSeconds,
-      offsetMs: layer.offsetMs,
-    })),
-  });
-}
+type UseQuickRecordSessionOptions = {
+  /** When false, ignore capture preview handoffs (stacked under edit). */
+  captureEnabled?: boolean;
+};
 
-function createQuickRecordProject(): AudioProject {
-  const layer = createLayer({
-    kind: 'vocal',
-    name: nextLayerName([], 'vocal'),
-  });
-  return {
-    ...createEmptyProject(),
-    layers: [layer],
-    selectedLayerId: layer.id,
-  };
-}
+export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}) {
+  const [isFocused, setIsFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, []),
+  );
+  const captureEnabled = (options.captureEnabled ?? true) && isFocused;
+  const { back, canGoBack, replace, push } = useRouter();
 
-export function useQuickRecordSession() {
-  const { back, canGoBack, replace } = useRouter();
-  const [project, setProject] = useState<AudioProject>(createQuickRecordProject);
-  const [isSaving, setIsSaving] = useState(false);
-  const [fxProcessing, setFxProcessing] = useState(false);
+  const project = useQuickRecordStore((state) => state.project);
+  const initialFingerprint = useQuickRecordStore((state) => state.initialFingerprint);
+  const setStoreProject = useQuickRecordStore((state) => state.setProject);
+  const resetStore = useQuickRecordStore((state) => state.reset);
+  const applyStem = useQuickRecordStore((state) => state.applyStem);
 
   const status = useAudioSessionStore((state) => state.status);
   const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
   const startRecording = useAudioSessionStore((state) => state.startRecording);
   const handleMainAction = useAudioSessionStore((state) => state.handleMainAction);
   const resetSession = useAudioSessionStore((state) => state.resetSession);
-  const saveProject = useRecordingsStore((state) => state.saveProject);
-  const storeSaving = useRecordingsStore((state) => state.isSaving);
 
-  const initialFingerprint = useMemo(
-    () => fingerprintProject(createQuickRecordProject()),
-    [],
-  );
   const capturingLayerIdRef = useRef<string | null>(null);
+  const recordOriginSecondsRef = useRef(0);
+  /** Scrub/playhead ground truth — player.currentTime can lag right after seek. */
+  const playheadSecondsRef = useRef(0);
+  const wasPlayingBeforeScrubRef = useRef(false);
+  const recordReplaceAllRef = useRef(true);
+  const punchEndSecondsRef = useRef<number | null>(null);
+  /** Seek only after soft-clean — seeking during URI swap releases the player. */
+  const pendingSeekRef = useRef<number | null>(null);
+  const wasCleaningRef = useRef(false);
   const projectRef = useRef(project);
-  projectRef.current = project;
+  projectRef.current = project; // keep in sync when store updates from edit/FX
   const isLeavingRef = useRef(false);
   const mountedRef = useRef(true);
+  const [recordOriginSeconds, setRecordOriginSeconds] = useState(0);
+  /** Non-null while the user is dragging the playhead. */
+  const [scrubSeconds, setScrubSeconds] = useState<number | null>(null);
 
   useEffect(
     () => () => {
@@ -99,10 +95,21 @@ export function useQuickRecordSession() {
     fallbackDurationSeconds: durationSeconds,
   });
 
-  const commitProject = useCallback((nextProject: AudioProject) => {
-    projectRef.current = nextProject;
-    setProject(nextProject);
-  }, []);
+  // Keep playhead ref in sync while idle / playing (not while capturing).
+  useEffect(() => {
+    if (isRecording) {
+      return;
+    }
+    playheadSecondsRef.current = playback.currentTime;
+  }, [isRecording, playback.currentTime]);
+
+  const commitProject = useCallback(
+    (nextProject: AudioProject) => {
+      projectRef.current = nextProject;
+      setStoreProject(nextProject);
+    },
+    [setStoreProject],
+  );
 
   const getProject = useCallback(() => projectRef.current, []);
 
@@ -138,15 +145,24 @@ export function useQuickRecordSession() {
       sourceUri: string | null;
       durationSeconds: number;
     }) => {
+      const originSeconds = recordOriginSecondsRef.current;
+      const replaceAll = recordReplaceAllRef.current;
+      recordReplaceAllRef.current = true;
+
       const result = await attachVocalTake({
         project: projectRef.current,
         layerId: input.layerId,
         stemUri: input.stemUri,
         sourceUri: input.sourceUri,
         durationSeconds: input.durationSeconds,
-        originSeconds: 0,
-        replaceAll: true,
+        originSeconds,
+        replaceAll,
       });
+
+      punchEndSecondsRef.current = replaceAll
+        ? result.project.layers.find((layer) => layer.id === input.layerId)
+            ?.durationSeconds ?? input.durationSeconds
+        : originSeconds + input.durationSeconds;
 
       if (!mountedRef.current) {
         return result.stemUri;
@@ -160,47 +176,86 @@ export function useQuickRecordSession() {
 
   const handleTakeAttached = useCallback(
     (layerId: string, attachedUri: string) => {
-      enqueueSoftClean(layerId, attachedUri);
+      const seekTo = punchEndSecondsRef.current;
+      punchEndSecondsRef.current = null;
+      pendingSeekRef.current =
+        seekTo != null && Number.isFinite(seekTo) ? Math.max(0, seekTo) : null;
+      // Clean the committed source/stem (same URI after attach) — prefer store.
+      const layer = projectRef.current.layers.find((item) => item.id === layerId);
+      const uriToClean = layer?.sourceUri ?? layer?.stemUri ?? attachedUri;
+      enqueueSoftClean(layerId, uriToClean);
     },
     [enqueueSoftClean],
   );
 
+  // Apply deferred seek after SpectralGate swaps the stem URI.
+  useEffect(() => {
+    const cleaning = cleaningLayerIds.length > 0;
+    if (wasCleaningRef.current && !cleaning) {
+      const seekTo = pendingSeekRef.current;
+      pendingSeekRef.current = null;
+      if (seekTo != null) {
+        playheadSecondsRef.current = seekTo;
+        playback.markResumeAt(seekTo);
+        void playback.seekTo(seekTo).catch(() => {
+          // Player may still be remounting; ignore one-shot failures.
+        });
+      }
+    }
+    wasCleaningRef.current = cleaning;
+  }, [cleaningLayerIds.length, playback]);
+
   useTakeCaptureBridge({
+    enabled: captureEnabled,
     capturingLayerIdRef,
     onAttach: handleAttachTake,
     onAttached: handleTakeAttached,
   });
 
+  const isCleaning = cleaningLayerIds.length > 0;
+  const isBusy = isOptimizing || isCleaning;
+
   const startRecord = useCallback(() => {
-    if (hasActiveSession || isOptimizing || isSaving || storeSaving || fxProcessing) {
+    if (hasActiveSession || isBusy) {
       return;
     }
 
     playback.pause();
     const vocalLayer = ensureVocalLayer();
+    const existingStem = Boolean(vocalLayer.stemUri);
+    const layerDuration = Math.max(0, vocalLayer.durationSeconds || 0);
+    // Prefer scrubbed playhead; clamp to take bounds so near-end = extend.
+    const playheadSeconds = existingStem
+      ? Math.min(layerDuration, Math.max(0, playheadSecondsRef.current))
+      : 0;
+
+    recordOriginSecondsRef.current = playheadSeconds;
+    setRecordOriginSeconds(playheadSeconds);
+    recordReplaceAllRef.current = !existingStem;
     capturingLayerIdRef.current = vocalLayer.id;
+
+    console.warn(
+      `[QuickRecord] punch-in origin=${playheadSeconds.toFixed(2)}s replaceAll=${!existingStem} take=${layerDuration.toFixed(2)}s`,
+    );
+
     void (async () => {
       await afterNextPaint();
       void startRecording();
     })();
   }, [
     ensureVocalLayer,
-    fxProcessing,
     hasActiveSession,
-    isOptimizing,
-    isSaving,
+    isBusy,
     playback,
     startRecording,
-    storeSaving,
   ]);
 
   const stopRecord = useCallback(() => {
     recordingSessionService.requestStop();
     void handleMainAction();
+    setRecordOriginSeconds(0);
   }, [handleMainAction]);
 
-  // Cap length without subscribing metering/elapsed into this hook (avoids
-  // re-rendering the waveform parent at 10 Hz).
   useEffect(() => {
     if (!isRecording) {
       return;
@@ -223,31 +278,18 @@ export function useQuickRecordSession() {
     startRecord();
   }, [isRecording, startRecord, stopRecord]);
 
-  const applyVocalStem = useCallback(
-    (layerId: string, nextStemUri: string, nextEditChain: StoredEditChain | undefined) => {
-      const currentProject = projectRef.current;
-      commitProject({
-        ...currentProject,
-        layers: currentProject.layers.map((layer) =>
-          layer.id === layerId
-            ? { ...layer, stemUri: nextStemUri, editChain: nextEditChain }
-            : layer,
-        ),
-      });
-    },
-    [commitProject],
-  );
-
   const onStemChange = useCallback(
     (layerId: string, nextStemUri: string, nextEditChain?: StoredEditChain) => {
-      applyVocalStem(layerId, nextStemUri, nextEditChain);
+      applyStem(layerId, nextStemUri, nextEditChain);
+      projectRef.current = useQuickRecordStore.getState().project;
     },
-    [applyVocalStem],
+    [applyStem],
   );
 
-  const isDirty = fingerprintProject(project) !== initialFingerprint;
+  const isDirty =
+    fingerprintQuickRecordProject(project) !== initialFingerprint;
 
-  const closeScreen = useCallback(() => {
+  const leaveToAudio = useCallback(() => {
     if (canGoBack()) {
       back();
       return;
@@ -255,59 +297,23 @@ export function useQuickRecordSession() {
     replace('/(tabs)/audio');
   }, [back, canGoBack, replace]);
 
-  const save = useCallback(async () => {
-    if (isRecording || isOptimizing || isSaving || storeSaving) {
-      return false;
-    }
-
-    setIsSaving(true);
-    try {
-      await awaitSoftCleanQueue();
-      const latest = projectRef.current;
-
-      if (!hasRecordableContent(latest)) {
-        Alert.alert('Nothing to save', 'Record a take first.');
-        return false;
-      }
-
-      const saved = await saveProject({ project: latest });
-      if (!saved) {
-        return false;
-      }
-
-      isLeavingRef.current = true;
-      closeScreen();
-      return true;
-    } finally {
-      if (mountedRef.current) {
-        setIsSaving(false);
-      }
-    }
-  }, [
-    awaitSoftCleanQueue,
-    closeScreen,
-    isOptimizing,
-    isRecording,
-    isSaving,
-    saveProject,
-    storeSaving,
-  ]);
-
   const discard = useCallback(async () => {
     await resetSession();
     for (const layer of projectRef.current.layers) {
       await discardPreviewRecording(layer.stemUri ?? '', layer.sourceUri);
     }
+    resetStore();
+    projectRef.current = useQuickRecordStore.getState().project;
     isLeavingRef.current = true;
-    closeScreen();
-  }, [closeScreen, resetSession]);
+    leaveToAudio();
+  }, [leaveToAudio, resetSession, resetStore]);
 
   const requestClose = useCallback(() => {
-    if (isRecording || isOptimizing) {
+    if (isRecording || isBusy) {
       return;
     }
 
-    if (isDirty && !isLeavingRef.current && !isSaving && !storeSaving) {
+    if (isDirty && !isLeavingRef.current) {
       Alert.alert('Discard recording?', 'Your take will be lost.', [
         { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => void discard() },
@@ -315,15 +321,99 @@ export function useQuickRecordSession() {
       return;
     }
 
-    closeScreen();
-  }, [closeScreen, discard, isDirty, isOptimizing, isRecording, isSaving, storeSaving]);
+    leaveToAudio();
+  }, [discard, isBusy, isDirty, isRecording, leaveToAudio]);
+
+  const goNext = useCallback(async () => {
+    if (!hasTake || isRecording || isBusy) {
+      return;
+    }
+
+    await awaitSoftCleanQueue();
+    if (!hasRecordableContent(projectRef.current)) {
+      Alert.alert('Nothing to edit', 'Record a take first.');
+      return;
+    }
+
+    push('/studio/quick-record/edit' as never);
+  }, [awaitSoftCleanQueue, hasTake, isBusy, isRecording, push]);
 
   const togglePlayback = useCallback(() => {
-    if (!hasTake || isRecording || isOptimizing) {
+    if (!hasTake || isRecording || isBusy) {
       return;
     }
     playback.togglePlayback();
-  }, [hasTake, isOptimizing, isRecording, playback]);
+  }, [hasTake, isBusy, isRecording, playback]);
+
+  const seekTo = useCallback(
+    async (seconds: number) => {
+      if (isRecording || isBusy) {
+        return;
+      }
+      const next = Math.max(0, seconds);
+      playheadSecondsRef.current = next;
+      playback.markResumeAt(next);
+      try {
+        await playback.seekTo(next);
+      } catch {
+        // Ignore seeks against a player mid-remount.
+      }
+    },
+    [isBusy, isRecording, playback],
+  );
+
+  /** Pause audio for the drag; remember whether to resume on release. */
+  const beginScrub = useCallback(() => {
+    if (isRecording || isBusy || !hasTake) {
+      return;
+    }
+    wasPlayingBeforeScrubRef.current = playback.isPlaying;
+    if (playback.isPlaying) {
+      playback.pause();
+    }
+  }, [hasTake, isBusy, isRecording, playback]);
+
+  /** Update playhead UI/ref while dragging — no playback. */
+  const scrubTo = useCallback(
+    (seconds: number) => {
+      if (isRecording || isBusy) {
+        return;
+      }
+      const next = Math.max(0, seconds);
+      playheadSecondsRef.current = next;
+      playback.markResumeAt(next);
+      setScrubSeconds(next);
+    },
+    [isBusy, isRecording, playback],
+  );
+
+  /** Seek to final position; resume only if play was active before the drag. */
+  const endScrub = useCallback(
+    async (seconds: number) => {
+      if (isRecording || isBusy) {
+        setScrubSeconds(null);
+        return;
+      }
+      const shouldResume = wasPlayingBeforeScrubRef.current;
+      wasPlayingBeforeScrubRef.current = false;
+      const next = Math.max(0, seconds);
+      playheadSecondsRef.current = next;
+      playback.markResumeAt(next);
+      setScrubSeconds(null);
+      try {
+        await playback.seekTo(next);
+      } catch {
+        // Ignore seeks against a player mid-remount.
+      }
+      if (shouldResume) {
+        playback.playFromAnchor();
+      }
+    },
+    [isBusy, isRecording, playback],
+  );
+
+  const displayPlayheadSeconds =
+    scrubSeconds != null ? scrubSeconds : playback.currentTime;
 
   return {
     project,
@@ -337,14 +427,14 @@ export function useQuickRecordSession() {
     durationSeconds,
     isRecording,
     isOptimizing,
-    isSaving: isSaving || storeSaving,
-    isCleaning: cleaningLayerIds.length > 0,
-    fxProcessing,
-    setFxProcessing,
+    isCleaning,
+    isBusy,
     hasTake,
     isDirty,
     isPlaying: playback.isPlaying,
-    currentTime: playback.currentTime,
+    isScrubbing: scrubSeconds != null,
+    currentTime: displayPlayheadSeconds,
+    recordOriginSeconds: isRecording ? recordOriginSeconds : 0,
     playbackDuration: playback.duration,
     maxSeconds: QUICK_RECORD_MAX_SECONDS,
     startRecord,
@@ -352,11 +442,15 @@ export function useQuickRecordSession() {
     toggleRecord,
     togglePlayback,
     pausePlayback: playback.pause,
-    seekTo: playback.seekTo,
-    save,
+    seekTo,
+    beginScrub,
+    scrubTo,
+    endScrub,
+    goNext,
     discard,
     requestClose,
     onStemChange,
-    toStoredEditChain,
+    awaitSoftCleanQueue,
+    leaveToAudio,
   };
 }

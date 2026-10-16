@@ -6,12 +6,6 @@ import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.serv
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import type { AudioProject } from '@/features/audio/types/project';
 
-type SoftCleanSwap = {
-  layerId: string;
-  cleanedUri: string;
-  peaks: number[];
-};
-
 type UseSoftCleanQueueOptions = {
   getProject: () => AudioProject;
   onProjectChange: (project: AudioProject) => void;
@@ -20,6 +14,9 @@ type UseSoftCleanQueueOptions = {
 /**
  * Queues soft-gate passes so native work never overlaps, and Done can await
  * the chain. Stale results (re-record / FX / remove) are discarded.
+ *
+ * Busy UI clears as soon as SpectralGate finishes — peak rebuild must not
+ * leave the "Cleaning take…" overlay stuck on long punch-in merges.
  */
 export function useSoftCleanQueue({
   getProject,
@@ -28,6 +25,8 @@ export function useSoftCleanQueue({
   const [cleaningLayerIds, setCleaningLayerIds] = useState<string[]>([]);
   const cleanQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
+  /** Bumps when a newer take is enqueued for a layer — older jobs must not swap. */
+  const cleanGenerationRef = useRef<Map<string, number>>(new Map());
 
   useEffect(
     () => () => {
@@ -36,26 +35,96 @@ export function useSoftCleanQueue({
     [],
   );
 
+  const clearCleaning = useCallback((layerId: string) => {
+    setCleaningLayerIds((ids) =>
+      ids.includes(layerId) ? ids.filter((id) => id !== layerId) : ids,
+    );
+  }, []);
+
   const enqueueSoftClean = useCallback(
     (layerId: string, rawUri: string) => {
+      const generation = (cleanGenerationRef.current.get(layerId) ?? 0) + 1;
+      cleanGenerationRef.current.set(layerId, generation);
+
       setCleaningLayerIds((ids) => (ids.includes(layerId) ? ids : [...ids, layerId]));
 
       // Must never reject: callers await this chain before save.
       cleanQueueRef.current = cleanQueueRef.current.then(async () => {
+        let clearedBusy = false;
+        const releaseBusy = () => {
+          if (clearedBusy) {
+            return;
+          }
+          clearedBusy = true;
+          // Only clear busy if this is still the latest job for the layer.
+          if (cleanGenerationRef.current.get(layerId) === generation) {
+            clearCleaning(layerId);
+          }
+        };
+
         try {
+          if (cleanGenerationRef.current.get(layerId) !== generation) {
+            return;
+          }
+
           const cleanedUri = await recordingSessionService.softClean(rawUri);
 
-          if (!cleanedUri || !mountedRef.current) {
+          // Unblock UI immediately — peaks are secondary.
+          releaseBusy();
+
+          if (!cleanedUri) {
+            console.warn('[Optimize] soft clean returned null; keeping raw take.');
+            return;
+          }
+
+          if (cleanGenerationRef.current.get(layerId) !== generation) {
+            await discardPreviewRecording(cleanedUri);
             return;
           }
 
           const layer = getProject().layers.find((item) => item.id === layerId);
-          const untouched = layer?.stemUri === rawUri && layer?.sourceUri === rawUri;
-
-          if (!untouched) {
+          if (!layer) {
             await discardPreviewRecording(cleanedUri);
             return;
           }
+
+          // Duplicate finish — already on this cleaned stem.
+          if (layer.stemUri === cleanedUri) {
+            return;
+          }
+
+          // Accept swap if the layer still points at the URI we cleaned as stem
+          // OR as source (stem may already be an older cleaned file / missing).
+          const canSwap =
+            layer.stemUri === rawUri || layer.sourceUri === rawUri;
+
+          if (!canSwap) {
+            console.warn('[Optimize] soft clean stale; discarding cleaned file.', {
+              layerId,
+              stemUri: layer.stemUri,
+              sourceUri: layer.sourceUri,
+              rawUri,
+            });
+            await discardPreviewRecording(cleanedUri);
+            return;
+          }
+
+          // Swap stem first so playback can remount; peaks follow.
+          // Keep sourceUri as the pre-gate raw (rawUri) for punch-in / re-clean.
+          const latestBeforePeaks = getProject();
+          onProjectChange({
+            ...latestBeforePeaks,
+            layers: latestBeforePeaks.layers.map((item) =>
+              item.id === layerId
+                ? {
+                    ...item,
+                    stemUri: cleanedUri,
+                    baselineUri: cleanedUri,
+                    sourceUri: item.sourceUri ?? rawUri,
+                  }
+                : item,
+            ),
+          });
 
           const peaks = await extractPeaksFromWav(
             cleanedUri,
@@ -66,42 +135,33 @@ export function useSoftCleanQueue({
             return;
           }
 
-          const latest = getProject();
-          const stillUntouched = latest.layers.some(
-            (item) =>
-              item.id === layerId &&
-              item.stemUri === rawUri &&
-              item.sourceUri === rawUri,
-          );
-          if (!stillUntouched) {
-            await discardPreviewRecording(cleanedUri);
+          if (cleanGenerationRef.current.get(layerId) !== generation) {
             return;
           }
 
-          const swap: SoftCleanSwap = { layerId, cleanedUri, peaks };
+          const latest = getProject();
+          const stillCleaned = latest.layers.some(
+            (item) => item.id === layerId && item.stemUri === cleanedUri,
+          );
+          if (!stillCleaned) {
+            return;
+          }
+
           onProjectChange({
             ...latest,
             layers: latest.layers.map((item) =>
-              item.id === swap.layerId
-                ? {
-                    ...item,
-                    stemUri: swap.cleanedUri,
-                    baselineUri: swap.cleanedUri,
-                    peaks: swap.peaks,
-                  }
-                : item,
+              item.id === layerId ? { ...item, peaks } : item,
             ),
           });
+          console.warn('[Optimize] soft clean swap applied', layerId);
         } catch (error) {
           console.warn('[Optimize] soft clean swap failed; keeping raw take.', error);
         } finally {
-          if (mountedRef.current) {
-            setCleaningLayerIds((ids) => ids.filter((id) => id !== layerId));
-          }
+          releaseBusy();
         }
       });
     },
-    [getProject, onProjectChange],
+    [clearCleaning, getProject, onProjectChange],
   );
 
   const awaitSoftCleanQueue = useCallback(async () => {

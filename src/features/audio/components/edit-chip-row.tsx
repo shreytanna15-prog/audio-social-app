@@ -1,7 +1,6 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import { IconButton } from '@/features/audio/components/icon-button';
+import { EffectPresetSheet } from '@/features/audio/components/effect-preset-sheet';
 import {
   COMPRESSOR_PRESETS,
   ECHO_PRESETS,
@@ -227,53 +226,20 @@ export function EditPresetSheet({
   onClose,
 }: PresetSheetProps) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{title}</Text>
-            <IconButton
-              icon={{ ios: 'xmark', android: 'close', web: 'close' }}
-              size={18}
-              onPress={onClose}
-            />
-          </View>
-          <Text style={styles.sheetSubtitle}>Choose a light preset — easy to undo with Reset.</Text>
-          {options.map((option) => {
-            const active = selectedId === option.id;
-            return (
-              <Pressable
-                key={option.id}
-                style={({ pressed }) => [
-                  styles.option,
-                  active && styles.optionActive,
-                  pressed && styles.optionPressed,
-                ]}
-                onPress={() => onSelect(option.id)}>
-                <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>
-                  {option.label}
-                </Text>
-                {active ? (
-                  <SymbolView
-                    name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }}
-                    size={20}
-                    tintColor="#1A73E8"
-                  />
-                ) : (
-                  <View style={styles.optionRadio} />
-                )}
-              </Pressable>
-            );
-          })}
-          {selectedId ? (
-            <Pressable style={styles.clearButton} onPress={onClear}>
-              <Text style={styles.clearLabel}>Turn off {title.toLowerCase()}</Text>
-            </Pressable>
-          ) : null}
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <EffectPresetSheet
+      open={visible}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+      title={title}
+      options={options}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      onClear={selectedId ? onClear : undefined}
+      clearLabel={`Turn off ${title.toLowerCase()}`}
+    />
   );
 }
 
@@ -373,85 +339,5 @@ const styles = StyleSheet.create({
   },
   darkProcessingText: {
     color: '#CBC3D7',
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(26,29,33,0.45)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 28,
-    gap: 8,
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D5DAE0',
-    marginBottom: 4,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sheetTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1A1D21',
-  },
-  sheetSubtitle: {
-    fontSize: 13,
-    color: '#7A7F87',
-    marginBottom: 4,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#F5F7F9',
-  },
-  optionActive: {
-    backgroundColor: '#E8F1FC',
-    borderWidth: 1,
-    borderColor: '#B6D4F7',
-  },
-  optionPressed: {
-    opacity: 0.85,
-  },
-  optionLabel: {
-    fontSize: 15,
-    color: '#1A1D21',
-    fontWeight: '500',
-  },
-  optionLabelActive: {
-    color: '#1A73E8',
-    fontWeight: '600',
-  },
-  optionRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#C5CAD3',
-  },
-  clearButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 4,
-  },
-  clearLabel: {
-    fontSize: 14,
-    color: '#7A7F87',
-    fontWeight: '500',
   },
 });
