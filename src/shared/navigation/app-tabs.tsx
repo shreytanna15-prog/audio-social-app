@@ -28,6 +28,13 @@ export default function AppTabs() {
           title: 'Audio',
         }}
       />
+      <Tabs.Screen
+        name="artist"
+        options={{
+          href: null,
+          title: 'Artist',
+        }}
+      />
     </Tabs>
   );
 }

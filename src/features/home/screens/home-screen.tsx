@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
 import { usePlayerStore } from '@/features/player';
@@ -15,6 +16,7 @@ import { ProjectCard } from '../components/project-card';
 import { RecentlyPlayedSection } from '../components/recently-played-section';
 
 export function HomeScreen() {
+  const { push } = useRouter();
   const play = usePlayerStore((s) => s.play);
 
   return (
@@ -26,7 +28,9 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}>
         <HomeGreetingRow />
         <ProjectCard />
-        <FeaturedArtistsSection />
+        <FeaturedArtistsSection
+          onArtistPress={(artist) => push(`/artist/${artist.id}`)}
+        />
         <MadeForYourVibeSection
           onTrackPress={(track) =>
             play({

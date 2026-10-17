@@ -8,12 +8,14 @@ import type { RisingCreator } from '../data/rising-creator';
 
 type RisingCreatorCardProps = {
   creator: RisingCreator;
+  onPress?: () => void;
   onSamplePress?: () => void;
   onFollowPress?: () => void;
 };
 
 export function RisingCreatorCard({
   creator,
+  onPress,
   onSamplePress,
   onFollowPress,
 }: RisingCreatorCardProps) {
@@ -34,7 +36,12 @@ export function RisingCreatorCard({
         ) : null}
       </View>
 
-      <View className="flex-row items-center gap-3.5">
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={onPress ? `Open ${creator.name} profile` : undefined}
+        className="flex-row items-center gap-3.5">
         <View className="relative">
           <View className="h-20 w-20 overflow-hidden rounded-2xl bg-surface-container-high">
             <Image
@@ -62,7 +69,7 @@ export function RisingCreatorCard({
             {creator.meta}
           </Text>
         </View>
-      </View>
+      </Pressable>
 
       <View className="flex-row gap-2.5">
         <Pressable

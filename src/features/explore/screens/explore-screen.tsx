@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ import { FEATURED_SONG } from '../data/featured-song';
 import { RISING_CREATOR } from '../data/rising-creator';
 
 export function ExploreScreen() {
+  const { push } = useRouter();
   const insets = useSafeAreaInsets();
   const play = usePlayerStore((s) => s.play);
   const [selectedFilterId, setSelectedFilterId] = useState(EXPLORE_FILTERS[0]?.id ?? 'all');
@@ -83,7 +85,9 @@ export function ExploreScreen() {
 
         <RisingCreatorCard
           creator={RISING_CREATOR}
+          onPress={() => push(`/artist/${RISING_CREATOR.id}`)}
           onSamplePress={playRisingSample}
+          onFollowPress={() => push(`/artist/${RISING_CREATOR.id}`)}
         />
 
         <TrendingSection
@@ -102,6 +106,7 @@ export function ExploreScreen() {
           title="Top Creators"
           subtitle="Trendsetters & Sound Designers"
           actionLabel="Explore All"
+          onArtistPress={(artist) => push(`/artist/${artist.id}`)}
         />
 
         <ChallengeCard
