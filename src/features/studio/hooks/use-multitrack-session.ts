@@ -75,6 +75,10 @@ export function useMultitrackSession({
   const [recordOriginSeconds, setRecordOriginSeconds] = useState(0);
   const [isImportingBeat, setIsImportingBeat] = useState(false);
   const [persistStatus, setPersistStatus] = useState<'idle' | 'saving' | 'error'>('idle');
+  /** Stop → finalize → attach → soft-clean; keeps overlay continuous. */
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const softCleanEnqueuedRef = useRef(false);
+  const wasCleaningRef = useRef(false);
 
   const status = useAudioSessionStore((state) => state.status);
   // Metering is deliberately not read here: it lands ten times a second, and
@@ -84,6 +88,7 @@ export function useMultitrackSession({
   const startRecording = useAudioSessionStore((state) => state.startRecording);
   const handleMainAction = useAudioSessionStore((state) => state.handleMainAction);
   const resetSession = useAudioSessionStore((state) => state.resetSession);
+  const prevStatusForFinalizeRef = useRef(status);
 
   const initialFingerprint = useMemo(
     () => fingerprintProject(initialProject),
@@ -266,6 +271,7 @@ export function useMultitrackSession({
 
   const handleTakeAttached = useCallback(
     (layerId: string, attachedUri: string) => {
+      softCleanEnqueuedRef.current = true;
       enqueueSoftClean(layerId, attachedUri);
     },
     [enqueueSoftClean],
@@ -273,7 +279,30 @@ export function useMultitrackSession({
 
   const handleCaptureSettled = useCallback(() => {
     setRecordingLayerId(null);
+    if (!softCleanEnqueuedRef.current) {
+      setIsFinalizing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const cleaning = cleaningLayerIds.length > 0;
+    if (wasCleaningRef.current && !cleaning) {
+      setIsFinalizing(false);
+      softCleanEnqueuedRef.current = false;
+    }
+    wasCleaningRef.current = cleaning;
+  }, [cleaningLayerIds.length]);
+
+  useEffect(() => {
+    const prev = prevStatusForFinalizeRef.current;
+    prevStatusForFinalizeRef.current = status;
+    if (!isFinalizing) {
+      return;
+    }
+    if (prev === 'optimizing' && status === 'idle' && !softCleanEnqueuedRef.current) {
+      setIsFinalizing(false);
+    }
+  }, [isFinalizing, status]);
 
   useTakeCaptureBridge({
     capturingLayerIdRef,
@@ -312,14 +341,20 @@ export function useMultitrackSession({
     return layer;
   }, []);
 
+  const beginPostRecordBusy = useCallback(() => {
+    softCleanEnqueuedRef.current = false;
+    setIsFinalizing(true);
+  }, []);
+
   const handleStopPress = useCallback(() => {
+    beginPostRecordBusy();
     recordingSessionService.requestStop();
     void handleMainAction();
-  }, [handleMainAction]);
+  }, [beginPostRecordBusy, handleMainAction]);
 
   const handleRecordPress = useCallback(
     (origin: 'playhead' | 'start' = 'playhead', playheadSeconds = 0) => {
-      if (hasActiveSession || isOptimizing || isSaving || isImportingBeat) {
+      if (hasActiveSession || isOptimizing || isFinalizing || isSaving || isImportingBeat) {
         return;
       }
 
@@ -342,6 +377,7 @@ export function useMultitrackSession({
     [
       ensureVocalLayer,
       hasActiveSession,
+      isFinalizing,
       isImportingBeat,
       isOptimizing,
       isSaving,
@@ -610,8 +646,9 @@ export function useMultitrackSession({
       !isLeavingRef.current &&
       !isSaving &&
       !isRecording &&
-      !isOptimizing,
-    [isDirty, isOptimizing, isPending, isRecording, isSaving],
+      !isOptimizing &&
+      !isFinalizing,
+    [isDirty, isFinalizing, isOptimizing, isPending, isRecording, isSaving],
   );
 
   return {
@@ -623,12 +660,14 @@ export function useMultitrackSession({
     recordOriginSeconds,
     cleaningLayerIds,
     isOptimizing,
+    isFinalizing,
     isImportingBeat,
     isSaving,
     persistStatus,
     canAdd,
     backingTracks,
     playbackTracks,
+    beginPostRecordBusy,
     handleRecordPress,
     handleStopPress,
     addBeat,

@@ -33,3 +33,30 @@ export type RefreshData = {
   accessToken: string;
   refreshToken: string;
 };
+
+export type RequestPasswordResetRequest = {
+  email: string;
+};
+
+export type RequestPasswordResetResult = {
+  ok: true;
+  resendAvailableAt: string | null;
+};
+
+export type VerifyPasswordResetOtpRequest = {
+  email: string;
+  otp: string;
+};
+
+export type VerifyPasswordResetOtpResult = {
+  resetToken: string;
+};
+
+export type ConfirmPasswordResetRequest = {
+  resetToken: string;
+  password: string;
+};
+
+export type ConfirmPasswordResetResult = {
+  ok: true;
+};

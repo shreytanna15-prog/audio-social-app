@@ -1,10 +1,17 @@
 export { ExploreScreen } from './screens/explore-screen';
+export { SearchScreen } from './screens/search-screen';
 export { ExploreSearchBar } from './components/explore-search-bar';
 export { ExploreFilterChips } from './components/explore-filter-chips';
 export { ExploreSongCard } from './components/explore-song-card';
 export { RisingCreatorCard } from './components/rising-creator-card';
+export { SearchArtistRow } from './components/search-artist-row';
+export { SearchField } from './components/search-field';
+export { SearchGlyph } from './components/search-glyph';
+export { SearchRecentRow } from './components/search-recent-row';
 export { EXPLORE_FILTERS } from './data/explore-filters';
 export type { ExploreFilter } from './data/explore-filters';
+export { SEARCH_TABS, buildSearchChips } from './data/search-tabs';
+export type { SearchChipId, SearchTab, SearchTabId } from './data/search-tabs';
 export { FEATURED_SONG } from './data/featured-song';
 export type { FeaturedSong } from './data/featured-song';
 export { RISING_CREATOR } from './data/rising-creator';

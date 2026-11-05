@@ -46,7 +46,14 @@ export function MiniPlayer() {
           <Text variant="title-md" className="text-on-surface" numberOfLines={1}>
             {track.title}
           </Text>
-          <Text variant="caption" className="text-on-surface-variant" numberOfLines={1}>
+          <Text
+            variant="caption"
+            className={
+              track.artist.startsWith('Now Playing')
+                ? 'text-primary-tonal'
+                : 'text-on-surface-variant'
+            }
+            numberOfLines={1}>
             {track.artist}
           </Text>
         </View>

@@ -1,4 +1,5 @@
 export { usePlayerStore } from './store/player.store';
+export { usePauseGlobalPlayerOnFocus } from './hooks/use-pause-global-player-on-focus';
 export { MiniPlayer } from './components/mini-player';
 export { NowPlayingScreen } from './screens/now-playing-screen';
 export type { PlayerTrack } from './types';

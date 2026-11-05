@@ -1,5 +1,5 @@
-import { PlaceholderTabScreen } from '@/shared/components/layout/placeholder-tab-screen';
+import { FeedScreen } from '@/features/feed';
 
-export default function FeedScreen() {
-  return <PlaceholderTabScreen title="Feed" />;
+export default function FeedRoute() {
+  return <FeedScreen />;
 }

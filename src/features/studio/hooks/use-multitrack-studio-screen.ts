@@ -9,11 +9,15 @@ import {
 import { useRecordingEditorUnsavedGuard } from '@/features/audio/hooks/use-recording-editor-unsaved-guard';
 import { useStudioPlayback } from '@/features/audio/hooks/use-studio-playback';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
-import { useRecordingsStore } from '@/features/audio/store';
 import { PROJECT_VERSION, type AudioProject } from '@/features/audio/types/project';
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
+import { getErrorMessage } from '@/core/api/errors';
+import {
+  getSaveTrackDraftTrackId,
+  useSaveTrackDraft,
+} from '@/features/tracks';
 
 function createPendingMultitrackProject(): AudioProject {
   const layer = createLayer({
@@ -33,12 +37,20 @@ function createPendingMultitrackProject(): AudioProject {
  */
 export function useMultitrackStudioScreen() {
   const { replace } = useRouter();
-  const isSaving = useRecordingsStore((state) => state.isSaving);
-  const saveProject = useRecordingsStore((state) => state.saveProject);
+  const saveDraft = useSaveTrackDraft();
+  const isSaving = saveDraft.isPending;
+  const lastSaveTrackIdRef = useRef<string | null>(null);
+  const pendingTitleRef = useRef<string | null>(null);
 
   const initialProject = useMemo(() => {
     const pending = useMultitrackEntryStore.getState().consumePendingProject();
-    return pending ?? createPendingMultitrackProject();
+    if (pending?.trackId) {
+      lastSaveTrackIdRef.current = pending.trackId;
+    }
+    if (pending?.title) {
+      pendingTitleRef.current = pending.title;
+    }
+    return pending?.project ?? createPendingMultitrackProject();
   }, []);
 
   const leaveToHome = useCallback(() => {
@@ -47,13 +59,40 @@ export function useMultitrackStudioScreen() {
 
   const handleSave = useCallback(
     async (payload: StudioSavePayload): Promise<boolean> => {
-      if (isSaving) {
+      if (saveDraft.isPending) {
         return false;
       }
-      const saved = await saveProject(payload);
-      return saved != null;
+      try {
+        const trackId = lastSaveTrackIdRef.current ?? undefined;
+        const recording = await saveDraft.mutateAsync({
+          project: payload.project,
+          mixdownUri: payload.mixdownUri,
+          kind: 'MULTI',
+          title:
+            payload.title?.trim() ||
+            pendingTitleRef.current?.trim() ||
+            'Untitled session',
+          trackId,
+          updateExisting: Boolean(trackId),
+        });
+        lastSaveTrackIdRef.current = recording.id;
+        return true;
+      } catch (error) {
+        const failedId = getSaveTrackDraftTrackId(error);
+        if (failedId) {
+          lastSaveTrackIdRef.current = failedId;
+        }
+        Alert.alert(
+          'Could not save',
+          getErrorMessage(
+            error,
+            'Save failed. Check your connection and try again.',
+          ),
+        );
+        return false;
+      }
     },
-    [isSaving, saveProject],
+    [saveDraft],
   );
 
   const studio = useMultitrackSession({
@@ -86,6 +125,7 @@ export function useMultitrackStudioScreen() {
   const selected = studio.current;
   const busy =
     isSaving ||
+    studio.isFinalizing ||
     studio.isOptimizing ||
     studio.isImportingBeat ||
     studio.persistStatus === 'saving' ||
@@ -93,7 +133,6 @@ export function useMultitrackStudioScreen() {
   const canEditLayers = !busy && !studio.isRecording;
   const isCleaningSelected =
     selected != null && studio.cleaningLayerIds.includes(selected.id);
-
   const beginScrub = useCallback(() => {
     wasPlayingRef.current = playback.isPlaying;
     if (playback.isPlaying) {
@@ -131,7 +170,6 @@ export function useMultitrackStudioScreen() {
 
   const toggleRecord = useCallback(() => {
     if (studio.isRecording) {
-      recordingSessionService.requestStop();
       studio.handleStopPress();
       return;
     }
@@ -156,9 +194,7 @@ export function useMultitrackStudioScreen() {
         ? 'Applying FX…'
         : studio.isImportingBeat
           ? 'Importing beat…'
-          : studio.isOptimizing
-            ? 'Finishing recording…'
-            : 'Cleaning take…';
+          : 'Cleaning take…';
 
   const hasTake = studio.playbackTracks.length > 0 || studio.project.layers.some((l) => l.stemUri);
 

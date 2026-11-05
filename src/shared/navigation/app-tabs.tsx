@@ -21,6 +21,21 @@ export default function AppTabs() {
       <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
       <Tabs.Screen name="feed" options={{ title: 'Feed' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      {/* Chat / Library — open from header / Profile Library */}
+      <Tabs.Screen
+        name="chat"
+        options={{
+          href: null,
+          title: 'Chat',
+        }}
+      />
+      <Tabs.Screen
+        name="library"
+        options={{
+          href: null,
+          title: 'Library',
+        }}
+      />
       <Tabs.Screen
         name="audio"
         options={{

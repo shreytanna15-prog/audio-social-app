@@ -1,0 +1,42 @@
+# Docs §10 UI — app already on Home (logged in)
+appId: com.anonymous.audiosocialmediaapp
+---
+- assertVisible: "Explore"
+- tapOn:
+    point: "30%,95%"
+- extendedWaitUntil:
+    visible: "Find Your Sound"
+    timeout: 30000
+- tapOn:
+    point: "50%,12%"
+- assertVisible: "Search"
+- assertVisible: "Recent"
+- assertVisible: "Artists"
+- tapOn:
+    point: "50%,18%"
+- eraseText
+- inputText: "e2eb1793087540"
+- extendedWaitUntil:
+    visible: "E2E Bob"
+    timeout: 25000
+- tapOn: "E2E Bob"
+- extendedWaitUntil:
+    visible: "Follow"
+    timeout: 25000
+- tapOn: "Follow"
+- assertVisible: "Following"
+- tapOn: "Following"
+- assertVisible: "Follow"
+- pressKey: back
+- assertVisible: "Search"
+- assertVisible: "Recent"
+- tapOn:
+    point: "50%,18%"
+- inputText: "zz"
+- tapOn: "Songs"
+- assertVisible: "Coming soon"
+- tapOn: "Playlists"
+- assertVisible: "Coming soon"
+- tapOn: "Albums"
+- assertVisible: "Coming soon"
+- takeScreenshot: e2e/artifacts/docs-checklist-ok

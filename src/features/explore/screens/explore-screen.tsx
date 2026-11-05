@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,7 +51,7 @@ export function ExploreScreen() {
         contentContainerClassName="gap-5 pb-8"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <ExploreSearchBar />
+        <ExploreSearchBar onPress={() => push('/explore/search' as Href)} />
 
         <ExploreFilterChips
           selectedId={selectedFilterId}

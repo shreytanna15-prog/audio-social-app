@@ -21,14 +21,16 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { OnboardingBackButton } from '@/features/onboarding/components/onboarding-back-button';
 import { AppLogo } from '@/shared/components/brand/app-logo';
 import { Button } from '@/shared/components/ui/button';
+import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
+import { cn } from '@/shared/lib/utils';
 
 import { AuthBackground } from '../components/auth-background';
 
 export function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { back, push } = useRouter();
+  const { back, canGoBack, push } = useRouter();
   const { width } = useWindowDimensions();
   const resetOnboarding = useAuthStore((state) => state.resetOnboarding);
   const loginMutation = useLogin();
@@ -78,9 +80,11 @@ export function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View className="w-full max-w-130 self-center">
-          <View className="flex-row items-center">
-            <OnboardingBackButton onPress={back} />
-          </View>
+          {canGoBack() ? (
+            <View className="flex-row items-center">
+              <OnboardingBackButton onPress={back} />
+            </View>
+          ) : null}
 
           <View className="mt-5 items-center">
             <AppLogo
@@ -118,7 +122,7 @@ export function LoginScreen() {
                     onBlur={onBlur}
                     onChangeText={onChange}
                     editable={!busy}
-                    className="h-12 rounded-md border-0 bg-surface-container p-4 text-sm"
+                    className={fieldClassName}
                   />
                 )}
               />
@@ -145,7 +149,7 @@ export function LoginScreen() {
                       onBlur={onBlur}
                       onChangeText={onChange}
                       editable={!busy}
-                      className="h-12 rounded-md border-0 bg-surface-container p-4 pr-12 text-sm"
+                      className={cn(fieldClassName, 'pr-12')}
                     />
                   )}
                 />

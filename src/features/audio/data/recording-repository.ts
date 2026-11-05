@@ -274,20 +274,27 @@ export async function saveRecording({
     }
   }
 
+  const mixPath = getRecordingRelativePath(id, extension);
   const recording: AudioRecording = {
     id,
+    kind: 'SINGLE',
+    status: 'DRAFT',
+    title: 'Untitled take',
+    durationMs: Math.max(0, Math.round(durationSeconds * 1000)),
+    mixPath,
+    publishedAt: null,
+    createdAt: now,
+    updatedAt: now,
     uri: destinationUri,
-    path: getRecordingRelativePath(id, extension),
+    duration: durationSeconds,
+    type: 'draft',
+    path: mixPath,
     sourcePath: getRecordingSourceRelativePath(
       id,
       sourcePreGateUri ? extensionFromUri(sourcePreGateUri) : extension,
     ),
     baselinePath: getRecordingBaselineRelativePath(id, baselineExtension),
-    type: 'draft',
-    duration: durationSeconds,
     editChain: normalizeStoredEditChain(editChain),
-    createdAt: now,
-    updatedAt: now,
   };
 
   const index = await readIndex();
@@ -342,11 +349,19 @@ export async function updateRecording({
   }
 
   const now = new Date().toISOString();
+  const mixPath = getRecordingRelativePath(id, extension);
   const updated: AudioRecording = {
     ...existing,
+    kind: existing.kind ?? 'SINGLE',
+    status: existing.status ?? 'DRAFT',
+    title: existing.title || 'Untitled take',
+    durationMs: Math.max(0, Math.round(durationSeconds * 1000)),
+    mixPath,
+    publishedAt: existing.publishedAt ?? null,
     uri: destinationUri,
-    path: getRecordingRelativePath(id, extension),
     duration: durationSeconds,
+    type: existing.status === 'PUBLISHED' ? 'uploaded' : 'draft',
+    path: mixPath,
     sourcePath:
       existing.sourcePath ?? getRecordingSourceRelativePath(id, extension),
     baselinePath: getRecordingBaselineRelativePath(id, baselineExtension),

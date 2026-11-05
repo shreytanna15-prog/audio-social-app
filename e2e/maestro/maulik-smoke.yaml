@@ -1,0 +1,67 @@
+# Smoke: Login → Search maulik → Follow → Unfollow → Recent
+appId: com.anonymous.audiosocialmediaapp
+---
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 25000
+- tapOn: "you@example.com"
+- eraseText
+- inputText: "e2e_a_1793087540@example.com"
+- tapOn: "Your password"
+- eraseText
+- inputText: "Testpass1!"
+- tapOn: "Log In"
+- extendedWaitUntil:
+    visible: "Explore"
+    timeout: 45000
+- tapOn:
+    point: "30%,95%"
+- extendedWaitUntil:
+    visible: "Find Your Sound"
+    timeout: 30000
+- tapOn:
+    id: "explore-search-bar"
+- extendedWaitUntil:
+    visible: "Search"
+    timeout: 15000
+- assertVisible: "Recent"
+- assertVisible: "Artists"
+- tapOn:
+    id: "search-input"
+- inputText: "maulik"
+- extendedWaitUntil:
+    visible: "Maulik"
+    timeout: 20000
+- assertVisible: "maulik11"
+- takeScreenshot: e2e/artifacts/maulik-search-hit
+- tapOn: "Maulik"
+- extendedWaitUntil:
+    visible: "maulik11"
+    timeout: 20000
+- takeScreenshot: e2e/artifacts/maulik-profile
+# Follow or Already Following
+- runFlow:
+    when:
+      visible: "Follow"
+    commands:
+      - tapOn: "Follow"
+      - assertVisible: "Following"
+- runFlow:
+    when:
+      visible: "Following"
+    commands:
+      - tapOn: "Following"
+      - assertVisible: "Follow"
+      - tapOn: "Follow"
+      - assertVisible: "Following"
+- takeScreenshot: e2e/artifacts/maulik-following
+- back
+- extendedWaitUntil:
+    visible: "Search"
+    timeout: 15000
+- tapOn: "Recent"
+- extendedWaitUntil:
+    visible: "Maulik"
+    timeout: 15000
+- takeScreenshot: e2e/artifacts/maulik-recent
+- assertVisible: "0"

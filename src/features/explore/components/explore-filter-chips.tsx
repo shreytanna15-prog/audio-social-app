@@ -4,8 +4,10 @@ import { Text } from '@/shared/components/ui/text';
 
 import { EXPLORE_FILTERS, type ExploreFilter } from '../data/explore-filters';
 
+type ChipOption = Pick<ExploreFilter, 'id' | 'label'>;
+
 type ExploreFilterChipsProps = {
-  filters?: ExploreFilter[];
+  filters?: ChipOption[];
   selectedId: string;
   onSelect: (id: string) => void;
 };
@@ -33,14 +35,14 @@ export function ExploreFilterChips({
             className={
               selected
                 ? 'rounded-full bg-primary-tonal px-4 py-2.5'
-                : 'rounded-full bg-surface-container-high px-4 py-2.5'
+                : 'rounded-full border border-white/10 bg-surface-container-high px-4 py-2.5'
             }>
             <Text
               variant="label-md"
               className={
                 selected
                   ? 'font-semibold text-on-primary'
-                  : 'font-medium text-on-surface'
+                  : 'font-medium text-on-surface-variant'
               }>
               {filter.label}
             </Text>

@@ -9,6 +9,7 @@ type PlayerState = {
   isLiked: boolean;
   isLooping: boolean;
   play: (track: PlayerTrack) => void;
+  pause: () => void;
   togglePlay: () => void;
   next: () => void;
   previous: () => void;
@@ -37,6 +38,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       progress: 0.15,
       isLiked: false,
     });
+  },
+
+  /** Stop playback but keep the current track (mini player stays). */
+  pause: () => {
+    if (!get().isPlaying) return;
+    set({ isPlaying: false });
   },
 
   togglePlay: () => {

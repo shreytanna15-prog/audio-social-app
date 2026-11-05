@@ -1,9 +1,31 @@
 export { Button, buttonTextVariants, buttonVariants } from './button';
 export type { ButtonProps } from './button';
 export { Collapsible } from './collapsible';
+export {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  useDialogContext,
+} from './dialog';
+export type { DialogProps } from './dialog';
 export { ExternalLink } from './external-link';
 export { HintRow } from './hint-row';
+export {
+  FeedbackDialog,
+  useFeedbackDialog,
+} from './feedback-dialog';
+export type { FeedbackAction, FeedbackContent } from './feedback-dialog';
+export {
+  embeddedInputClassName,
+  fieldClassName,
+  textareaClassName,
+} from './field-styles';
 export { Input } from './input';
+export { Textarea } from './textarea';
 export {
   Sheet,
   SheetBody,

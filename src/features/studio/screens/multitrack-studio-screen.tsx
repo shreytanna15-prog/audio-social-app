@@ -1,8 +1,9 @@
-import { ArrowLeft, MoreVertical, Pencil } from 'lucide-react-native';
+import { MoreVertical, Pencil } from 'lucide-react-native';
 import { useCallback, useRef } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useInputMonitor } from '@/features/audio/hooks/use-input-monitor';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { StudioBackingPlayers } from '@/features/studio/components/multitrack/studio-backing-players';
 import { MultitrackLayerStack } from '@/features/studio/components/multitrack/multitrack-layer-stack';
@@ -12,6 +13,7 @@ import { QuickRecordToolRow } from '@/features/studio/components/quick-record-to
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
 import { QuickRecordTimeline } from '@/features/studio/components/quick-record-waveform';
 import { useMultitrackStudioScreen } from '@/features/studio/hooks/use-multitrack-studio-screen';
+import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { Text } from '@/shared/components/ui/text';
 
 /**
@@ -21,6 +23,7 @@ import { Text } from '@/shared/components/ui/text';
 export function MultitrackStudioScreen() {
   const insets = useSafeAreaInsets();
   const session = useMultitrackStudioScreen();
+  const monitor = useInputMonitor();
   const {
     studio,
     playback,
@@ -103,19 +106,9 @@ export function MultitrackStudioScreen() {
     <View
       className="flex-1 bg-background"
       style={{ paddingBottom: Math.max(insets.bottom, 28) + 12 }}>
-      <View
-        className="border-b border-white/5 px-4"
-        style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}>
-        <View className="h-10 flex-row items-center justify-between">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={8}
-            onPress={onBack}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
-            <ArrowLeft size={20} color="#E4E1EA" strokeWidth={2} />
-          </Pressable>
-
+      <ScreenHeader
+        onBack={onBack}
+        title={
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Rename session"
@@ -125,7 +118,8 @@ export function MultitrackStudioScreen() {
             </Text>
             <Pencil size={14} color="#CBC3D7" strokeWidth={2} />
           </Pressable>
-
+        }
+        right={
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="More options"
@@ -145,8 +139,8 @@ export function MultitrackStudioScreen() {
             className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
             <MoreVertical size={20} color="#E4E1EA" strokeWidth={2} />
           </Pressable>
-        </View>
-      </View>
+        }
+      />
 
       <View className="px-4 pt-3 pb-1">
         <QuickRecordTimer
@@ -215,10 +209,16 @@ export function MultitrackStudioScreen() {
           }
           isPlaying={playback.isPlaying}
           hasTake={hasTake}
+          isMonitoring={monitor.isMonitoringActive}
+          headsetConnected={monitor.headsetConnected}
           onSave={() => void save()}
           onTogglePlayback={togglePlayback}
           onToggleRecord={toggleRecord}
-          onStopRecordPressIn={() => recordingSessionService.requestStop()}
+          onToggleMonitor={monitor.toggleMonitor}
+          onStopRecordPressIn={() => {
+            studio.beginPostRecordBusy();
+            recordingSessionService.requestStop();
+          }}
         />
       </View>
 

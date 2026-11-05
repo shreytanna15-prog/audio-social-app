@@ -24,7 +24,14 @@ type EditChipRowProps = {
   isProcessing?: boolean;
   processingLabel?: string;
   variant?: 'light' | 'dark';
-  onCleanVoicePress: () => void;
+  /** Quick Record capture: Soft SpectralGate is fixed; hide Clean Voice chip. */
+  hideCleanVoice?: boolean;
+  /**
+   * When false, chips stay tappable while processing (selection queues; apply deferred).
+   * @default true
+   */
+  disableWhileProcessing?: boolean;
+  onCleanVoicePress?: () => void;
   onOpenFx: () => void;
   onOpenCompressor: () => void;
   onOpenEq: () => void;
@@ -46,6 +53,8 @@ export function EditChipRow({
   isProcessing = false,
   processingLabel,
   variant = 'light',
+  hideCleanVoice = false,
+  disableWhileProcessing = true,
   onCleanVoicePress,
   onOpenFx,
   onOpenCompressor,
@@ -53,24 +62,28 @@ export function EditChipRow({
   onOpenEcho,
   onOpenReverb,
 }: EditChipRowProps) {
-  const busy = disabled || isProcessing;
+  const busy = disabled || (disableWhileProcessing && isProcessing);
   const dark = variant === 'dark';
   const accent = dark ? '#A078FF' : '#1A73E8';
   const iconIdle = dark ? '#CBC3D7' : '#1A1D21';
   const iconActive = dark ? '#E4E1EA' : '#FFFFFF';
 
   const tools: ToolCard[] = [
-    {
-      key: 'clean-voice',
-      label: selection.cleanVoice ? 'Clean Voice · On' : 'Clean Voice',
-      icon: {
-        ios: 'waveform.path.ecg',
-        android: 'graphic_eq',
-        web: 'graphic_eq',
-      },
-      active: selection.cleanVoice,
-      onPress: onCleanVoicePress,
-    },
+    ...(hideCleanVoice || !onCleanVoicePress
+      ? []
+      : [
+          {
+            key: 'clean-voice',
+            label: selection.cleanVoice ? 'Clean Voice · On' : 'Clean Voice',
+            icon: {
+              ios: 'waveform.path.ecg',
+              android: 'graphic_eq',
+              web: 'graphic_eq',
+            },
+            active: selection.cleanVoice,
+            onPress: onCleanVoicePress,
+          } satisfies ToolCard,
+        ]),
     {
       key: 'fx',
       label: selection.fx

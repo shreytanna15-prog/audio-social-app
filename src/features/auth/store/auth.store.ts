@@ -4,6 +4,8 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 
 import { clearTokens, hasStoredSession, onAuthInvalidated } from '@/core/api';
 
+import { resetClientSession } from '../utils/reset-client-session';
+
 export const SKIP_AUTH = process.env.EXPO_PUBLIC_SKIP_AUTH === 'true';
 
 export type SignupDraft = {
@@ -77,6 +79,7 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         if (SKIP_AUTH) return;
         await clearTokens();
+        resetClientSession();
         set({ isAuthenticated: false, signupDraft: {} });
       },
 

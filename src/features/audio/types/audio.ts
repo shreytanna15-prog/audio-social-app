@@ -1,21 +1,19 @@
 import type { AppliedEffect } from '@/features/audio/types/applied-effects';
 import type { StoredEditChain } from '@/features/audio/types/edit-chips';
+import type { TrackRecord } from '@/features/tracks/types';
 
-export type AudioRecording = {
-  id: string;
+export type AudioRecording = Omit<TrackRecord, 'mixPath'> & {
+  mixPath: string;
   uri: string;
-  type: 'draft' | 'uploaded';
   duration: number;
+  /** @deprecated Prefer status. */
+  type: 'draft' | 'uploaded';
+  /** @deprecated Prefer mixPath. */
   path: string;
-  sourcePath?: string;
-  /** Soft-gated baseline (pre user effects) for non-destructive re-edits. */
-  baselinePath?: string;
-  /** Full chip selection persisted on save. */
-  editChain?: StoredEditChain;
-  /** Multi-layer studio metadata. Absent on legacy single-take recordings. */
   projectPath?: string;
-  /** @deprecated Legacy prototype effect metadata — use editChain. */
+  sourcePath?: string;
+  baselinePath?: string;
+  editChain?: StoredEditChain;
+  /** @deprecated Use editChain. */
   appliedEffects?: AppliedEffect[];
-  createdAt: string;
-  updatedAt: string;
 };

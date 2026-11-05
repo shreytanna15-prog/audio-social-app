@@ -1,8 +1,7 @@
-import { ArrowLeft, AudioLines, Layers } from 'lucide-react-native';
+import { AudioLines, Layers } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   createLayer,
@@ -18,17 +17,18 @@ import {
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
 import { CreateOptionRow } from '@/shared/components/create/create-option-row';
-import { Text } from '@/shared/components/ui/text';
+import { ScreenHeader } from '@/shared/components/layout/screen-header';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 /**
  * Create → Import Audio chooser. Single → QR edit; Multi → Multitrack with layer 1.
  */
 export function ImportAudioScreen() {
-  const insets = useSafeAreaInsets();
-  const { back, replace } = useRouter();
+  const { replace } = useRouter();
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
   const [importing, setImporting] = useState(false);
+  const { showError, dialog } = useFeedbackDialog();
 
   const runImport = async (mode: 'single' | 'multi') => {
     if (importing) {
@@ -74,7 +74,7 @@ export function ImportAudioScreen() {
       );
       replace('/studio/multitrack');
     } catch (error) {
-      Alert.alert(
+      showError(
         'Could not import audio',
         error instanceof Error ? error.message : 'Please try another file.',
       );
@@ -84,26 +84,8 @@ export function ImportAudioScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="border-b border-white/5 px-4 pb-3 pt-2">
-        <View className="h-10 flex-row items-center justify-between">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={8}
-            disabled={importing}
-            onPress={back}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
-            <ArrowLeft size={20} color="#E4E1EA" strokeWidth={2} />
-          </Pressable>
-
-          <Text variant="title-md" className="text-on-surface">
-            Import Audio
-          </Text>
-
-          <View className="h-10 w-10" />
-        </View>
-      </View>
+    <View className="flex-1 bg-background">
+      <ScreenHeader title="Import Audio" backDisabled={importing} />
 
       <View className="gap-3 px-4 pt-6">
         <CreateOptionRow
@@ -131,6 +113,7 @@ export function ImportAudioScreen() {
         title="Importing…"
         detail="Preparing your audio file."
       />
+      {dialog}
     </View>
   );
 }

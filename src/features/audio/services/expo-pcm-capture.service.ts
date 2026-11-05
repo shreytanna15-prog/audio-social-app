@@ -3,6 +3,7 @@ import { documentDirectory } from 'expo-file-system/legacy';
 import { setAudioModeAsync } from 'expo-audio';
 import type { EventSubscription } from 'expo-modules-core';
 
+import { useInputMonitorStore } from '@/features/audio/store/input-monitor.store';
 import {
   createStreamingWavWriter,
   durationMillisFromPcmBytes,
@@ -33,6 +34,8 @@ type AudioStreamInstance = {
   pause?: () => void;
   resume?: () => void;
   abort?: () => void;
+  setInputMonitor?: (enabled: boolean) => void;
+  setMonitorGain?: (gain: number) => void;
   sampleRate: number;
   channels: number;
   supportsNativeWrite?: boolean;
@@ -56,6 +59,8 @@ type AudioStreamModule = {
     outputUri?: string;
     nativeWrite?: boolean;
     emitBuffersToJs?: boolean;
+    inputMonitor?: boolean;
+    monitorGain?: number;
   }) => AudioStreamInstance;
 };
 
@@ -103,7 +108,8 @@ function createCaptureWavUri(): string {
 
 function getAudioStreamModule(): AudioStreamModule {
   // Not re-exported from expo-audio root in 56.0.12; use the native module directly.
-  // Native WAV write lives in patches/expo-audio+56.0.12.patch (applied on postinstall).
+  // Input-monitor sidetone lives in patches/expo-audio+56.0.12.patch (postinstall +
+  // expo.autolinking.buildFromSource so Android compiles patched Kotlin, not the stale AAR).
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const AudioModule = require('expo-audio/build/AudioModule').default as AudioStreamModule;
 
@@ -116,8 +122,9 @@ function getAudioStreamModule(): AudioStreamModule {
   return AudioModule;
 }
 
-function supportsNativeWrite(instance: AudioStreamInstance): boolean {
-  return instance.supportsNativeWrite === true && typeof instance.pause === 'function';
+/** True when patched expo-audio exposes live headphone sidetone APIs. */
+function supportsInputMonitor(instance: AudioStreamInstance): boolean {
+  return typeof instance.setInputMonitor === 'function';
 }
 
 function clearStreamListeners(): void {
@@ -269,42 +276,44 @@ export const expoPcmCaptureService = {
       allowsRecording: true,
     });
 
+    const monitorPreferred = useInputMonitorStore.getState().preferredEnabled;
     const nextUri = createCaptureWavUri();
     const AudioModule = getAudioStreamModule();
+    // Always assemble the WAV on JS (responsive stop/play). Native only does
+    // optional headphone sidetone when the patched AudioStream is compiled in.
     const nextStream = new AudioModule.AudioStream({
       sampleRate: TARGET_SAMPLE_RATE,
       channels: TARGET_CHANNELS,
       encoding: ENCODING,
-      outputUri: nextUri,
-      nativeWrite: true,
-      emitBuffersToJs: false,
+      nativeWrite: false,
+      emitBuffersToJs: true,
+      inputMonitor: monitorPreferred,
+      monitorGain: 1,
     });
 
-    const useNativeWrite = supportsNativeWrite(nextStream);
+    const canMonitor = supportsInputMonitor(nextStream);
 
     clearStreamListeners();
     writer?.discard();
     writer = null;
     resetSessionState();
     captureUri = nextUri;
-    nativeWriteActive = useNativeWrite;
+    nativeWriteActive = false;
     isRecording = true;
     stream = nextStream;
 
-    if (useNativeWrite) {
-      tickSub = nextStream.addListener('audioStreamTick', handleTick);
-      await nextStream.start();
-      console.warn('[CaptureA] Expo WAV started (native-write)');
-      return;
+    if (!canMonitor) {
+      console.warn(
+        '[CaptureA] expo-audio has no inputMonitor API — rebuild the native app so patches/expo-audio+56.0.12.patch is compiled from source (package.json expo.autolinking.buildFromSource).',
+      );
     }
 
-    console.warn(
-      '[CaptureA] Unpatched expo-audio build — falling back to JS WAV writer. Rebuild the dev client after npm install so patches/expo-audio+56.0.12.patch is compiled in.',
-    );
     writer = createStreamingWavWriter(nextUri);
     bufferSub = nextStream.addListener('audioStreamBuffer', handleBuffer);
     await nextStream.start();
-    console.warn('[CaptureA] Expo WAV started');
+    console.warn(
+      `[CaptureA] Expo WAV started (js-writer${canMonitor ? ', monitor-ready' : ''})`,
+    );
   },
 
   pause(): void {
@@ -406,5 +415,17 @@ export const expoPcmCaptureService = {
       deleteCaptureFile(uri);
     }
     resetSessionState();
+  },
+
+  /**
+   * Live toggle while a take is open. No-op if capture is idle or the native
+   * build lacks setInputMonitor (prebuilt AAR without the expo-audio patch).
+   */
+  setInputMonitor(enabled: boolean): void {
+    try {
+      stream?.setInputMonitor?.(enabled);
+    } catch {
+      // Older native binary without monitor APIs.
+    }
   },
 };

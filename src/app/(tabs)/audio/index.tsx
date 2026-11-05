@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,11 +11,13 @@ import {
   prepareImportedAudio,
 } from '@/features/audio/services/audio-import.service';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 export default function AudioScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [isImporting, setIsImporting] = useState(false);
+  const { showError, dialog } = useFeedbackDialog();
 
   const openQuickRecord = useCallback(() => {
     router.push('/studio/quick-record');
@@ -49,14 +51,16 @@ export default function AudioScreen() {
         },
       });
     } catch (error) {
-      Alert.alert(
+      showError(
         'Import failed',
-        error instanceof Error ? error.message : 'Could not import that audio file.',
+        error instanceof Error
+          ? error.message
+          : 'Could not import that audio file.',
       );
     } finally {
       setIsImporting(false);
     }
-  }, [isImporting, router]);
+  }, [isImporting, router, showError]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -79,6 +83,7 @@ export default function AudioScreen() {
         title="Importing audio…"
         detail="Decoding and cleaning the track. Long songs take a few seconds."
       />
+      {dialog}
     </View>
   );
 }

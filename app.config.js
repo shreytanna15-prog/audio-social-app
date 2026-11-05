@@ -118,5 +118,14 @@ module.exports = ({ config }) => ({
       },
     ],
     './plugins/with-onnxruntime',
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Allow VibeOGram to access your photos to set a profile picture.',
+        cameraPermission:
+          'Allow VibeOGram to use your camera to take a profile picture.',
+      },
+    ],
   ],
 });

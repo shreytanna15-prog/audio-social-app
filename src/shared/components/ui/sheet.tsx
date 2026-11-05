@@ -2,7 +2,9 @@ import { Portal } from '@rn-primitives/portal';
 import { X } from 'lucide-react-native';
 import * as React from 'react';
 import {
+  Keyboard,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -83,10 +85,30 @@ function SheetContent({
   const resolvedBottomOffset = bottomOffset ?? Math.max(insets.bottom, 8);
 
   const [mounted, setMounted] = React.useState(sheet.open);
+  const [keyboardHeight, setKeyboardHeight] = React.useState(0);
   const progress = useSharedValue(sheet.open ? 1 : 0);
   const sheetHeight = useSharedValue(DEFAULT_SHEET_HEIGHT);
   const hasMeasuredRef = React.useRef(sheet.open);
   const pendingOpenRef = React.useRef(false);
+
+  // Lift the portal sheet above the IME. Portal content is not resized by
+  // windowSoftInputMode, so bottom actions stay covered without this.
+  React.useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   const animateOpen = React.useCallback(() => {
     progress.set(withTiming(1, { duration: OPEN_MS, easing: OPEN_EASING }));
@@ -163,7 +185,16 @@ function SheetContent({
 
         <View
           pointerEvents="box-none"
-          style={[styles.sheetAnchor, { paddingBottom: resolvedBottomOffset }]}>
+          style={[
+            styles.sheetAnchor,
+            {
+              paddingBottom:
+                resolvedBottomOffset +
+                (keyboardHeight > 0
+                  ? Math.max(keyboardHeight - resolvedBottomOffset, 0)
+                  : 0),
+            },
+          ]}>
           <Animated.View
             onLayout={onPanelLayout}
             className={cn(

@@ -1,7 +1,10 @@
+import { type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { useCreateConversationRequest } from '@/features/message/api/hooks';
 import { Button } from '@/shared/components/ui/button';
+import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import {
   Sheet,
@@ -13,80 +16,146 @@ import {
   SheetTitle,
 } from '@/shared/components/ui/sheet';
 import { Text } from '@/shared/components/ui/text';
+import { cn } from '@/shared/lib/utils';
 
 type ArtistMessageSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   artistName: string;
+  /** Real user UUID — required for live messaging. */
+  targetUserId?: string;
   bottomOffset: number;
 };
 
-/**
- * Local-only compose UI until messaging APIs exist.
- * Sends update local confirmation state — no network call.
- */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function ArtistMessageSheet({
   open,
   onOpenChange,
   artistName,
+  targetUserId,
   bottomOffset,
 }: ArtistMessageSheetProps) {
+  const { push } = useRouter();
   const [draft, setDraft] = useState('');
-  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const createRequest = useCreateConversationRequest();
+  const canMessage = Boolean(targetUserId && UUID_RE.test(targetUserId));
 
   const handleClose = (next: boolean) => {
     if (!next) {
       setDraft('');
-      setSent(false);
+      setError(null);
     }
     onOpenChange(next);
   };
 
+  const canSend =
+    canMessage && draft.trim().length > 0 && !createRequest.isPending;
+
   const handleSend = () => {
     const trimmed = draft.trim();
-    if (!trimmed) return;
-    setSent(true);
-    setDraft('');
+    if (!trimmed || !canMessage || !targetUserId || createRequest.isPending) {
+      return;
+    }
+    setError(null);
+
+    createRequest.mutate(
+      { userId: targetUserId, body: trimmed },
+      {
+        onSuccess: (result) => {
+          setDraft('');
+          handleClose(false);
+          if (result.conversation.status === 'ACCEPTED') {
+            push(`/message/${result.conversation.id}` as Href);
+            return;
+          }
+          push('/(tabs)/chat' as Href);
+        },
+        onError: (err) => {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Couldn’t send message request.',
+          );
+        },
+      },
+    );
   };
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent bottomOffset={bottomOffset} className="bg-[#17171D]">
+      <SheetContent
+        useModal
+        bottomOffset={bottomOffset}
+        className="bg-[#17171D]">
         <SheetClose />
-        <SheetHeader>
-          <SheetTitle>Message {artistName}</SheetTitle>
-          <SheetDescription>
-            {sent
-              ? 'Message saved locally. Backend messaging is not wired yet.'
-              : 'Compose a note. This stays on-device until messaging ships.'}
-          </SheetDescription>
+        <SheetHeader className="pr-14">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1 gap-1">
+              <SheetTitle>Message {artistName}</SheetTitle>
+              <SheetDescription>
+                {canMessage
+                  ? 'Send a message request. They’ll need to accept before you can chat.'
+                  : 'Messaging is available on live artist profiles from search.'}
+              </SheetDescription>
+            </View>
+            {/* Header action stays above the IME — bottom Send is often covered on Android. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send"
+              accessibilityState={{ disabled: !canSend }}
+              accessible
+              disabled={!canSend}
+              onPress={handleSend}
+              hitSlop={12}
+              className="min-h-11 min-w-14 items-end justify-center pt-1"
+              testID="artist-message-send-header"
+              style={{ zIndex: 2 }}>
+              <Text
+                variant="label-md"
+                accessible={false}
+                className={canSend ? 'text-primary' : 'text-on-surface-variant'}>
+                {createRequest.isPending ? 'Sending…' : 'Send'}
+              </Text>
+            </Pressable>
+          </View>
         </SheetHeader>
 
         <SheetBody>
-          {sent ? (
-            <View className="gap-4">
-              <Text variant="body-md" className="text-on-surface-variant">
-                Your message to {artistName} was queued locally.
+          <View className="gap-4">
+            <Input
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Write a message…"
+              editable={canMessage && !createRequest.isPending}
+              testID="artist-message-input"
+              accessibilityLabel="Write a message"
+              returnKeyType="send"
+              blurOnSubmit
+              onSubmitEditing={handleSend}
+              className={cn(fieldClassName, 'min-h-13')}
+            />
+            {error ? (
+              <Text variant="body-md" className="text-error">
+                {error}
               </Text>
-              <Button variant="secondary" onPress={() => handleClose(false)}>
-                <Text>Done</Text>
-              </Button>
-            </View>
-          ) : (
-            <View className="gap-4">
-              <Input
-                value={draft}
-                onChangeText={setDraft}
-                placeholder="Write a message…"
-                multiline
-                className="min-h-28"
-                textAlignVertical="top"
-              />
-              <Button onPress={handleSend} disabled={draft.trim().length === 0}>
-                <Text>Send</Text>
-              </Button>
-            </View>
-          )}
+            ) : null}
+            <Button
+              testID="artist-message-send"
+              accessibilityLabel="Send request"
+              onPress={handleSend}
+              disabled={
+                !canMessage ||
+                draft.trim().length === 0 ||
+                createRequest.isPending
+              }>
+              <Text>
+                {createRequest.isPending ? 'Sending…' : 'Send request'}
+              </Text>
+            </Button>
+          </View>
         </SheetBody>
       </SheetContent>
     </Sheet>

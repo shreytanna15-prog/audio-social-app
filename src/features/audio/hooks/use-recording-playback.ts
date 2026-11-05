@@ -1,6 +1,8 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useCallback, useRef } from 'react';
 
+import { isPlaybackNearEnd } from '@/features/audio/domain/playback-position';
+
 type UseRecordingPlaybackOptions = {
   /** Fallback while the player reports duration 0 (still loading). */
   fallbackDurationSeconds?: number;
@@ -52,17 +54,35 @@ export function useRecordingPlayback(
 
   const playFromStart = useCallback(() => {
     seekAnchorRef.current = 0;
-    void player.seekTo(0).then(() => {
+    // ExoPlayer often resolves seekTo before the position lands when at EOF.
+    // Seek, wait a frame, seek again, then play so we don't resume at the end.
+    void (async () => {
+      try {
+        await player.seekTo(0);
+      } catch {
+        // Player may remount mid-seek (stem swap / soft-clean).
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      try {
+        await player.seekTo(0);
+      } catch {
+        // ignore
+      }
       player.play();
-    });
+    })();
   }, [player]);
 
   /** Resume from the last playhead or scrub — not from 0:00. */
   const playFromAnchor = useCallback(() => {
     const anchor = seekAnchorRef.current;
-    void player.seekTo(anchor).then(() => {
+    void (async () => {
+      try {
+        await player.seekTo(anchor);
+      } catch {
+        // Ignore one-shot seek failures against a remounting player.
+      }
       player.play();
-    });
+    })();
   }, [player]);
 
   const seekToAnchor = useCallback(() => {
@@ -75,15 +95,24 @@ export function useRecordingPlayback(
       return;
     }
 
-    const nearEnd = duration > 0 && currentTime >= duration - 0.25;
-    if (nearEnd) {
-      playFromAnchor();
+    // After a take finishes (or scrub to EOF), resume-anchor is often at the end —
+    // restart from 0 so Play isn't a no-op.
+    const finished = playerStatus.didJustFinish === true;
+    if (finished || isPlaybackNearEnd(currentTime, duration)) {
+      playFromStart();
       return;
     }
 
     // Resume from current playhead (do not jump to 0).
     player.play();
-  }, [currentTime, duration, playFromAnchor, player, playerStatus.playing]);
+  }, [
+    currentTime,
+    duration,
+    playFromStart,
+    player,
+    playerStatus.didJustFinish,
+    playerStatus.playing,
+  ]);
 
   return {
     isPlaying: playerStatus.playing,

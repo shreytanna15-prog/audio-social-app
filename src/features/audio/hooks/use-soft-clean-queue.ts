@@ -36,9 +36,7 @@ export function useSoftCleanQueue({
   );
 
   const clearCleaning = useCallback((layerId: string) => {
-    setCleaningLayerIds((ids) =>
-      ids.includes(layerId) ? ids.filter((id) => id !== layerId) : ids,
-    );
+    setCleaningLayerIds((ids) => ids.filter((id) => id !== layerId));
   }, []);
 
   const enqueueSoftClean = useCallback(
@@ -66,6 +64,11 @@ export function useSoftCleanQueue({
           if (cleanGenerationRef.current.get(layerId) !== generation) {
             return;
           }
+
+          // Let the cleaningLayerIds add commit before softClean can finish.
+          // Otherwise a fast failure (e.g. missing Superpowered key) can run
+          // clearCleaning against [] and then the add wins → overlay stuck.
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
           const cleanedUri = await recordingSessionService.softClean(rawUri);
 

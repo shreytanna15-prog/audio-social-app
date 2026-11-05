@@ -3,10 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
   LayoutChangeEvent,
-  Modal,
   Pressable,
   ScrollView,
-  TextInput,
   View,
 } from 'react-native';
 
@@ -19,6 +17,16 @@ import {
 import { useCaptureElapsed } from '@/features/audio/hooks/use-capture-elapsed';
 import type { ProjectLayer } from '@/features/audio/types/project';
 import { MultitrackLayerCard } from '@/features/studio/components/multitrack/multitrack-layer-card';
+import { Button } from '@/shared/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog';
+import { fieldClassName } from '@/shared/components/ui/field-styles';
+import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
 
@@ -334,63 +342,51 @@ export function MultitrackLayerStack({
         </Pressable>
       </View>
 
-      <Modal
-        visible={renameTarget != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRenameTarget(null)}>
-        <Pressable
-          className="flex-1 items-center justify-center bg-black/55 px-6"
-          onPress={() => setRenameTarget(null)}>
-          <Pressable
-            className="w-full gap-3 rounded-2xl border border-white/10 bg-surface-container p-4"
-            onPress={(event) => event.stopPropagation()}>
-            <Text variant="title-md" className="text-on-surface">
-              Rename layer
-            </Text>
-            <TextInput
-              value={renameDraft}
-              onChangeText={setRenameDraft}
-              autoFocus
-              selectTextOnFocus
-              placeholder="Layer name"
-              placeholderTextColor="#958EA0"
-              className="rounded-xl border border-white/10 bg-surface-container-lowest px-3 py-2.5 text-on-surface"
-              onSubmitEditing={() => {
+      <Dialog
+        open={renameTarget != null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setRenameTarget(null);
+          }
+        }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename layer</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameDraft}
+            onChangeText={setRenameDraft}
+            autoFocus
+            selectTextOnFocus
+            placeholder="Layer name"
+            onSubmitEditing={() => {
+              if (!renameTarget) {
+                return;
+              }
+              onRenameLayer(renameTarget.id, renameDraft);
+              setRenameTarget(null);
+            }}
+            className={fieldClassName}
+          />
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onPress={() => setRenameTarget(null)}>
+              <Text>Cancel</Text>
+            </Button>
+            <Button
+              variant="soft"
+              size="sm"
+              onPress={() => {
                 if (!renameTarget) {
                   return;
                 }
                 onRenameLayer(renameTarget.id, renameDraft);
                 setRenameTarget(null);
-              }}
-            />
-            <View className="flex-row justify-end gap-2">
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setRenameTarget(null)}
-                className="rounded-xl px-3 py-2 active:bg-white/5">
-                <Text variant="label-md" className="text-on-surface-variant">
-                  Cancel
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  if (!renameTarget) {
-                    return;
-                  }
-                  onRenameLayer(renameTarget.id, renameDraft);
-                  setRenameTarget(null);
-                }}
-                className="rounded-xl bg-primary/20 px-3 py-2 active:bg-primary/30">
-                <Text variant="label-md" className="text-on-surface">
-                  Save
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+              }}>
+              <Text>Save</Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </View>
   );
 }

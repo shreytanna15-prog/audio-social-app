@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  Headphones,
   Mic,
   Pause,
   Play,
@@ -8,10 +9,14 @@ import {
 } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-const SIDE = 40;
+const SIDE = 36;
+const SIDE_ICON = 15;
 const RECORD = 64;
-const SLOT = 56;
+const RECORD_ICON = 26;
+const SIDE_SLOT = 44;
 const RECORD_SLOT = 68;
+const CLUSTER_GAP = 12;
+const GROUP_GAP = 12;
 
 type QuickRecordCaptureTransportProps = {
   isRecording: boolean;
@@ -19,21 +24,26 @@ type QuickRecordCaptureTransportProps = {
   isPlaying: boolean;
   hasTake: boolean;
   isCleaning?: boolean;
+  isMonitoring?: boolean;
+  headsetConnected?: boolean;
   onTogglePlayback: () => void;
   onToggleRecord: () => void;
+  onToggleMonitor?: () => void;
   onNext: () => void;
   onStopRecordPressIn?: () => void;
 };
 
-/** Capture-step controls: Play | Record/Stop | Next. */
 export function QuickRecordCaptureTransport({
   isRecording,
   isOptimizing,
   isPlaying,
   hasTake,
   isCleaning = false,
+  isMonitoring = false,
+  headsetConnected = false,
   onTogglePlayback,
   onToggleRecord,
+  onToggleMonitor,
   onNext,
   onStopRecordPressIn,
 }: QuickRecordCaptureTransportProps) {
@@ -41,77 +51,120 @@ export function QuickRecordCaptureTransport({
   const playDisabled = busy || isRecording || !hasTake;
   const recordDisabled = busy;
   const nextDisabled = busy || isRecording || !hasTake;
+  const monitorDisabled = busy || !onToggleMonitor || !headsetConnected;
 
   const PlayIcon: LucideIcon = isPlaying ? Pause : Play;
   const RecordIcon: LucideIcon = isRecording ? Square : Mic;
 
   return (
     <View className="items-center">
-      <View className="flex-row items-center justify-center gap-4">
+      <View style={styles.row}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          disabled={playDisabled}
-          onPress={onTogglePlayback}
+          accessibilityState={{
+            disabled: monitorDisabled,
+            checked: isMonitoring,
+          }}
+          accessibilityLabel={
+            !headsetConnected
+              ? 'Headphone monitoring unavailable. Connect earphones.'
+              : isMonitoring
+                ? 'Disable headphone monitoring'
+                : 'Enable headphone monitoring'
+          }
+          disabled={monitorDisabled}
+          onPress={onToggleMonitor}
           style={({ pressed }) => [
-            styles.slot,
-            { opacity: playDisabled ? 0.35 : pressed ? 0.8 : 1 },
+            styles.sideSlot,
+            { opacity: monitorDisabled ? 0.35 : pressed ? 0.8 : 1 },
           ]}>
           <View style={styles.sideButton}>
-            <PlayIcon size={17} color="#E4E1EA" strokeWidth={2} />
-          </View>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isRecording ? 'Stop' : 'Record'}
-          disabled={recordDisabled}
-          onPress={onToggleRecord}
-          onPressIn={isRecording ? onStopRecordPressIn : undefined}
-          style={({ pressed }) => [
-            styles.slot,
-            styles.recordSlot,
-            { opacity: recordDisabled ? 0.5 : pressed ? 0.92 : 1 },
-          ]}>
-          <View
-            style={[
-              styles.recordButton,
-              isRecording ? styles.recordButtonActive : null,
-            ]}>
-            <RecordIcon
-              size={26}
-              color={isRecording ? '#FFFFFF' : '#3C0091'}
-              strokeWidth={2.3}
+            <Headphones
+              size={SIDE_ICON}
+              color={isMonitoring ? '#A078FF' : '#E4E1EA'}
+              strokeWidth={2}
             />
           </View>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Next"
-          disabled={nextDisabled}
-          onPress={onNext}
-          style={({ pressed }) => [
-            styles.slot,
-            { opacity: nextDisabled ? 0.35 : pressed ? 0.8 : 1 },
-          ]}>
-          <View style={styles.sideButton}>
-            <ArrowRight size={17} color="#E4E1EA" strokeWidth={2} />
-          </View>
-        </Pressable>
+        <View style={styles.cluster}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+            disabled={playDisabled}
+            onPress={onTogglePlayback}
+            style={({ pressed }) => [
+              styles.sideSlot,
+              { opacity: playDisabled ? 0.35 : pressed ? 0.8 : 1 },
+            ]}>
+            <View style={styles.sideButton}>
+              <PlayIcon size={SIDE_ICON} color="#E4E1EA" strokeWidth={2} />
+            </View>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isRecording ? 'Stop' : 'Record'}
+            disabled={recordDisabled}
+            onPress={onToggleRecord}
+            onPressIn={isRecording ? onStopRecordPressIn : undefined}
+            style={({ pressed }) => [
+              styles.recordSlot,
+              { opacity: recordDisabled ? 0.5 : pressed ? 0.92 : 1 },
+            ]}>
+            <View
+              style={[
+                styles.recordButton,
+                isRecording ? styles.recordButtonActive : null,
+              ]}>
+              <RecordIcon
+                size={RECORD_ICON}
+                color={isRecording ? '#FFFFFF' : '#3C0091'}
+                strokeWidth={2.3}
+              />
+            </View>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit take"
+            disabled={nextDisabled}
+            onPress={onNext}
+            style={({ pressed }) => [
+              styles.sideSlot,
+              { opacity: nextDisabled ? 0.35 : pressed ? 0.8 : 1 },
+            ]}>
+            <View style={styles.sideButton}>
+              <ArrowRight size={SIDE_ICON} color="#E4E1EA" strokeWidth={2} />
+            </View>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  slot: {
-    width: SLOT,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: GROUP_GAP,
+  },
+  cluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CLUSTER_GAP,
+  },
+  sideSlot: {
+    width: SIDE_SLOT,
     alignItems: 'center',
     justifyContent: 'center',
   },
   recordSlot: {
     width: RECORD_SLOT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sideButton: {
     width: SIDE,

@@ -1,9 +1,9 @@
 import {
+  Headphones,
   Mic,
   Pause,
   Play,
   Save,
-  Scissors,
   Square,
   Upload,
   type LucideIcon,
@@ -21,9 +21,12 @@ type QuickRecordTransportProps = {
   isSaving: boolean;
   isPlaying: boolean;
   hasTake: boolean;
+  isMonitoring?: boolean;
+  headsetConnected?: boolean;
   onSave: () => void;
   onTogglePlayback: () => void;
   onToggleRecord: () => void;
+  onToggleMonitor?: () => void;
   onStopRecordPressIn?: () => void;
 };
 
@@ -33,15 +36,19 @@ export function QuickRecordTransport({
   isSaving,
   isPlaying,
   hasTake,
+  isMonitoring = false,
+  headsetConnected = false,
   onSave,
   onTogglePlayback,
   onToggleRecord,
+  onToggleMonitor,
   onStopRecordPressIn,
 }: QuickRecordTransportProps) {
   const busy = isOptimizing || isSaving;
   const saveDisabled = busy || isRecording || !hasTake;
   const playDisabled = busy || isRecording || !hasTake;
   const recordDisabled = busy;
+  const monitorDisabled = busy || !onToggleMonitor || !headsetConnected;
 
   const PlayIcon: LucideIcon = isPlaying ? Pause : Play;
   const RecordIcon: LucideIcon = isRecording ? Square : Mic;
@@ -49,6 +56,34 @@ export function QuickRecordTransport({
   return (
     <View className="items-center">
       <View className="flex-row items-center justify-center gap-4">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{
+            disabled: monitorDisabled,
+            checked: isMonitoring,
+          }}
+          accessibilityLabel={
+            !headsetConnected
+              ? 'Headphone monitoring unavailable. Connect earphones.'
+              : isMonitoring
+                ? 'Disable headphone monitoring'
+                : 'Enable headphone monitoring'
+          }
+          disabled={monitorDisabled}
+          onPress={onToggleMonitor}
+          style={({ pressed }) => [
+            styles.slot,
+            { opacity: monitorDisabled ? 0.35 : pressed ? 0.8 : 1 },
+          ]}>
+          <View style={styles.sideButton}>
+            <Headphones
+              size={17}
+              color={isMonitoring ? '#A078FF' : '#E4E1EA'}
+              strokeWidth={2}
+            />
+          </View>
+        </Pressable>
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Save"
@@ -98,16 +133,6 @@ export function QuickRecordTransport({
               color={isRecording ? '#FFFFFF' : '#3C0091'}
               strokeWidth={2.3}
             />
-          </View>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Trim"
-          disabled
-          style={[styles.slot, { opacity: 0.35 }]}>
-          <View style={styles.sideButton}>
-            <Scissors size={17} color="#E4E1EA" strokeWidth={2} />
           </View>
         </Pressable>
 

@@ -1,0 +1,68 @@
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
+
+import { useAuthStore } from '@/features/auth';
+import { Text } from '@/shared/components/ui/text';
+
+import { ProfileScreenShell } from '../components/profile-screen-shell';
+import { ProfileSelfActions } from '../components/profile-self-actions';
+import { useMyProfile } from '../hooks/use-my-profile';
+
+/** Profile tab — logged-in user; Edit / Library actions. */
+export function MyProfileScreen() {
+  const { push } = useRouter();
+  const { profile, isLoading, isError, refetch } = useMyProfile();
+  const logout = useAuthStore((s) => s.logout);
+  const isNavigatingRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      isNavigatingRef.current = false;
+    }, []),
+  );
+
+  const goTo = (href: Href) => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    push(href);
+  };
+
+  if (isLoading && !profile) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator color="#D0BCFF" />
+      </View>
+    );
+  }
+
+  if (isError || !profile) {
+    return (
+      <View className="flex-1 items-center justify-center gap-3 bg-background px-6">
+        <Text variant="body-md" className="text-center text-on-surface-variant">
+          Could not load your profile.
+        </Text>
+        <Pressable onPress={refetch} accessibilityRole="button">
+          <Text variant="title-md" className="text-primary-tonal">
+            Retry
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <ProfileScreenShell
+      profile={profile}
+      actions={
+        <ProfileSelfActions
+          onEditPress={() => goTo('/(tabs)/profile/edit' as Href)}
+          onLibraryPress={() => goTo('/(tabs)/library' as Href)}
+        />
+      }
+      onLogout={() => {
+        void logout();
+      }}
+    />
+  );
+}

@@ -24,6 +24,8 @@ import type {
   StoredAudioProject,
   StoredProjectLayer,
 } from '@/features/audio/types/project';
+import { PROJECT_VERSION } from '@/features/audio/types/project';
+import type { TrackKind, TrackRecord } from '@/features/tracks/types';
 import {
   getLayerBaselineFileUri,
   getLayerBaselineRelativePath,
@@ -48,12 +50,30 @@ function toRelativePath(uri: string): string | null {
   return uri.slice(documentDirectory.length);
 }
 
+function layerDurationMs(layer: ProjectLayer | StoredProjectLayer): number {
+  if ('durationMs' in layer && typeof layer.durationMs === 'number') {
+    return Math.max(0, Math.round(layer.durationMs));
+  }
+  if (
+    'durationSeconds' in layer &&
+    typeof layer.durationSeconds === 'number'
+  ) {
+    return Math.max(0, Math.round(layer.durationSeconds * 1000));
+  }
+  return 0;
+}
+
 function toStoredLayer(
   layer: ProjectLayer,
   recordingId: string,
+  sortIndex: number,
+  now: string,
+  existing?: StoredProjectLayer,
 ): StoredProjectLayer {
+  const durationMs = layerDurationMs(layer);
   return {
     id: layer.id,
+    sortIndex,
     kind: layer.kind,
     name: layer.name,
     stemPath: layer.stemUri
@@ -69,14 +89,19 @@ function toStoredLayer(
         getLayerSourceRelativePath(recordingId, layer.id))
       : null,
     editChain: normalizeStoredEditChain(layer.editChain),
+    captureFx: normalizeStoredEditChain(layer.captureFx),
     muted: layer.muted,
     offsetMs: layer.offsetMs,
-    durationSeconds: layer.durationSeconds,
-    peaks: layer.peaks,
+    durationMs,
+    appliedEffects: existing?.appliedEffects ?? [],
+    peaks: layer.peaks.length > 0 ? layer.peaks : null,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
   };
 }
 
 function fromStoredLayer(layer: StoredProjectLayer): ProjectLayer {
+  const durationMs = layerDurationMs(layer);
   return {
     id: layer.id,
     kind: layer.kind,
@@ -85,9 +110,10 @@ function fromStoredLayer(layer: StoredProjectLayer): ProjectLayer {
     baselineUri: resolveDocumentRelativeUri(layer.baselinePath),
     sourceUri: resolveDocumentRelativeUri(layer.sourcePath),
     editChain: normalizeStoredEditChain(layer.editChain),
+    captureFx: normalizeStoredEditChain(layer.captureFx),
     muted: layer.muted,
     offsetMs: layer.offsetMs,
-    durationSeconds: layer.durationSeconds,
+    durationSeconds: durationMs / 1000,
     peaks: layer.peaks ?? [],
   };
 }
@@ -133,14 +159,49 @@ async function persistLayerFiles(
   };
 }
 
+async function readExistingStoredProject(
+  recordingId: string,
+): Promise<StoredAudioProject | null> {
+  try {
+    const contents = await readAsStringAsync(
+      getRecordingProjectFileUri(recordingId),
+    );
+    const parsed = JSON.parse(contents) as StoredAudioProject;
+    if (!parsed || !Array.isArray(parsed.layers)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 async function writeProjectFile(
   recordingId: string,
   project: AudioProject,
+  track: TrackRecord,
 ): Promise<void> {
+  const existing = await readExistingStoredProject(recordingId);
+  const existingById = new Map(
+    (existing?.layers ?? []).map((layer) => [layer.id, layer]),
+  );
+  const now = track.updatedAt;
+
   const stored: StoredAudioProject = {
-    version: 1,
+    version: PROJECT_VERSION,
+    id: track.id,
+    kind: track.kind,
+    status: track.status,
+    title: track.title,
+    durationMs: track.durationMs,
+    mixPath: track.mixPath ?? undefined,
+    publishedAt: track.publishedAt,
+    createdAt: track.createdAt,
+    updatedAt: track.updatedAt,
     selectedLayerId: project.selectedLayerId,
-    layers: project.layers.map((layer) => toStoredLayer(layer, recordingId)),
+    layers: project.layers.map((layer, index) =>
+      toStoredLayer(layer, recordingId, index, now, existingById.get(layer.id)),
+    ),
   };
 
   const projectUri = getRecordingProjectFileUri(recordingId);
@@ -152,9 +213,14 @@ async function writeProjectFile(
   await writeAsStringAsync(projectUri, JSON.stringify(stored, null, 2));
 }
 
-async function cleanupPendingUris(uris: Array<string | null | undefined>): Promise<void> {
+async function cleanupPendingUris(
+  uris: Array<string | null | undefined>,
+): Promise<void> {
   for (const uri of uris) {
-    if (!uri || (!uri.includes(PENDING_FOLDER) && !uri.includes('/_processed/'))) {
+    if (
+      !uri ||
+      (!uri.includes(PENDING_FOLDER) && !uri.includes('/_processed/'))
+    ) {
       continue;
     }
 
@@ -166,30 +232,34 @@ async function cleanupPendingUris(uris: Array<string | null | undefined>): Promi
   }
 }
 
-export async function loadProjectForRecording(
-  recording: AudioRecording,
-): Promise<AudioProject> {
-  if (!recording.projectPath) {
-    return wrapLegacyRecording(recording);
-  }
-
-  const projectUri = getRecordingProjectFileUri(recording.id);
+export async function loadProjectById(trackId: string): Promise<AudioProject | null> {
+  const projectUri = getRecordingProjectFileUri(trackId);
 
   try {
     const contents = await readAsStringAsync(projectUri);
     const parsed = JSON.parse(contents) as StoredAudioProject;
     if (!parsed || !Array.isArray(parsed.layers)) {
-      return wrapLegacyRecording(recording);
+      return null;
     }
 
     return {
-      version: 1,
+      version: PROJECT_VERSION,
       selectedLayerId: parsed.selectedLayerId,
       layers: parsed.layers.map(fromStoredLayer),
     };
   } catch {
-    return wrapLegacyRecording(recording);
+    return null;
   }
+}
+
+export async function loadProjectForRecording(
+  recording: AudioRecording,
+): Promise<AudioProject> {
+  const loaded = await loadProjectById(recording.id);
+  if (loaded) {
+    return loaded;
+  }
+  return wrapLegacyRecording(recording);
 }
 
 export async function mixProjectToUri(
@@ -202,13 +272,33 @@ export async function mixProjectToUri(
 export type SaveProjectInput = {
   project: AudioProject;
   mixdownUri?: string | null;
+  title?: string;
+  kind?: TrackKind;
+  /** When set, files are written under this track id (must match backend row). */
+  id?: string;
+  /** Skip local index.json (backend is catalog source of truth). */
+  skipIndex?: boolean;
 };
+
+function resolveTrackKind(
+  project: AudioProject,
+  kind?: TrackKind,
+): TrackKind {
+  if (kind === 'SINGLE' || kind === 'MULTI') {
+    return kind;
+  }
+  return project.layers.length > 1 ? 'MULTI' : 'SINGLE';
+}
 
 export async function saveProject({
   project,
   mixdownUri,
+  title,
+  kind,
+  id: providedId,
+  skipIndex = false,
 }: SaveProjectInput): Promise<AudioRecording> {
-  const id = Crypto.randomUUID();
+  const id = providedId ?? Crypto.randomUUID();
   const now = new Date().toISOString();
 
   await ensureRecordingsRoot();
@@ -220,6 +310,7 @@ export async function saveProject({
 
   const persistedProject: AudioProject = {
     ...project,
+    version: PROJECT_VERSION,
     layers: persistedLayers,
   };
 
@@ -234,7 +325,22 @@ export async function saveProject({
     await persistFile(persistedLayers[0].stemUri, destinationUri);
   }
 
-  await writeProjectFile(id, persistedProject);
+  const durationSeconds = projectDurationSeconds(persistedProject);
+  const mixPath = getRecordingMixdownRelativePath(id);
+  const trackKind = resolveTrackKind(persistedProject, kind);
+  const track: TrackRecord = {
+    id,
+    kind: trackKind,
+    status: 'DRAFT',
+    title: title?.trim() || 'Untitled take',
+    durationMs: Math.max(0, Math.round(durationSeconds * 1000)),
+    mixPath,
+    publishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await writeProjectFile(id, persistedProject, track);
 
   await cleanupPendingUris([
     mixSource,
@@ -245,21 +351,21 @@ export async function saveProject({
     ]),
   ]);
 
-  const duration = projectDurationSeconds(persistedProject);
   const recording: AudioRecording = {
-    id,
+    ...track,
+    mixPath,
     uri: destinationUri,
-    path: getRecordingMixdownRelativePath(id),
-    projectPath: getRecordingProjectRelativePath(id),
+    duration: durationSeconds,
     type: 'draft',
-    duration,
-    createdAt: now,
-    updatedAt: now,
+    path: mixPath,
+    projectPath: getRecordingProjectRelativePath(id),
   };
 
-  const index = await readIndex();
-  index.unshift(recording);
-  await writeIndex(index);
+  if (!skipIndex) {
+    const index = await readIndex();
+    index.unshift(recording);
+    await writeIndex(index);
+  }
 
   return recording;
 }
@@ -268,17 +374,16 @@ export async function updateProject({
   id,
   project,
   mixdownUri,
+  title,
+  kind,
   keepSourceFiles = false,
+  skipIndex = false,
 }: SaveProjectInput & {
   id: string;
   keepSourceFiles?: boolean;
 }): Promise<AudioRecording> {
-  const recordings = await readIndex();
+  const recordings = skipIndex ? [] : await readIndex();
   const existing = recordings.find((item) => item.id === id);
-
-  if (!existing) {
-    throw new Error(`Recording not found: ${id}`);
-  }
 
   await ensureRecordingsRoot();
 
@@ -289,6 +394,7 @@ export async function updateProject({
 
   const persistedProject: AudioProject = {
     ...project,
+    version: PROJECT_VERSION,
     layers: persistedLayers,
   };
 
@@ -306,7 +412,26 @@ export async function updateProject({
     }
   }
 
-  await writeProjectFile(id, persistedProject);
+  const now = new Date().toISOString();
+  const durationSeconds = projectDurationSeconds(persistedProject);
+  const mixPath = getRecordingMixdownRelativePath(id);
+  const trackKind = resolveTrackKind(
+    persistedProject,
+    kind ?? existing?.kind,
+  );
+  const track: TrackRecord = {
+    id,
+    kind: trackKind,
+    status: existing?.status ?? 'DRAFT',
+    title: title?.trim() || existing?.title || 'Untitled take',
+    durationMs: Math.max(0, Math.round(durationSeconds * 1000)),
+    mixPath,
+    publishedAt: existing?.publishedAt ?? null,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  await writeProjectFile(id, persistedProject, track);
 
   if (!keepSourceFiles) {
     await cleanupPendingUris([
@@ -319,17 +444,32 @@ export async function updateProject({
     ]);
   }
 
-  const now = new Date().toISOString();
   const updated: AudioRecording = {
-    ...existing,
+    ...(existing ?? {
+      type: 'draft' as const,
+      path: mixPath,
+      uri: destinationUri,
+      duration: durationSeconds,
+    }),
+    ...track,
+    mixPath,
     uri: destinationUri,
-    path: getRecordingMixdownRelativePath(id),
+    duration: durationSeconds,
+    type: track.status === 'PUBLISHED' ? 'uploaded' : 'draft',
+    path: mixPath,
     projectPath: getRecordingProjectRelativePath(id),
-    duration: projectDurationSeconds(persistedProject),
-    updatedAt: now,
   };
 
-  await writeIndex(recordings.map((item) => (item.id === id ? updated : item)));
+  if (!skipIndex) {
+    if (existing) {
+      await writeIndex(
+        recordings.map((item) => (item.id === id ? updated : item)),
+      );
+    } else {
+      await writeIndex([updated, ...recordings]);
+    }
+  }
+
   return updated;
 }
 

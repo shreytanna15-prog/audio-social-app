@@ -9,12 +9,13 @@ import {
 } from '@/features/auth/api/schemas';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { Button } from '@/shared/components/ui/button';
+import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 
 import { SignupLayout } from '../components/signup-layout';
 
-const MAX_NAME_LENGTH = 40;
+const MAX_NAME_LENGTH = 30;
 
 export function SignupScreenOne() {
   const { push } = useRouter();
@@ -67,7 +68,7 @@ export function SignupScreenOne() {
               value={value}
               onBlur={onBlur}
               onChangeText={onChange}
-              className="h-12 rounded-md border-0 bg-surface-container p-4 text-sm"
+              className={fieldClassName}
             />
           )}
         />

@@ -1,6 +1,6 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconButton } from '@/features/audio/components/icon-button';
 import { WaveformDisplay } from '@/features/audio/components/waveform-display';
@@ -11,6 +11,7 @@ import { createLabel, formatDuration } from '@/features/audio/utils/format';
 import { getEditChainLabel } from '@/features/audio/types/edit-chips';
 import { useRecordingsStore } from '@/features/audio/store';
 import type { AudioRecording } from '@/features/audio/types/audio';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 type RecordingCardProps = {
   recording: AudioRecording;
@@ -22,6 +23,7 @@ export function RecordingCard({ recording, index, onOpen }: RecordingCardProps) 
   const deleteRecording = useRecordingsStore((state) => state.deleteRecording);
   const player = useAudioPlayer(recording.uri);
   const playerStatus = useAudioPlayerStatus(player);
+  const { confirm, dialog } = useFeedbackDialog();
 
   // Re-saving rewrites original.* in place, so the player would keep serving the
   // audio it loaded first. The row is not remounted, so this ref can tell an
@@ -70,72 +72,79 @@ export function RecordingCard({ recording, index, onOpen }: RecordingCardProps) 
   };
 
   const handleDelete = () => {
-    Alert.alert(
+    confirm(
       'Delete recording?',
       'This recording will be permanently removed from your device.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            if (playerStatus.playing) {
-              player.pause();
-            }
+      {
+        confirmLabel: 'Delete',
+        destructive: true,
+        onConfirm: () => {
+          if (playerStatus.playing) {
+            player.pause();
+          }
 
-            void deleteRecording(recording.id);
-          },
+          void deleteRecording(recording.id);
         },
-      ],
+      },
     );
   };
 
   return (
-    <Pressable onPress={openEditor} style={styles.card}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Recording {index + 1}</Text>
-          <Text style={styles.meta}>
-            {formatDuration(recording.duration)} · {recording.type} · {createdLabel}
-          </Text>
-          {effectLabel ? <Text style={styles.effects}>{effectLabel}</Text> : null}
+    <>
+      <Pressable onPress={openEditor} style={styles.card}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Recording {index + 1}</Text>
+            <Text style={styles.meta}>
+              {formatDuration(recording.duration)} · {recording.type} ·{' '}
+              {createdLabel}
+            </Text>
+            {effectLabel ? (
+              <Text style={styles.effects}>{effectLabel}</Text>
+            ) : null}
+          </View>
+          <View style={styles.actions}>
+            <IconButton
+              icon={{
+                ios: playerStatus.playing ? 'pause.fill' : 'play.fill',
+                android: playerStatus.playing ? 'pause' : 'play_arrow',
+                web: playerStatus.playing ? 'pause' : 'play_arrow',
+              }}
+              size={20}
+              style={styles.smallButton}
+              onPress={handlePlay}
+            />
+            <IconButton
+              icon={{
+                ios: 'square.and.arrow.up',
+                android: 'share',
+                web: 'share',
+              }}
+              size={18}
+              style={styles.smallButton}
+              onPress={handleShare}
+            />
+            <IconButton
+              icon={{
+                ios: 'trash',
+                android: 'delete',
+                web: 'delete',
+              }}
+              size={18}
+              variant="danger"
+              style={styles.smallButton}
+              onPress={handleDelete}
+            />
+          </View>
         </View>
-        <View style={styles.actions}>
-          <IconButton
-            icon={{
-              ios: playerStatus.playing ? 'pause.fill' : 'play.fill',
-              android: playerStatus.playing ? 'pause' : 'play_arrow',
-              web: playerStatus.playing ? 'pause' : 'play_arrow',
-            }}
-            size={20}
-            style={styles.smallButton}
-            onPress={handlePlay}
-          />
-          <IconButton
-            icon={{
-              ios: 'square.and.arrow.up',
-              android: 'share',
-              web: 'share',
-            }}
-            size={18}
-            style={styles.smallButton}
-            onPress={handleShare}
-          />
-          <IconButton
-            icon={{
-              ios: 'trash',
-              android: 'delete',
-              web: 'delete',
-            }}
-            size={18}
-            variant="danger"
-            style={styles.smallButton}
-            onPress={handleDelete}
-          />
-        </View>
-      </View>
-      <WaveformDisplay height={48} bars={[0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.45, 0.75, 0.55, 0.65]} active={false} />
-    </Pressable>
+        <WaveformDisplay
+          height={48}
+          bars={[0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.45, 0.75, 0.55, 0.65]}
+          active={false}
+        />
+      </Pressable>
+      {dialog}
+    </>
   );
 }
 

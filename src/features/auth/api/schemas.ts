@@ -37,7 +37,7 @@ export const signupNameSchema = z.object({
     .string()
     .trim()
     .min(1, 'Name is required')
-    .max(40, 'Name must be less than 40 characters'),
+    .max(30, 'Name must be at most 30 characters'),
 });
 
 export const signupIdentitySchema = z.object({
@@ -60,7 +60,7 @@ export const signupSchema = z.object({
     .string()
     .trim()
     .min(1, 'Name is required')
-    .max(40, 'Name must be less than 40 characters'),
+    .max(30, 'Name must be at most 30 characters'),
   username: usernameSchema,
   email: z.email('Invalid email address'),
   password: passwordSchema,

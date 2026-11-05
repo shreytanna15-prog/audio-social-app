@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
 import { usePlayerStore } from '@/features/player';
@@ -21,13 +21,18 @@ export function HomeScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <AppHeader showNotificationBadge />
+      <AppHeader
+        showNotificationBadge
+        onNotificationsPress={() => push('/notifications' as Href)}
+        onChatPress={() => push('/(tabs)/chat' as Href)}
+        onAvatarPress={() => push('/(tabs)/profile' as Href)}
+      />
       <ScrollView
         className="flex-1"
         contentContainerClassName="gap-5 pb-8 pt-4"
         showsVerticalScrollIndicator={false}>
         <HomeGreetingRow />
-        <ProjectCard />
+        <ProjectCard onOpenPress={() => push('/projects/' as Href)} />
         <FeaturedArtistsSection
           onArtistPress={(artist) => push(`/artist/${artist.id}`)}
         />

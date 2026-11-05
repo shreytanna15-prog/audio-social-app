@@ -1,8 +1,11 @@
 import { ArrowUp, Heart } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { embeddedInputClassName } from '@/shared/components/ui/field-styles';
+import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
+import { cn } from '@/shared/lib/utils';
 
 import { PLAYER_COMMENTS, type PlayerComment } from '../data/player-comments';
 
@@ -78,13 +81,11 @@ export function PlayerComments({
       </View>
 
       <View className="flex-row items-center gap-2 rounded-full bg-surface-container-high px-3 py-2">
-        <TextInput
+        <Input
           value={draft}
           onChangeText={setDraft}
           placeholder="Add a comment..."
-          placeholderTextColor="#958EA0"
-          className="min-w-0 flex-1 font-sans text-sm text-on-surface"
-          style={{ padding: 0 }}
+          className={cn(embeddedInputClassName, 'text-sm')}
         />
         <Pressable
           accessibilityRole="button"

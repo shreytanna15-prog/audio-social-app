@@ -51,7 +51,7 @@ const OPTIONS: {
   },
   {
     id: 'create-project',
-    title: 'Create Project',
+    title: 'Project',
     description: 'Organize related audio work.',
     Icon: FolderPlus,
   },

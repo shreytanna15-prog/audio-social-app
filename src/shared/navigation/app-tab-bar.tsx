@@ -5,14 +5,14 @@ import { AudioLines, Compass, Home, Plus, User, X } from 'lucide-react-native';
 import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MiniPlayer } from '@/features/player';
+import { MiniPlayer, usePlayerStore } from '@/features/player';
 import { CreateSheet, type CreateActionId } from '@/shared/components/create';
 import { Text } from '@/shared/components/ui/text';
 
 const ACTIVE_COLOR = '#D0BCFF';
 const INACTIVE_COLOR = '#CBC3D7';
 const BAR_BG = '#131319';
-const FALLBACK_BAR_HEIGHT = 74;
+const FALLBACK_TAB_CHROME = 64;
 
 type TabVisual = {
   routeName: string;
@@ -95,12 +95,14 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
-  const [barHeight, setBarHeight] = useState(FALLBACK_BAR_HEIGHT + Math.max(insets.bottom, 10));
   const bottomPad = Math.max(insets.bottom, 10);
+  const [tabChromeHeight, setTabChromeHeight] = useState(
+    FALLBACK_TAB_CHROME + bottomPad,
+  );
 
-  const onBarLayout = (event: LayoutChangeEvent) => {
+  const onTabChromeLayout = (event: LayoutChangeEvent) => {
     const next = event.nativeEvent.layout.height;
-    setBarHeight((prev) => (prev === next ? prev : next));
+    setTabChromeHeight((prev) => (prev === next ? prev : next));
   };
 
   const onCreateSelect = (action: CreateActionId) => {
@@ -111,16 +113,19 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
           ? '/studio/multitrack'
           : action === 'import-audio'
             ? '/studio/import-audio'
-            : null;
+            : action === 'create-project'
+              ? '/projects/'
+              : null;
 
     if (!route) {
       return;
     }
 
-    // Let the sheet start dismissing, then push onto the root stack.
+    // Pause global audio for create flows; keep track for mini player on return.
+    usePlayerStore.getState().pause();
     setCreateOpen(false);
     requestAnimationFrame(() => {
-      push(route);
+      push(route as Parameters<typeof push>[0]);
     });
   };
 
@@ -172,22 +177,22 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
       <CreateSheet
         open={createOpen}
         onOpenChange={setCreateOpen}
-        bottomOffset={barHeight}
+        bottomOffset={tabChromeHeight}
         onSelect={onCreateSelect}
       />
 
-      <View
-        className="border-t border-white/5"
-        onLayout={onBarLayout}
-        style={[styles.bar, { paddingBottom: bottomPad }]}>
+      <View className="border-t border-white/5" style={styles.bar}>
         <MiniPlayer />
-        <View className="h-16 flex-row items-end px-1">
-          {LEFT_TABS.map(renderTab)}
-          <CreateTabButton
-            open={createOpen}
-            onPress={() => setCreateOpen((prev) => !prev)}
-          />
-          {RIGHT_TABS.map(renderTab)}
+        {/* Offset Create sheet by tab chrome only — MiniPlayer stays under the dimmer. */}
+        <View onLayout={onTabChromeLayout} style={{ paddingBottom: bottomPad }}>
+          <View className="h-16 flex-row items-end px-1">
+            {LEFT_TABS.map(renderTab)}
+            <CreateTabButton
+              open={createOpen}
+              onPress={() => setCreateOpen((prev) => !prev)}
+            />
+            {RIGHT_TABS.map(renderTab)}
+          </View>
         </View>
       </View>
     </>

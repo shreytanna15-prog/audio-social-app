@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   EditChipRow,
@@ -24,6 +24,7 @@ import type { CompressorPresetId } from '@/features/audio/types/edit-chips';
 import type { EchoPresetId } from '@/features/audio/types/edit-chips';
 import type { EqPresetId } from '@/features/audio/types/edit-chips';
 import type { ReverbPresetId } from '@/features/audio/types/edit-chips';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 const PLACEHOLDER_BARS = [0.25, 0.4, 0.65, 0.5, 0.8, 0.55, 0.7, 0.45, 0.6, 0.35, 0.75, 0.5];
 
@@ -50,6 +51,7 @@ export function RecordingEditor({
   onClose,
   onDiscard,
 }: RecordingEditorProps) {
+  const { showError, dialog } = useFeedbackDialog();
   const session = useRecordingEditorSession({
     pristineUri: source.pristineUri,
     playbackUri: source.playbackUri,
@@ -58,7 +60,7 @@ export function RecordingEditor({
     durationSeconds,
     isSaving,
     onEffectError: ({ title: errorTitle, message }) => {
-      Alert.alert(errorTitle, message);
+      showError(errorTitle, message);
     },
   });
 
@@ -355,6 +357,7 @@ export function RecordingEditor({
         onClear={() => session.selectReverb(null)}
         onClose={session.closePresetSheet}
       />
+      {dialog}
     </>
   );
 }

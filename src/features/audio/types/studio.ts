@@ -1,8 +1,11 @@
 import type { AudioProject } from '@/features/audio/types/project';
+import type { TrackKind } from '@/features/tracks/types';
 
 export type StudioSavePayload = {
   project: AudioProject;
   mixdownUri?: string | null;
+  title?: string;
+  kind?: TrackKind;
 };
 
 export type StudioEditorProps = {

@@ -1,0 +1,20 @@
+# E2E — Multitrack headphones monitor toggle (UI)
+appId: com.anonymous.audiosocialmediaapp
+---
+- extendedWaitUntil:
+    visible: "Untitled Session"
+    timeout: 60000
+- assertVisible: "Add Beat"
+- assertVisible: "Enable headphone monitoring"
+- tapOn: "Enable headphone monitoring"
+# Without a headset, app shows a recommendation alert; preference still turns on.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- assertVisible: "Disable headphone monitoring"
+- takeScreenshot: e2e/artifacts/input-monitor-on
+- tapOn: "Disable headphone monitoring"
+- assertVisible: "Enable headphone monitoring"
+- takeScreenshot: e2e/artifacts/input-monitor-off

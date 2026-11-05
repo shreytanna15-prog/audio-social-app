@@ -1,0 +1,76 @@
+import { AudioLines, FileUp, Mic } from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { Text } from '@/shared/components/ui/text';
+
+type AddAction = {
+  id: 'quick-record' | 'multitrack' | 'import-audio';
+  title: string;
+  Icon: typeof Mic;
+  route: '/studio/quick-record' | '/studio/multitrack' | '/studio/import-audio';
+};
+
+/** Same destinations + icons as the Create sheet. */
+const ACTIONS: AddAction[] = [
+  {
+    id: 'quick-record',
+    title: 'Quick Record',
+    Icon: Mic,
+    route: '/studio/quick-record',
+  },
+  {
+    id: 'multitrack',
+    title: 'Multi-Track',
+    Icon: AudioLines,
+    route: '/studio/multitrack',
+  },
+  {
+    id: 'import-audio',
+    title: 'Import',
+    Icon: FileUp,
+    route: '/studio/import-audio',
+  },
+];
+
+/** Sticky bottom dock — icon + label only. */
+export function ProjectAddActions() {
+  const insets = useSafeAreaInsets();
+  const { push } = useRouter();
+
+  return (
+    <View
+      className="border-t border-white/6 bg-background px-4 pt-3"
+      style={{ paddingBottom: Math.max(insets.bottom, 12) + 4 }}>
+      <View className="flex-row gap-2.5">
+        {ACTIONS.map((action) => {
+          const Icon = action.Icon;
+          return (
+            <Pressable
+              key={action.id}
+              onPress={() => {
+                requestAnimationFrame(() => {
+                  push(action.route);
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={action.title}
+              className="min-h-16 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-surface-container px-2 py-3"
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-container-highest">
+                <Icon size={20} color="#E4E1EA" strokeWidth={2.1} />
+              </View>
+              <Text
+                variant="label-md"
+                className="text-center font-semibold text-on-surface"
+                numberOfLines={1}>
+                {action.title}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}

@@ -12,6 +12,7 @@
     "@react-native-community/slider": "^5.2.0",
     "@rn-primitives/portal": "^1.5.3",
     "@rn-primitives/slot": "^1.5.2",
+    "@shopify/react-native-skia": "2.6.2",
     "@tanstack/react-query": "^5.101.4",
     "@wokcito/ffmpeg-kit-react-native": "^6.1.2",
     "class-variance-authority": "^0.7.1",
@@ -29,6 +30,7 @@
     "expo-font": "~56.0.7",
     "expo-glass-effect": "~56.0.4",
     "expo-image": "~56.0.11",
+    "expo-image-picker": "~56.0.25",
     "expo-linking": "~56.0.14",
     "expo-router": "~56.2.11",
     "expo-secure-store": "~56.0.4",
@@ -37,7 +39,9 @@
     "expo-status-bar": "~56.0.4",
     "expo-symbols": "~56.0.6",
     "expo-system-ui": "~56.0.5",
+    "expo-thinking-orbs": "^0.2.1",
     "expo-web-browser": "~56.0.5",
+    "input-monitor": "file:modules/input-monitor",
     "lucide-react-native": "^1.47.0",
     "nativewind": "^5.0.0-preview.4",
     "onnxruntime-react-native": "^1.24.3",
@@ -66,7 +70,8 @@
     "patch-package": "^8.0.1",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.4"
   },
   "scripts": {
     "start": "cross-env APP_VARIANT=development expo start --dev-client",
@@ -78,10 +83,28 @@
     "reset-project": "node ./scripts/reset-project.js",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run src/features/profile/utils src/features/users/api/service.test.ts src/features/explore/data/search-tabs.test.ts src/features/audio/store/input-monitor.store.test.ts",
+    "test:integration": "vitest run src/features/users/api/follow-cache.integration.test.ts src/features/audio/services/input-monitor.service.test.ts src/features/audio/services/expo-pcm-capture.monitor.integration.test.ts",
+    "test:e2e": "maestro test e2e/maestro/search-follow.yaml",
+    "test:e2e:monitor": "maestro test e2e/maestro/input-monitor.yaml",
+    "test:e2e:adb": "powershell -ExecutionPolicy Bypass -File ./scripts/e2e-android-smoke.ps1",
+    "android:run": "cross-env APP_VARIANT=development expo run:android --device Pixel_7"
   },
   "overrides": {
     "lightningcss": "1.30.1"
   },
-  "private": true
+  "expo": {
+    "autolinking": {
+      "buildFromSource": [
+        "expo-audio"
+      ]
+    }
+  },
+  "private": true,
+  "allowScripts": {
+    "@shopify/react-native-skia@2.6.2": true
+  }
 }

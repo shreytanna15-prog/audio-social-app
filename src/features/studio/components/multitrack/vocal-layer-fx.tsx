@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
 
 import {
   EditChipRow,
@@ -17,6 +16,7 @@ import type { EchoPresetId } from '@/features/audio/types/edit-chips';
 import type { EqPresetId } from '@/features/audio/types/edit-chips';
 import type { ReverbPresetId } from '@/features/audio/types/edit-chips';
 import type { StoredEditChain } from '@/features/audio/types/edit-chips';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 type VocalLayerFxProps = {
   layerId: string;
@@ -43,6 +43,7 @@ export function VocalLayerFx({
   onStemChange,
   onProcessingChange,
 }: VocalLayerFxProps) {
+  const { showError, dialog } = useFeedbackDialog();
   const session = useRecordingEditorSession({
     pristineUri: baselineUri,
     playbackUri: stemUri,
@@ -52,7 +53,7 @@ export function VocalLayerFx({
     isSaving,
     autoPlayAfterProcessing: false,
     onEffectError: ({ title, message }) => {
-      Alert.alert(title, message);
+      showError(title, message);
     },
   });
 
@@ -136,6 +137,7 @@ export function VocalLayerFx({
         onClear={() => session.selectReverb(null)}
         onClose={session.closePresetSheet}
       />
+      {dialog}
     </>
   );
 }

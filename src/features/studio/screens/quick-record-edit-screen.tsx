@@ -1,11 +1,12 @@
-import { ArrowLeft } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useInputMonitor } from '@/features/audio/hooks/use-input-monitor';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { QuickRecordProcessingOverlay } from '@/features/studio/components/quick-record-processing-overlay';
 import { QuickRecordTimer } from '@/features/studio/components/quick-record-timer';
+import { QuickRecordTitlePill } from '@/features/studio/components/quick-record-title-pill';
 import { QuickRecordToolRow } from '@/features/studio/components/quick-record-tool-row';
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
 import {
@@ -13,12 +14,13 @@ import {
   QuickRecordWaveform,
 } from '@/features/studio/components/quick-record-waveform';
 import { useQuickRecordEditSession } from '@/features/studio/hooks/use-quick-record-edit-session';
-import { Text } from '@/shared/components/ui/text';
+import { ScreenHeader } from '@/shared/components/layout/screen-header';
 
 export function QuickRecordEditScreen() {
   const insets = useSafeAreaInsets();
   // Recorder binding stays on the capture screen underneath the stack.
   const session = useQuickRecordEditSession();
+  const monitor = useInputMonitor();
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
 
   const displaySeconds = session.hasTake || session.isScrubbing
@@ -42,26 +44,7 @@ export function QuickRecordEditScreen() {
     <View
       className="flex-1 bg-background"
       style={{ paddingBottom: Math.max(insets.bottom, 28) + 12 }}>
-      <View
-        className="border-b border-white/5 px-4"
-        style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}>
-        <View className="h-10 flex-row items-center justify-between">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={8}
-            onPress={session.goBackToCapture}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
-            <ArrowLeft size={20} color="#E4E1EA" strokeWidth={2} />
-          </Pressable>
-
-          <Text variant="title-md" className="text-on-surface">
-            Edit take
-          </Text>
-
-          <View className="h-10 w-10" />
-        </View>
-      </View>
+      <ScreenHeader title="Edit take" onBack={session.goBackToCapture} />
 
       <View className="px-4 pt-3">
         <View className="flex-row items-end justify-between pb-2">
@@ -72,11 +55,11 @@ export function QuickRecordEditScreen() {
             recordOriginSeconds={session.recordOriginSeconds}
           />
 
-          <View className="rounded-full border border-white/10 bg-surface-container px-3 py-1.5">
-            <Text variant="label-sm" className="text-on-surface">
-              Untitled take
-            </Text>
-          </View>
+          <QuickRecordTitlePill
+            title={session.title}
+            onChangeTitle={session.setTitle}
+            disabled={session.isBusy || session.isSaving || session.fxProcessing}
+          />
         </View>
 
         <QuickRecordTimeline
@@ -116,7 +99,7 @@ export function QuickRecordEditScreen() {
           baselineUri={session.baselineUri}
           stemUri={session.stemUri}
           sourceUri={session.sourceUri}
-          initialEditChain={session.editChain}
+          initialEditChain={session.editChain ?? session.captureFx}
           durationSeconds={session.durationSeconds}
           isSaving={session.isSaving || session.isBusy}
           disabled={session.isBusy || session.isRecording}
@@ -129,9 +112,12 @@ export function QuickRecordEditScreen() {
           isSaving={session.isSaving}
           isPlaying={session.isPlaying}
           hasTake={session.hasTake}
+          isMonitoring={monitor.isMonitoringActive}
+          headsetConnected={monitor.headsetConnected}
           onSave={() => void session.save()}
           onTogglePlayback={session.togglePlayback}
           onToggleRecord={session.toggleRecord}
+          onToggleMonitor={monitor.toggleMonitor}
           onStopRecordPressIn={() => recordingSessionService.requestStop()}
         />
       </View>

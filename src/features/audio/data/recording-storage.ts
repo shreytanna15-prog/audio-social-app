@@ -3,15 +3,19 @@ import {
   makeDirectoryAsync,
   readAsStringAsync,
   writeAsStringAsync,
-} from "expo-file-system/legacy";
+} from 'expo-file-system/legacy';
 
+import {
+  hydrateAudioRecording,
+  toPersistedTrackRecord,
+} from '@/features/audio/data/track-index';
+import type { AudioRecording } from '@/features/audio/types/audio';
 import {
   getIndexPath,
   getPendingDirectory,
   getRecordingDirectory,
   getRecordingsRoot,
-} from "@/features/audio/utils/recording-paths";
-import type { AudioRecording } from "@/features/audio/types/audio";
+} from '@/features/audio/utils/recording-paths';
 
 export async function ensureRecordingsRoot(): Promise<void> {
   const root = getRecordingsRoot();
@@ -24,13 +28,15 @@ export async function readIndex(): Promise<AudioRecording[]> {
 
   try {
     const contents = await readAsStringAsync(getIndexPath());
-    const parsed = JSON.parse(contents) as AudioRecording[];
+    const parsed = JSON.parse(contents) as unknown[];
 
     if (!Array.isArray(parsed)) {
       return [];
     }
 
-    return parsed;
+    return parsed
+      .map((entry) => hydrateAudioRecording(entry))
+      .filter((entry): entry is AudioRecording => entry != null);
   } catch {
     return [];
   }
@@ -38,7 +44,10 @@ export async function readIndex(): Promise<AudioRecording[]> {
 
 export async function writeIndex(recordings: AudioRecording[]): Promise<void> {
   await ensureRecordingsRoot();
-  await writeAsStringAsync(getIndexPath(), JSON.stringify(recordings, null, 2));
+  const persisted = recordings.map((recording) =>
+    toPersistedTrackRecord(recording),
+  );
+  await writeAsStringAsync(getIndexPath(), JSON.stringify(persisted, null, 2));
 }
 
 export async function deleteRecordingFiles(id: string): Promise<void> {

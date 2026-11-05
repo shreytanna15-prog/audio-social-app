@@ -1,0 +1,66 @@
+# Maestro e2e — Login → Explore → Search → Follow (production API)
+appId: com.anonymous.audiosocialmediaapp
+---
+- runFlow:
+    when:
+      visible: "http://10.0.2.2:8081"
+    commands:
+      - tapOn: "http://10.0.2.2:8081"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Log In"
+    timeout: 90000
+- tapOn: "Log In"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 45000
+- tapOn: "you@example.com"
+- inputText: "proda_1793093470942@example.com"
+- tapOn: "Your password"
+- inputText: "Testpass1!"
+- tapOn: "Log In"
+- extendedWaitUntil:
+    visible: "Explore"
+    timeout: 60000
+- tapOn:
+    point: "30%,95%"
+- extendedWaitUntil:
+    visible: "Find Your Sound"
+    timeout: 30000
+- tapOn:
+    point: "50%,12%"
+- assertVisible: "Search"
+- assertVisible: "Recent"
+- assertVisible: "Artists"
+- tapOn:
+    point: "50%,18%"
+- eraseText
+- inputText: "prodb93470942"
+- extendedWaitUntil:
+    visible: "Prod Bob"
+    timeout: 25000
+- tapOn: "Prod Bob"
+- extendedWaitUntil:
+    visible: "Follow"
+    timeout: 25000
+- tapOn: "Follow"
+- assertVisible: "Following"
+- tapOn: "Following"
+- assertVisible: "Follow"
+- takeScreenshot: e2e/artifacts/production-follow-ok
+# Back returns to Search (not Explore hub)
+- pressKey: back
+- extendedWaitUntil:
+    visible: "Search"
+    timeout: 20000
+- tapOn: "Songs"
+- assertVisible: "Coming soon"
+- tapOn: "Playlists"
+- assertVisible: "Coming soon"
+- tapOn: "Albums"
+- assertVisible: "Coming soon"
+- takeScreenshot: e2e/artifacts/production-checklist-ok

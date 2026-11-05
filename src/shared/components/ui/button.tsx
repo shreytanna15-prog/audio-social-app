@@ -46,6 +46,11 @@ const buttonVariants = cva(
           'active:bg-accent dark:active:bg-accent/50',
           Platform.select({ web: 'hover:bg-accent dark:hover:bg-accent/50' })
         ),
+        /** Quiet confirm — soft primary wash, not full brand fill. */
+        soft: cn(
+          'rounded-xl bg-primary/20 active:bg-primary/30 shadow-none',
+          Platform.select({ web: 'hover:bg-primary/25' })
+        ),
         link: '',
       },
       size: {
@@ -76,7 +81,8 @@ const buttonTextVariants = cva(
         secondary: 'text-ink',
         tonal: 'text-on-primary',
         surface: 'text-on-surface',
-        ghost: 'text-on-surface group-active:text-accent-foreground',
+        ghost: 'text-on-surface-variant group-active:text-on-surface',
+        soft: 'text-on-surface',
         link: cn(
           'text-brand group-active:underline',
           Platform.select({ web: 'underline-offset-4 hover:underline group-hover:underline' })

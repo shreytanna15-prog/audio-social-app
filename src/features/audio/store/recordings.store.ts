@@ -35,6 +35,8 @@ export type UpdateRecordingParams = {
 export type SaveProjectParams = {
   project: AudioProject;
   mixdownUri?: string | null;
+  title?: string;
+  kind?: AudioRecording['kind'];
 };
 
 export type UpdateProjectParams = SaveProjectParams & {

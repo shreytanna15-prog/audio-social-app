@@ -1,5 +1,5 @@
-import { ArtistProfileScreen } from '@/features/artist';
+import { PublicProfileScreen } from '@/features/profile';
 
 export default function ArtistProfileRoute() {
-  return <ArtistProfileScreen />;
+  return <PublicProfileScreen />;
 }

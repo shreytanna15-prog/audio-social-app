@@ -1,0 +1,11 @@
+# Production UI — coming soon chips (start on Search screen)
+appId: com.anonymous.audiosocialmediaapp
+---
+- assertVisible: "Search"
+- tapOn: "Songs"
+- assertVisible: "Coming soon"
+- tapOn: "Playlists"
+- assertVisible: "Coming soon"
+- tapOn: "Albums"
+- assertVisible: "Coming soon"
+- takeScreenshot: e2e/artifacts/production-checklist-ok

@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
-index 992239b..6385dba 100644
+index 992239b..3288836 100644
 --- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
 +++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
 @@ -634,6 +634,8 @@ class AudioModule : Module() {
@@ -11,7 +11,7 @@ index 992239b..6385dba 100644
        Property("id") { stream: AudioStream ->
          stream.id
        }
-@@ -650,14 +652,50 @@ class AudioModule : Module() {
+@@ -650,14 +652,58 @@ class AudioModule : Module() {
          stream.isStreaming
        }
  
@@ -59,14 +59,22 @@ index 992239b..6385dba 100644
 +      Function("abort") { stream: AudioStream ->
 +        stream.abort()
 +      }
++
++      Function("setInputMonitor") { stream: AudioStream, enabled: Boolean ->
++        stream.setInputMonitor(enabled)
++      }
++
++      Function("setMonitorGain") { stream: AudioStream, gain: Double ->
++        stream.setMonitorGain(gain)
++      }
      }
  
      Class(AudioPlaylist::class) {
 diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
-index 86880d9..f394ae7 100644
+index 86880d9..401fbc6 100644
 --- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
 +++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
-@@ -137,6 +137,14 @@ class AudioStreamOptions : Record {
+@@ -137,6 +137,20 @@ class AudioStreamOptions : Record {
    @Field var channels: Int = 1
  
    @Field var encoding: AudioStreamEncoding = AudioStreamEncoding.FLOAT32
@@ -78,14 +86,36 @@ index 86880d9..f394ae7 100644
 +
 +  /** When false, full PCM buffers are not posted to JS. */
 +  @Field var emitBuffersToJs: Boolean = true
++
++  /** Play captured mic PCM to the output path (sidetone / input monitoring). */
++  @Field var inputMonitor: Boolean = false
++
++  /** Linear gain applied to monitored PCM (0..1.5). */
++  @Field var monitorGain: Double = 1.0
  }
  
  enum class RecordingSource(val value: String) : Enumerable {
 diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
-index 8ecdcc1..dfdd403 100644
+index 8ecdcc1..484a195 100644
 --- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
 +++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
-@@ -15,10 +15,16 @@ import kotlinx.coroutines.isActive
+@@ -1,9 +1,15 @@
+ package expo.modules.audio
+ 
+ import android.Manifest
++import android.content.Context
++import android.media.AudioAttributes
++import android.media.AudioDeviceInfo
+ import android.media.AudioFormat
++import android.media.AudioManager
+ import android.media.AudioRecord
++import android.media.AudioTrack
+ import android.media.MediaRecorder
++import android.os.Build
+ import androidx.annotation.RequiresPermission
+ import expo.modules.kotlin.AppContext
+ import expo.modules.kotlin.jni.NativeArrayBuffer
+@@ -15,10 +21,17 @@ import kotlinx.coroutines.isActive
  import kotlinx.coroutines.launch
  import java.nio.ByteBuffer
  import java.nio.ByteOrder
@@ -93,6 +123,7 @@ index 8ecdcc1..dfdd403 100644
 +import kotlin.math.log10
 +import kotlin.math.max
 +import kotlin.math.min
++import kotlin.math.roundToInt
  
  internal const val AUDIO_STREAM_BUFFER = "audioStreamBuffer"
  internal const val AUDIO_STREAM_STATUS = "audioStreamStatus"
@@ -102,16 +133,20 @@ index 8ecdcc1..dfdd403 100644
  private val FALLBACK_SAMPLE_RATES = intArrayOf(48000, 44100, 16000, 22050, 8000)
  
  private data class ResolvedAudioConfig(
-@@ -41,6 +47,8 @@ class AudioStream(
+@@ -39,8 +52,12 @@ class AudioStream(
+   val id: String = java.util.UUID.randomUUID().toString()
+ 
    private var audioRecord: AudioRecord? = null
++  private var audioTrack: AudioTrack? = null
    private var captureJob: Job? = null
    private val coroutineScope = CoroutineScope(Dispatchers.IO)
 +  private val writeLock = Any()
++  private val monitorLock = Any()
 +  private var wavWriter: WavStreamWriter? = null
  
    var sampleRate: Int = 0
      private set
-@@ -48,8 +56,28 @@ class AudioStream(
+@@ -48,8 +65,30 @@ class AudioStream(
      private set
    var isStreaming: Boolean = false
      private set
@@ -137,10 +172,12 @@ index 8ecdcc1..dfdd403 100644
    private var startTimeNanos: Long = 0
 +  private val nativeWrite = options.nativeWrite && !options.outputUri.isNullOrEmpty()
 +  private val emitBuffersToJs = options.emitBuffersToJs
++  @Volatile private var inputMonitorEnabled = options.inputMonitor
++  @Volatile private var monitorGain = options.monitorGain.coerceIn(0.0, 1.5)
  
    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
    fun start() {
-@@ -57,6 +85,13 @@ class AudioStream(
+@@ -57,6 +96,13 @@ class AudioStream(
        return
      }
  
@@ -154,7 +191,7 @@ index 8ecdcc1..dfdd403 100644
      val config = resolveAudioConfig()
      val recorder = createAudioRecord(config)
  
-@@ -64,6 +99,10 @@ class AudioStream(
+@@ -64,6 +110,10 @@ class AudioStream(
        recorder.startRecording()
      } catch (e: IllegalStateException) {
        recorder.release()
@@ -165,13 +202,16 @@ index 8ecdcc1..dfdd403 100644
        throw AudioStreamInitializationException(
          "Failed to start the audio stream. The microphone is likely held by another app or by the system"
        )
-@@ -73,20 +112,63 @@ class AudioStream(
+@@ -73,20 +123,84 @@ class AudioStream(
      channels = config.channelCount
      audioRecord = recorder
      startTimeNanos = System.nanoTime()
 +    isPaused = false
 +    lastMeteringDb = -160.0
      isStreaming = true
++    if (inputMonitorEnabled) {
++      ensureAudioTrack(config.sampleRate, config.channelCount)
++    }
      emitStatus()
  
      startCaptureLoop(recorder, config)
@@ -191,6 +231,22 @@ index 8ecdcc1..dfdd403 100644
 +    isPaused = false
 +  }
 +
++  fun setInputMonitor(enabled: Boolean) {
++    inputMonitorEnabled = enabled
++    if (!isStreaming) {
++      return
++    }
++    if (enabled) {
++      ensureAudioTrack(sampleRate, channels)
++    } else {
++      releaseAudioTrack()
++    }
++  }
++
++  fun setMonitorGain(gain: Double) {
++    monitorGain = gain.coerceIn(0.0, 1.5)
++  }
++
    fun stop() {
 -    if (!isStreaming) return
 +    if (!isStreaming) {
@@ -203,6 +259,7 @@ index 8ecdcc1..dfdd403 100644
      audioRecord?.stop()
      audioRecord?.release()
      audioRecord = null
++    releaseAudioTrack()
 +    synchronized(writeLock) {
 +      wavWriter?.finalize(sampleRate, channels)
 +    }
@@ -223,6 +280,7 @@ index 8ecdcc1..dfdd403 100644
 +    } catch (_: Exception) {
 +    }
 +    audioRecord = null
++    releaseAudioTrack()
 +    synchronized(writeLock) {
 +      wavWriter?.discard()
 +      wavWriter = null
@@ -230,7 +288,7 @@ index 8ecdcc1..dfdd403 100644
      emitStatus()
    }
  
-@@ -163,7 +245,7 @@ class AudioStream(
+@@ -163,7 +277,7 @@ class AudioStream(
        val readSizeBytes = config.readSize
  
        while (isActive && isStreaming) {
@@ -239,7 +297,7 @@ index 8ecdcc1..dfdd403 100644
        }
      }
    }
-@@ -172,16 +254,94 @@ class AudioStream(
+@@ -172,16 +286,252 @@ class AudioStream(
      recorder: AudioRecord,
      readSizeBytes: Int,
      channels: Int,
@@ -258,6 +316,7 @@ index 8ecdcc1..dfdd403 100644
 +    byteBuffer.limit(bytesRead)
 +    byteBuffer.position(0)
 +
++    val pcmForMonitor: ByteArray?
 +    if (nativeWrite && !isPaused) {
 +      val pcm = toLittleEndianInt16(byteBuffer, bytesRead, bytesPerSample)
 +      lastMeteringDb = dbFromPeak(peakLevelFromInt16(pcm))
@@ -266,7 +325,16 @@ index 8ecdcc1..dfdd403 100644
 +          wavWriter?.append(pcm)
 +        }
 +      }
++      pcmForMonitor = pcm
 +      emitTickEvent()
++    } else if (inputMonitorEnabled && !isPaused) {
++      pcmForMonitor = toLittleEndianInt16(byteBuffer, bytesRead, bytesPerSample)
++    } else {
++      pcmForMonitor = null
++    }
++
++    if (pcmForMonitor != null && inputMonitorEnabled && !isPaused && shouldPlayMonitor()) {
++      writeMonitorPcm(pcmForMonitor)
 +    }
 +
 +    if (emitBuffersToJs) {
@@ -275,6 +343,154 @@ index 8ecdcc1..dfdd403 100644
      }
    }
  
++  private fun shouldPlayMonitor(): Boolean {
++    // Never loop mic into the loudspeaker — that howls.
++    return isHeadsetConnected()
++  }
++
++  private fun isHeadsetConnected(): Boolean {
++    val context = appContext?.reactContext ?: return false
++    val manager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
++    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++      val devices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
++      return devices.any { device ->
++        when (device.type) {
++          AudioDeviceInfo.TYPE_WIRED_HEADSET,
++          AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
++          AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
++          AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
++          AudioDeviceInfo.TYPE_USB_HEADSET,
++          AudioDeviceInfo.TYPE_USB_DEVICE,
++          -> true
++          else -> {
++            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
++              (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
++                device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
++          }
++        }
++      }
++    }
++    @Suppress("DEPRECATION")
++    return manager.isWiredHeadsetOn || manager.isBluetoothA2dpOn || manager.isBluetoothScoOn
++  }
++
++  private fun ensureAudioTrack(trackSampleRate: Int, trackChannels: Int) {
++    if (trackSampleRate <= 0 || trackChannels <= 0) {
++      return
++    }
++    synchronized(monitorLock) {
++      if (audioTrack != null) {
++        return
++      }
++      val outChannel = if (trackChannels == 2) {
++        AudioFormat.CHANNEL_OUT_STEREO
++      } else {
++        AudioFormat.CHANNEL_OUT_MONO
++      }
++      val minBuffer = AudioTrack.getMinBufferSize(
++        trackSampleRate,
++        outChannel,
++        AudioFormat.ENCODING_PCM_16BIT,
++      )
++      if (minBuffer <= 0) {
++        return
++      }
++      val bufferSize = maxOf(minBuffer, trackSampleRate * trackChannels * 2 / 50)
++      val track = try {
++        AudioTrack.Builder()
++          .setAudioAttributes(
++            AudioAttributes.Builder()
++              .setUsage(AudioAttributes.USAGE_MEDIA)
++              .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
++              .build(),
++          )
++          .setAudioFormat(
++            AudioFormat.Builder()
++              .setSampleRate(trackSampleRate)
++              .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
++              .setChannelMask(outChannel)
++              .build(),
++          )
++          .setBufferSizeInBytes(bufferSize)
++          .setTransferMode(AudioTrack.MODE_STREAM)
++          .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
++          .build()
++      } catch (_: Exception) {
++        null
++      } ?: return
++
++      try {
++        track.play()
++        audioTrack = track
++      } catch (_: Exception) {
++        try {
++          track.release()
++        } catch (_: Exception) {
++        }
++      }
++    }
++  }
++
++  private fun releaseAudioTrack() {
++    synchronized(monitorLock) {
++      val track = audioTrack ?: return
++      audioTrack = null
++      try {
++        track.pause()
++      } catch (_: Exception) {
++      }
++      try {
++        track.flush()
++      } catch (_: Exception) {
++      }
++      try {
++        track.stop()
++      } catch (_: Exception) {
++      }
++      try {
++        track.release()
++      } catch (_: Exception) {
++      }
++    }
++  }
++
++  private fun writeMonitorPcm(pcm: ByteArray) {
++    ensureAudioTrack(sampleRate, channels)
++    val track = synchronized(monitorLock) { audioTrack } ?: return
++    val gain = monitorGain
++    val payload = if (gain in 0.999..1.001) {
++      pcm
++    } else {
++      applyGain(pcm, gain)
++    }
++    try {
++      track.write(payload, 0, payload.size)
++    } catch (_: Exception) {
++      // Drop monitor frames rather than crash capture.
++    }
++  }
++
++  private fun applyGain(pcm: ByteArray, gain: Double): ByteArray {
++    if (pcm.size < 2) {
++      return pcm
++    }
++    val out = ByteArray(pcm.size)
++    var index = 0
++    while (index + 1 < pcm.size) {
++      val sample = (pcm[index].toInt() and 0xFF) or (pcm[index + 1].toInt() shl 8)
++      var scaled = (sample.toShort().toInt() * gain).roundToInt()
++      if (scaled > 32767) {
++        scaled = 32767
++      } else if (scaled < -32768) {
++        scaled = -32768
++      }
++      out[index] = (scaled and 0xFF).toByte()
++      out[index + 1] = ((scaled shr 8) and 0xFF).toByte()
++      index += 2
++    }
++    return out
++  }
++
 +  private fun toLittleEndianInt16(buffer: ByteBuffer, bytesRead: Int, bytesPerSample: Int): ByteArray {
 +    buffer.position(0)
 +    if (bytesPerSample == 2) {
@@ -337,7 +553,7 @@ index 8ecdcc1..dfdd403 100644
    private fun emitStatus() {
      appContext?.mainQueue?.launch {
        emit(
-@@ -191,6 +351,22 @@ class AudioStream(
+@@ -191,6 +541,22 @@ class AudioStream(
      }
    }
  
@@ -477,10 +693,10 @@ index 0000000..f1591e1
 +  }
 +}
 diff --git a/node_modules/expo-audio/ios/AudioModule.swift b/node_modules/expo-audio/ios/AudioModule.swift
-index 12d7de0..87cd5c1 100644
+index 12d7de0..eaffdde 100644
 --- a/node_modules/expo-audio/ios/AudioModule.swift
 +++ b/node_modules/expo-audio/ios/AudioModule.swift
-@@ -523,14 +523,50 @@ public class AudioModule: Module {
+@@ -523,14 +523,58 @@ public class AudioModule: Module {
          stream.isStreaming
        }
  
@@ -528,26 +744,36 @@ index 12d7de0..87cd5c1 100644
 +      Function("abort") { (stream: AudioStream) in
 +        stream.abort()
 +      }
++
++      Function("setInputMonitor") { (stream: AudioStream, enabled: Bool) in
++        stream.setInputMonitor(enabled)
++      }
++
++      Function("setMonitorGain") { (stream: AudioStream, gain: Double) in
++        stream.setMonitorGain(gain)
++      }
      }
      #endif
    }
 diff --git a/node_modules/expo-audio/ios/AudioRecords.swift b/node_modules/expo-audio/ios/AudioRecords.swift
-index 33db27c..6a322e5 100644
+index 33db27c..378d19a 100644
 --- a/node_modules/expo-audio/ios/AudioRecords.swift
 +++ b/node_modules/expo-audio/ios/AudioRecords.swift
-@@ -106,4 +106,7 @@ struct AudioStreamOptions: Record {
+@@ -106,4 +106,9 @@ struct AudioStreamOptions: Record {
    @Field var sampleRate: Double = 48000
    @Field var channels: Int = 1
    @Field var encoding: AudioStreamEncoding = .float32
 +  @Field var outputUri: String?
 +  @Field var nativeWrite: Bool = false
 +  @Field var emitBuffersToJs: Bool = true
++  @Field var inputMonitor: Bool = false
++  @Field var monitorGain: Double = 1.0
  }
 diff --git a/node_modules/expo-audio/ios/AudioStream.swift b/node_modules/expo-audio/ios/AudioStream.swift
-index f938eff..d0058b6 100644
+index f938eff..a3cb138 100644
 --- a/node_modules/expo-audio/ios/AudioStream.swift
 +++ b/node_modules/expo-audio/ios/AudioStream.swift
-@@ -3,32 +3,70 @@ import ExpoModulesCore
+@@ -3,34 +3,84 @@ import ExpoModulesCore
  
  private let AUDIO_STREAM_BUFFER = "audioStreamBuffer"
  private let AUDIO_STREAM_STATUS = "audioStreamStatus"
@@ -566,9 +792,14 @@ index f938eff..d0058b6 100644
 +  private let outputUriOption: String?
  
    private var audioEngine: AVAudioEngine?
++  private var monitorPlayer: AVAudioPlayerNode?
    private var converter: AVAudioConverter?
 +  private var wavWriter: WavStreamWriter?
 +  private let writeLock = NSLock()
++  private let monitorLock = NSLock()
++  private var inputMonitorEnabled: Bool
++  private var monitorGain: Double
++  private var routeObserver: NSObjectProtocol?
  
    private(set) var sampleRate: Double = 0
    private(set) var channels: Int = 0
@@ -602,6 +833,8 @@ index f938eff..d0058b6 100644
 +    self.outputUriOption = options.outputUri
 +    self.nativeWrite = options.nativeWrite && !(options.outputUri ?? "").isEmpty
 +    self.emitBuffersToJs = options.emitBuffersToJs
++    self.inputMonitorEnabled = options.inputMonitor
++    self.monitorGain = min(1.5, max(0, options.monitorGain))
      super.init()
    }
  
@@ -616,9 +849,31 @@ index f938eff..d0058b6 100644
 +    }
 +
      let session = AVAudioSession.sharedInstance()
-     try session.setCategory(.record, mode: .measurement)
+-    try session.setCategory(.record, mode: .measurement)
++    // playAndRecord so we can route mic PCM to headphones for input monitoring.
++    try session.setCategory(
++      .playAndRecord,
++      mode: .measurement,
++      options: [.allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
++    )
      try session.setPreferredSampleRate(requestedSampleRate)
-@@ -49,6 +87,10 @@ class AudioStream: SharedObject {
+     try session.setActive(true)
+ 
+@@ -38,6 +88,13 @@ class AudioStream: SharedObject {
+     let inputNode = engine.inputNode
+     let hardwareFormat = inputNode.outputFormat(forBus: 0)
+ 
++    let player = AVAudioPlayerNode()
++    engine.attach(player)
++    engine.connect(player, to: engine.mainMixerNode, format: hardwareFormat)
++    engine.mainMixerNode.outputVolume = shouldPlayMonitor() ? Float(monitorGain) : 0
++    player.volume = 1
++    monitorPlayer = player
++
+     let targetSampleRate = requestedSampleRate
+     let targetChannels = AVAudioChannelCount(requestedChannels)
+ 
+@@ -49,6 +106,10 @@ class AudioStream: SharedObject {
        channels: targetChannels,
        interleaved: true
      ) else {
@@ -629,22 +884,36 @@ index f938eff..d0058b6 100644
        throw AudioStreamException(
          "The audio format (\(Int(targetSampleRate)) Hz, \(Int(targetChannels)) ch, \(encoding.rawValue)) is not supported by this device. "
          + "Try a different sample rate (48000, 44100, or 16000) or reduce the channel count to 1."
-@@ -66,6 +108,8 @@ class AudioStream: SharedObject {
+@@ -66,7 +127,11 @@ class AudioStream: SharedObject {
          setupTapWithoutConversion(engine: engine, inputNode: inputNode, format: hardwareFormat)
          self.audioEngine = engine
          try engine.start()
++        monitorPlayer?.play()
 +        isPaused = false
 +        lastMeteringDb = -160
          isStreaming = true
++        observeRouteChanges()
          emitStatus()
          return
-@@ -95,23 +139,55 @@ class AudioStream: SharedObject {
+       }
+@@ -86,6 +151,8 @@ class AudioStream: SharedObject {
+         self.startTimestamp = when
+       }
+ 
++      self.scheduleMonitorBuffer(buffer)
++
+       if let converter = self.converter {
+         self.convertAndEmit(inputBuffer: buffer, converter: converter, targetFormat: targetFormat, when: when)
+       } else {
+@@ -95,23 +162,154 @@ class AudioStream: SharedObject {
  
      self.audioEngine = engine
      try engine.start()
++    monitorPlayer?.play()
 +    isPaused = false
 +    lastMeteringDb = -160
      isStreaming = true
++    observeRouteChanges()
      emitStatus()
    }
  
@@ -658,12 +927,31 @@ index f938eff..d0058b6 100644
 +    isPaused = false
 +  }
 +
++  func setInputMonitor(_ enabled: Bool) {
++    inputMonitorEnabled = enabled
++    updateMonitorVolume()
++    if enabled, let player = monitorPlayer, isStreaming, !player.isPlaying {
++      player.play()
++    }
++  }
++
++  func setMonitorGain(_ gain: Double) {
++    monitorGain = min(1.5, max(0, gain))
++    updateMonitorVolume()
++  }
++
    func stop() {
      guard isStreaming else { return }
 +    isStreaming = false
 +    isPaused = false
++    clearRouteObserver()
      audioEngine?.inputNode.removeTap(onBus: 0)
++    monitorPlayer?.stop()
      audioEngine?.stop()
++    if let player = monitorPlayer {
++      audioEngine?.detach(player)
++    }
++    monitorPlayer = nil
      audioEngine = nil
      converter = nil
 -    isStreaming = false
@@ -679,8 +967,14 @@ index f938eff..d0058b6 100644
 +  func abort() {
 +    isStreaming = false
 +    isPaused = false
++    clearRouteObserver()
 +    audioEngine?.inputNode.removeTap(onBus: 0)
++    monitorPlayer?.stop()
 +    audioEngine?.stop()
++    if let player = monitorPlayer {
++      audioEngine?.detach(player)
++    }
++    monitorPlayer = nil
 +    audioEngine = nil
 +    converter = nil
 +    startTimestamp = nil
@@ -692,10 +986,90 @@ index f938eff..d0058b6 100644
 +    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 +  }
 +
++  private func shouldPlayMonitor() -> Bool {
++    inputMonitorEnabled && Self.isHeadsetConnected()
++  }
++
++  private func updateMonitorVolume() {
++    audioEngine?.mainMixerNode.outputVolume = shouldPlayMonitor() ? Float(monitorGain) : 0
++  }
++
++  private func scheduleMonitorBuffer(_ buffer: AVAudioPCMBuffer) {
++    guard shouldPlayMonitor(), !isPaused, let player = monitorPlayer else { return }
++    guard let copy = cloneBuffer(buffer) else { return }
++    monitorLock.lock()
++    player.scheduleBuffer(copy, completionHandler: nil)
++    monitorLock.unlock()
++  }
++
++  private func cloneBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
++    guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameCapacity) else {
++      return nil
++    }
++    copy.frameLength = buffer.frameLength
++    let channelCount = Int(buffer.format.channelCount)
++    let frameLength = Int(buffer.frameLength)
++    if buffer.format.commonFormat == .pcmFormatFloat32,
++       let src = buffer.floatChannelData,
++       let dst = copy.floatChannelData {
++      for channel in 0..<channelCount {
++        memcpy(dst[channel], src[channel], frameLength * MemoryLayout<Float>.size)
++      }
++    } else if buffer.format.commonFormat == .pcmFormatInt16,
++              let src = buffer.int16ChannelData,
++              let dst = copy.int16ChannelData {
++      for channel in 0..<channelCount {
++        memcpy(dst[channel], src[channel], frameLength * MemoryLayout<Int16>.size)
++      }
++    } else {
++      return nil
++    }
++    return copy
++  }
++
++  private func observeRouteChanges() {
++    clearRouteObserver()
++    routeObserver = NotificationCenter.default.addObserver(
++      forName: AVAudioSession.routeChangeNotification,
++      object: nil,
++      queue: .main
++    ) { [weak self] _ in
++      self?.updateMonitorVolume()
++    }
++  }
++
++  private func clearRouteObserver() {
++    if let routeObserver {
++      NotificationCenter.default.removeObserver(routeObserver)
++    }
++    routeObserver = nil
++  }
++
++  private static func isHeadsetConnected() -> Bool {
++    let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
++    for output in outputs {
++      switch output.portType {
++      case .headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio, .carAudio, .airPlay:
++        return true
++      default:
++        continue
++      }
++    }
++    return false
++  }
++
    private func setupTapWithoutConversion(engine: AVAudioEngine, inputNode: AVAudioInputNode, format: AVAudioFormat) {
      let bufferSize = AVAudioFrameCount(format.sampleRate * 0.1)
      inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: format) {
-@@ -160,10 +236,31 @@ class AudioStream: SharedObject {
+@@ -120,6 +318,7 @@ class AudioStream: SharedObject {
+       if self.startTimestamp == nil {
+         self.startTimestamp = when
+       }
++      self.scheduleMonitorBuffer(buffer)
+       self.emitBuffer(buffer: buffer, when: when)
+     }
+   }
+@@ -160,10 +359,31 @@ class AudioStream: SharedObject {
      ])
    }
  
@@ -727,7 +1101,7 @@ index f938eff..d0058b6 100644
      let timestamp = timestampSinceStart(when)
      let channelCount = Int(buffer.format.channelCount)
      let data: NativeArrayBuffer
-@@ -188,6 +285,58 @@ class AudioStream: SharedObject {
+@@ -188,6 +408,58 @@ class AudioStream: SharedObject {
      ])
    }
  

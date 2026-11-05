@@ -52,7 +52,7 @@ export function ArtistProfileScreen() {
       title: track.title,
       artist: profile.name,
       coverUrl: track.coverUrl,
-      artistAvatarUrl: profile.avatarUrl,
+      artistAvatarUrl: profile.avatarUrl ?? undefined,
       playsLabel: track.playsLabel,
       durationSec: track.durationSec,
       verified: profile.verified,
@@ -70,7 +70,7 @@ export function ArtistProfileScreen() {
       title: profile.featuredSong.title,
       artist: profile.featuredSong.artistName,
       coverUrl: profile.featuredSong.coverUrl,
-      artistAvatarUrl: profile.avatarUrl,
+      artistAvatarUrl: profile.avatarUrl ?? undefined,
       playsLabel: profile.featuredSong.playsLabel,
       durationSec: profile.featuredSong.durationSec,
       verified: profile.verified,
@@ -90,7 +90,7 @@ export function ArtistProfileScreen() {
       title: album.title,
       artist: profile.name,
       coverUrl: album.coverUrl,
-      artistAvatarUrl: profile.avatarUrl,
+      artistAvatarUrl: profile.avatarUrl ?? undefined,
       verified: profile.verified,
     });
   };
@@ -101,7 +101,7 @@ export function ArtistProfileScreen() {
       title: playlist.title,
       artist: profile.name,
       coverUrl: playlist.coverUrl,
-      artistAvatarUrl: profile.avatarUrl,
+      artistAvatarUrl: profile.avatarUrl ?? undefined,
       verified: profile.verified,
     });
   };
@@ -174,6 +174,7 @@ export function ArtistProfileScreen() {
         open={messageOpen}
         onOpenChange={setMessageOpen}
         artistName={profile.name}
+        targetUserId={typeof id === 'string' ? id : undefined}
         bottomOffset={sheetBottomOffset}
       />
       <ArtistOptionsSheet

@@ -1,18 +1,21 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 
+import { getErrorMessage } from '@/core/api/errors';
 import { discardPreviewRecording } from '@/features/audio/data/recording-repository';
-import { loadProjectForRecording } from '@/features/audio/data/project-repository';
+import { loadProjectById, updateProject } from '@/features/audio/data/project-repository';
 import {
   createEmptyProject,
   createImportLayerProject,
 } from '@/features/audio/domain/project';
 import { peakBarCountForDuration } from '@/features/audio/domain/timeline';
 import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.service';
-import { useRecordingsStore } from '@/features/audio/store';
 import type { RecordingEditorRouteParams } from '@/features/audio/types/recording-editor-route';
 import type { AudioProject } from '@/features/audio/types/project';
 import type { StudioEditorProps, StudioSavePayload } from '@/features/audio/types/studio';
+import { useSaveTrackDraft } from '@/features/tracks';
+import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
 
 type StudioReadyState = {
   status: 'ready';
@@ -32,23 +35,14 @@ export function useMultitrackRoute(): MultitrackRouteState {
   const { id, uri, duration, sourcePreGateUri } =
     useLocalSearchParams<RecordingEditorRouteParams>();
 
-  const recordings = useRecordingsStore((state) => state.recordings);
-  const isLoading = useRecordingsStore((state) => state.isLoading);
-  const isSaving = useRecordingsStore((state) => state.isSaving);
-  const saveProject = useRecordingsStore((state) => state.saveProject);
-  const updateProject = useRecordingsStore((state) => state.updateProject);
-  const persistProject = useRecordingsStore((state) => state.persistProject);
+  const saveDraft = useSaveTrackDraft();
+  const isSaving = saveDraft.isPending;
   const isPending = id === 'new';
-
-  const savedRecording = useMemo(() => {
-    if (isPending) {
-      return null;
-    }
-    return recordings.find((recording) => recording.id === id) ?? null;
-  }, [id, isPending, recordings]);
+  const trackId = isPending ? null : String(id);
 
   const [initialProject, setInitialProject] = useState<AudioProject | null>(null);
   const [projectReady, setProjectReady] = useState(false);
+  const [trackTitle, setTrackTitle] = useState('Untitled session');
   const loadedKeyRef = useRef<string | null>(null);
   const pendingUri = Array.isArray(uri) ? uri[0] : uri;
   const pendingSource = Array.isArray(sourcePreGateUri)
@@ -62,12 +56,8 @@ export function useMultitrackRoute(): MultitrackRouteState {
     let cancelled = false;
 
     async function resolveProject(): Promise<void> {
-      if (!isPending && isLoading) {
-        return;
-      }
-
-      if (!isPending) {
-        if (!savedRecording) {
+      if (!isPending && trackId) {
+        if (!hasLocalProject(trackId)) {
           if (!cancelled) {
             loadedKeyRef.current = loadKey;
             setInitialProject(null);
@@ -76,10 +66,11 @@ export function useMultitrackRoute(): MultitrackRouteState {
           return;
         }
 
-        const loaded = await loadProjectForRecording(savedRecording);
+        const loaded = await loadProjectById(trackId);
         if (!cancelled) {
           loadedKeyRef.current = loadKey;
           setInitialProject(loaded);
+          setTrackTitle('Untitled session');
           setProjectReady(true);
         }
         return;
@@ -98,7 +89,9 @@ export function useMultitrackRoute(): MultitrackRouteState {
 
       const peaks = await extractPeaksFromWav(
         pendingUri,
-        peakBarCountForDuration(Number.isNaN(durationSeconds) ? 0 : durationSeconds),
+        peakBarCountForDuration(
+          Number.isNaN(durationSeconds) ? 0 : durationSeconds,
+        ),
       );
       if (cancelled) {
         return;
@@ -116,8 +109,6 @@ export function useMultitrackRoute(): MultitrackRouteState {
       setProjectReady(true);
     }
 
-    // Auto-save replaces `savedRecording` in the store. Reloading here would
-    // unmount the studio and flash a spinner after every take.
     if (loadedKeyRef.current === loadKey) {
       return;
     }
@@ -131,12 +122,11 @@ export function useMultitrackRoute(): MultitrackRouteState {
   }, [
     duration,
     id,
-    isLoading,
     isPending,
     loadKey,
     pendingSource,
     pendingUri,
-    savedRecording?.id,
+    trackId,
   ]);
 
   const leave = useCallback(() => {
@@ -145,29 +135,56 @@ export function useMultitrackRoute(): MultitrackRouteState {
 
   const handleSave = useCallback(
     async (payload: StudioSavePayload): Promise<boolean> => {
-      if (isSaving) {
+      if (saveDraft.isPending) {
         return false;
       }
 
-      const saved = isPending
-        ? await saveProject(payload)
-        : await updateProject({ id, ...payload });
-
-      return saved != null;
+      try {
+        await saveDraft.mutateAsync({
+          project: payload.project,
+          mixdownUri: payload.mixdownUri,
+          kind: 'MULTI',
+          title: payload.title?.trim() || trackTitle || 'Untitled session',
+          trackId: trackId ?? undefined,
+          updateExisting: Boolean(trackId),
+        });
+        return true;
+      } catch (error) {
+        Alert.alert(
+          'Could not save',
+          getErrorMessage(
+            error,
+            'Save failed. Check your connection and try again.',
+          ),
+        );
+        return false;
+      }
     },
-    [id, isPending, isSaving, saveProject, updateProject],
+    [saveDraft, trackId, trackTitle],
   );
 
   const handlePersist = useCallback(
     async (payload: StudioSavePayload): Promise<boolean> => {
-      if (isPending || !id) {
+      if (isPending || !trackId) {
         return false;
       }
 
-      const persisted = await persistProject({ id, ...payload });
-      return persisted != null;
+      try {
+        await updateProject({
+          id: trackId,
+          project: payload.project,
+          mixdownUri: payload.mixdownUri,
+          kind: 'MULTI',
+          title: payload.title?.trim() || trackTitle || 'Untitled session',
+          keepSourceFiles: true,
+          skipIndex: true,
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [id, isPending, persistProject],
+    [isPending, trackId, trackTitle],
   );
 
   const handleDiscard = useCallback(async () => {
@@ -179,12 +196,6 @@ export function useMultitrackRoute(): MultitrackRouteState {
 
     leave();
   }, [initialProject, isPending, leave]);
-
-  const recordingIndex = recordings.findIndex((item) => item.id === id);
-
-  if (!isPending && isLoading && !projectReady) {
-    return { status: 'loading' };
-  }
 
   if (!projectReady) {
     return { status: 'loading' };
@@ -198,11 +209,9 @@ export function useMultitrackRoute(): MultitrackRouteState {
     status: 'ready',
     editor: {
       initialProject,
-      title: isPending
-        ? 'New recording'
-        : `Recording ${recordingIndex + 1}`,
+      title: isPending ? 'New recording' : trackTitle,
       isPending,
-      recordingId: isPending ? null : String(id),
+      recordingId: trackId,
       isSaving,
       onSave: handleSave,
       onPersist: isPending ? undefined : handlePersist,

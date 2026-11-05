@@ -1,0 +1,23 @@
+﻿appId: com.anonymous.audiosocialmediaapp
+---
+- extendedWaitUntil:
+    visible: "Explore"
+    timeout: 60000
+- tapOn:
+    point: "30%,95%"
+- extendedWaitUntil:
+    visible: "Find Your Sound"
+    timeout: 30000
+- tapOn:
+    point: "50%,12%"
+- assertVisible: "Search"
+- tapOn:
+    point: "50%,18%"
+- inputText: "zz"
+- tapOn: "Songs"
+- assertVisible: "Coming soon"
+- tapOn: "Playlists"
+- assertVisible: "Coming soon"
+- tapOn: "Albums"
+- assertVisible: "Coming soon"
+- takeScreenshot: e2e/artifacts/docs-checklist-part2-ok

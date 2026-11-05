@@ -183,10 +183,7 @@ export function MultitrackLayerCard({
     : 'inset 0 0 0 1px rgba(255, 255, 255, 0.1)';
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Select ${layer.name}`}
-      onPress={onSelect}
+    <View
       className={cn(
         'mb-2.5 overflow-hidden rounded-2xl bg-primary/10',
         empty
@@ -200,16 +197,21 @@ export function MultitrackLayerCard({
       <View className="flex-row items-center gap-2 px-3 pt-2.5 pb-2">
         <View className="min-w-0 flex-1 gap-1">
           <View className="flex-row items-center gap-1">
-            <Text
-              variant="label-md"
-              className={cn(
-                'shrink',
-                muted ? 'text-on-surface-variant' : 'text-on-surface',
-                selected ? 'font-semibold' : undefined,
-              )}
-              numberOfLines={1}>
-              {layer.name}
-            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${layer.name}`}
+              onPress={onSelect}
+              className="min-w-0 shrink">
+              <Text
+                variant="label-md"
+                className={cn(
+                  muted ? 'text-on-surface-variant' : 'text-on-surface',
+                  selected ? 'font-semibold' : undefined,
+                )}
+                numberOfLines={1}>
+                {layer.name}
+              </Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Rename ${layer.name}`}
@@ -285,13 +287,21 @@ export function MultitrackLayerCard({
         </View>
       </View>
 
-      <View
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Select ${layer.name} waveform`}
+        onPress={onSelect}
         className={cn('bg-primary/5', muted ? 'opacity-40' : null)}
         style={{
           height: MULTITRACK_LANE_WAVE_HEIGHT,
           width: '100%',
-        }}
-        pointerEvents="none">
+        }}>
+        <View
+          style={{
+            height: MULTITRACK_LANE_WAVE_HEIGHT,
+            width: '100%',
+          }}
+          pointerEvents="none">
         {layer.peaks.length > 0 && frame.widthPx > 1 ? (
           <View
             style={{
@@ -317,7 +327,8 @@ export function MultitrackLayerCard({
             originSeconds={liveOriginSeconds}
           />
         ) : null}
-      </View>
-    </Pressable>
+        </View>
+      </Pressable>
+    </View>
   );
 }

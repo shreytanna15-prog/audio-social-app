@@ -3,8 +3,21 @@ import { useMutation } from '@tanstack/react-query';
 import { setTokens } from '@/core/api';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 
-import { login, signup } from './service';
-import type { LoginRequest, SignupRequest } from './types';
+import { resetClientSession } from '../utils/reset-client-session';
+import {
+  confirmPasswordReset,
+  login,
+  requestPasswordReset,
+  signup,
+  verifyPasswordResetOtp,
+} from './service';
+import type {
+  ConfirmPasswordResetRequest,
+  LoginRequest,
+  RequestPasswordResetRequest,
+  SignupRequest,
+  VerifyPasswordResetOtpRequest,
+} from './types';
 
 export function useLogin() {
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
@@ -14,6 +27,8 @@ export function useLogin() {
     mutationFn: (body: LoginRequest) => login(body),
     onSuccess: async (data) => {
       await setTokens(data.tokens);
+      // Defense in depth if any prior-user cache survived logout.
+      resetClientSession();
       completeOnboarding();
       setAuthenticated(true);
     },
@@ -29,9 +44,29 @@ export function useSignup() {
     mutationFn: (body: SignupRequest) => signup(body),
     onSuccess: async (data) => {
       await setTokens(data.tokens);
+      resetClientSession();
       clearSignupDraft();
       completeOnboarding();
       setAuthenticated(true);
     },
+  });
+}
+
+export function useRequestPasswordReset() {
+  return useMutation({
+    mutationFn: (body: RequestPasswordResetRequest) => requestPasswordReset(body),
+  });
+}
+
+export function useVerifyPasswordResetOtp() {
+  return useMutation({
+    mutationFn: (body: VerifyPasswordResetOtpRequest) =>
+      verifyPasswordResetOtp(body),
+  });
+}
+
+export function useConfirmPasswordReset() {
+  return useMutation({
+    mutationFn: (body: ConfirmPasswordResetRequest) => confirmPasswordReset(body),
   });
 }

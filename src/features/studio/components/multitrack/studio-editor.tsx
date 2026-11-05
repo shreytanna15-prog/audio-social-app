@@ -33,7 +33,11 @@ export function StudioEditor(props: StudioEditorProps) {
   const { isPending, isSaving } = props;
   const duration = Math.max(studio.durationSeconds, playback.duration);
   const selected = studio.current;
-  const busy = isSaving || studio.isOptimizing;
+  const busy =
+    isSaving ||
+    studio.isFinalizing ||
+    studio.isOptimizing ||
+    studio.cleaningLayerIds.length > 0;
   const canEditLayers = !busy && !studio.isRecording && !studio.isImportingBeat;
   const canAddLayer = studio.canAdd && canEditLayers;
   const isCleaningSelected = selected != null && studio.cleaningLayerIds.includes(selected.id);
@@ -203,9 +207,13 @@ export function StudioEditor(props: StudioEditorProps) {
         paused={false}
       />
       <RecordingOptimizeOverlay
-        visible={studio.isOptimizing}
-        title="Saving take…"
-        detail="Recording stopped. Cleanup runs in the background afterwards."
+        visible={
+          studio.isFinalizing ||
+          studio.isOptimizing ||
+          studio.cleaningLayerIds.length > 0
+        }
+        title="Cleaning take…"
+        detail="This usually takes a few seconds."
       />
     </View>
   );

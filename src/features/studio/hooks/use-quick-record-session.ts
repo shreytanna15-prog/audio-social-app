@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { discardPreviewRecording } from '@/features/audio/data/recording-repository';
+import { fromStoredEditChain } from '@/features/audio/domain/edit-chain-persistence';
 import {
   createLayer,
   hasRecordableContent,
@@ -16,11 +17,16 @@ import { useTakeCaptureBridge } from '@/features/audio/hooks/use-take-capture-br
 import { attachVocalTake } from '@/features/audio/services/attach-vocal-take.service';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { useAudioSessionStore } from '@/features/audio/store/audio-session.store';
-import type { StoredEditChain } from '@/features/audio/types/edit-chips';
+import type {
+  EditChainSelection,
+  StoredEditChain,
+} from '@/features/audio/types/edit-chips';
 import type { AudioProject, ProjectLayer } from '@/features/audio/types/project';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
+import { applyCaptureFx } from '@/features/studio/services/apply-capture-fx.service';
 import {
   fingerprintQuickRecordProject,
+  normalizeCaptureFxSelection,
   useQuickRecordStore,
 } from '@/features/studio/store/quick-record.store';
 
@@ -34,20 +40,21 @@ type UseQuickRecordSessionOptions = {
 
 export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}) {
   const [isFocused, setIsFocused] = useState(true);
-  useFocusEffect(
-    useCallback(() => {
-      setIsFocused(true);
-      return () => setIsFocused(false);
-    }, []),
-  );
   const captureEnabled = (options.captureEnabled ?? true) && isFocused;
   const { replace, push } = useRouter();
 
   const project = useQuickRecordStore((state) => state.project);
+  const title = useQuickRecordStore((state) => state.title);
   const initialFingerprint = useQuickRecordStore((state) => state.initialFingerprint);
   const setStoreProject = useQuickRecordStore((state) => state.setProject);
+  const setTitle = useQuickRecordStore((state) => state.setTitle);
   const resetStore = useQuickRecordStore((state) => state.reset);
   const applyStem = useQuickRecordStore((state) => state.applyStem);
+  const applyCaptureFxStem = useQuickRecordStore((state) => state.applyCaptureFxStem);
+  const setCaptureFxSelectionStore = useQuickRecordStore(
+    (state) => state.setCaptureFxSelection,
+  );
+  const captureFxSelection = useQuickRecordStore((state) => state.captureFxSelection);
 
   const status = useAudioSessionStore((state) => state.status);
   const hasActiveSession = useAudioSessionStore((state) => state.hasActiveSession);
@@ -72,12 +79,53 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const [recordOriginSeconds, setRecordOriginSeconds] = useState(0);
   /** Non-null while the user is dragging the playhead. */
   const [scrubSeconds, setScrubSeconds] = useState<number | null>(null);
+  /**
+   * Covers stop → WAV finalize → attach → soft-clean so the overlay never
+   * flickers off between optimizing and SpectralGate.
+   */
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isApplyingCaptureFx, setIsApplyingCaptureFx] = useState(false);
+  const softCleanEnqueuedRef = useRef(false);
+  const pendingCaptureFxApplyRef = useRef(false);
+  const captureFxApplyGenRef = useRef(0);
 
   useEffect(
     () => () => {
       mountedRef.current = false;
     },
     [],
+  );
+
+  /** Stop mic + wipe take/progress (no navigation). */
+  const abandonInProgressCapture = useCallback(async () => {
+    recordingSessionService.requestStop();
+    softCleanEnqueuedRef.current = false;
+    setIsFinalizing(false);
+    await resetSession();
+    for (const layer of projectRef.current.layers) {
+      await discardPreviewRecording(layer.stemUri ?? '', layer.sourceUri);
+    }
+    resetStore();
+    projectRef.current = useQuickRecordStore.getState().project;
+    capturingLayerIdRef.current = null;
+    recordOriginSecondsRef.current = 0;
+    setRecordOriginSeconds(0);
+    playheadSecondsRef.current = 0;
+    setScrubSeconds(null);
+  }, [resetSession, resetStore]);
+
+  // Leaving the capture screen mid-record must kill the global session.
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => {
+        setIsFocused(false);
+        const stillRecording = useAudioSessionStore.getState().hasActiveSession;
+        if (stillRecording) {
+          void abandonInProgressCapture();
+        }
+      };
+    }, [abandonInProgressCapture]),
   );
 
   const vocal = selectedLayer(project);
@@ -89,6 +137,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const sourceUri = vocal?.sourceUri ?? null;
   const peaks = vocal?.peaks ?? [];
   const editChain = vocal?.editChain;
+  const captureFx = vocal?.captureFx;
   const hasTake = Boolean(stemUri);
 
   const playback = useRecordingPlayback(stemUri ?? '', {
@@ -183,37 +232,166 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
       // Clean the committed source/stem (same URI after attach) — prefer store.
       const layer = projectRef.current.layers.find((item) => item.id === layerId);
       const uriToClean = layer?.sourceUri ?? layer?.stemUri ?? attachedUri;
+      softCleanEnqueuedRef.current = true;
       enqueueSoftClean(layerId, uriToClean);
     },
     [enqueueSoftClean],
   );
 
-  // Apply deferred seek after SpectralGate swaps the stem URI.
+  const handleTakeSettled = useCallback(() => {
+    // Attach failed (or no layer) — nothing to soft-clean; drop the overlay.
+    if (!softCleanEnqueuedRef.current) {
+      setIsFinalizing(false);
+    }
+  }, []);
+
+  const runCaptureFxApply = useCallback(
+    async (layerId: string) => {
+      const generation = ++captureFxApplyGenRef.current;
+      const layer = projectRef.current.layers.find((item) => item.id === layerId);
+      // Prefer post-soft-clean baseline so FX never stack on a prior FX stem.
+      const baseUri = layer?.baselineUri ?? layer?.stemUri;
+      if (!layer?.stemUri || !baseUri) {
+        return;
+      }
+
+      setIsApplyingCaptureFx(true);
+      try {
+        const selection = useQuickRecordStore.getState().captureFxSelection;
+        const nextStem = await applyCaptureFx({
+          baselineUri: baseUri,
+          selection,
+        });
+        if (!mountedRef.current || captureFxApplyGenRef.current !== generation) {
+          return;
+        }
+        applyCaptureFxStem(layerId, nextStem);
+        projectRef.current = useQuickRecordStore.getState().project;
+      } catch (error) {
+        console.warn('[CaptureFx] apply failed', error);
+      } finally {
+        if (mountedRef.current && captureFxApplyGenRef.current === generation) {
+          setIsApplyingCaptureFx(false);
+        }
+      }
+    },
+    [applyCaptureFxStem],
+  );
+
+  // After SpectralGate: apply capture FX, then deferred seek, then clear overlay.
   useEffect(() => {
     const cleaning = cleaningLayerIds.length > 0;
     if (wasCleaningRef.current && !cleaning) {
-      const seekTo = pendingSeekRef.current;
-      pendingSeekRef.current = null;
-      if (seekTo != null) {
-        playheadSecondsRef.current = seekTo;
-        playback.markResumeAt(seekTo);
-        void playback.seekTo(seekTo).catch(() => {
-          // Player may still be remounting; ignore one-shot failures.
-        });
-      }
+      softCleanEnqueuedRef.current = false;
+      const layerId =
+        capturingLayerIdRef.current ??
+        projectRef.current.selectedLayerId ??
+        projectRef.current.layers[0]?.id ??
+        null;
+
+      void (async () => {
+        // Soft-clean completion always re-applies current selection (covers
+        // chip changes made while cleaning). Clear deferred flag to avoid a second pass.
+        pendingCaptureFxApplyRef.current = false;
+        if (layerId) {
+          await runCaptureFxApply(layerId);
+        }
+        if (!mountedRef.current) {
+          return;
+        }
+        const seekTo = pendingSeekRef.current;
+        pendingSeekRef.current = null;
+        if (seekTo != null) {
+          playheadSecondsRef.current = seekTo;
+          playback.markResumeAt(seekTo);
+          void playback.seekTo(seekTo).catch(() => {
+            // Player may still be remounting; ignore one-shot failures.
+          });
+        }
+        setIsFinalizing(false);
+        capturingLayerIdRef.current = null;
+      })();
     }
     wasCleaningRef.current = cleaning;
-  }, [cleaningLayerIds.length, playback]);
+  }, [cleaningLayerIds.length, playback, runCaptureFxApply]);
+
+  const prevStatusForFinalizeRef = useRef(status);
+  useEffect(() => {
+    const prev = prevStatusForFinalizeRef.current;
+    prevStatusForFinalizeRef.current = status;
+    if (!isFinalizing) {
+      return;
+    }
+    // optimizing → idle without preview means capture/stage failed.
+    if (prev === 'optimizing' && status === 'idle' && !softCleanEnqueuedRef.current) {
+      setIsFinalizing(false);
+    }
+  }, [isFinalizing, status]);
 
   useTakeCaptureBridge({
     enabled: captureEnabled,
     capturingLayerIdRef,
     onAttach: handleAttachTake,
     onAttached: handleTakeAttached,
+    onSettled: handleTakeSettled,
   });
 
   const isCleaning = cleaningLayerIds.length > 0;
-  const isBusy = isOptimizing || isCleaning;
+  const isBusy =
+    isFinalizing || isOptimizing || isCleaning || isApplyingCaptureFx;
+
+  // Deferred capture-FX apply after record/clean pipeline finishes.
+  useEffect(() => {
+    if (isBusy || !pendingCaptureFxApplyRef.current) {
+      return;
+    }
+    const layerId =
+      projectRef.current.selectedLayerId ??
+      projectRef.current.layers[0]?.id ??
+      null;
+    const hasStem = Boolean(
+      layerId &&
+        projectRef.current.layers.find((layer) => layer.id === layerId)?.stemUri,
+    );
+    if (!layerId || !hasStem) {
+      pendingCaptureFxApplyRef.current = false;
+      return;
+    }
+    pendingCaptureFxApplyRef.current = false;
+    setIsFinalizing(true);
+    void (async () => {
+      await runCaptureFxApply(layerId);
+      if (mountedRef.current) {
+        setIsFinalizing(false);
+      }
+    })();
+  }, [isBusy, runCaptureFxApply]);
+
+  const setCaptureFxSelection = useCallback(
+    (selection: EditChainSelection) => {
+      setCaptureFxSelectionStore(normalizeCaptureFxSelection(selection));
+
+      const layer = selectedLayer(projectRef.current);
+      if (!layer?.stemUri) {
+        // Empty project — selection only until a take exists.
+        return;
+      }
+
+      if (isRecording || isBusy) {
+        pendingCaptureFxApplyRef.current = true;
+        return;
+      }
+
+      setIsFinalizing(true);
+      void (async () => {
+        await runCaptureFxApply(layer.id);
+        if (mountedRef.current) {
+          setIsFinalizing(false);
+        }
+      })();
+    },
+    [isBusy, isRecording, runCaptureFxApply, setCaptureFxSelectionStore],
+  );
 
   const startRecord = useCallback(() => {
     if (hasActiveSession || isBusy) {
@@ -250,11 +428,17 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     startRecording,
   ]);
 
+  const beginPostRecordBusy = useCallback(() => {
+    softCleanEnqueuedRef.current = false;
+    setIsFinalizing(true);
+  }, []);
+
   const stopRecord = useCallback(() => {
+    beginPostRecordBusy();
     recordingSessionService.requestStop();
     void handleMainAction();
     setRecordOriginSeconds(0);
-  }, [handleMainAction]);
+  }, [beginPostRecordBusy, handleMainAction]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -281,13 +465,22 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const onStemChange = useCallback(
     (layerId: string, nextStemUri: string, nextEditChain?: StoredEditChain) => {
       applyStem(layerId, nextStemUri, nextEditChain);
+      // Keep capture chips in sync when edit-screen FX change the stem.
+      // Use the store setter (selection only) — do not re-run capture apply.
+      if (nextEditChain !== undefined) {
+        useQuickRecordStore
+          .getState()
+          .setCaptureFxSelection(
+            normalizeCaptureFxSelection(fromStoredEditChain(nextEditChain)),
+          );
+      }
       projectRef.current = useQuickRecordStore.getState().project;
     },
     [applyStem],
   );
 
   const isDirty =
-    fingerprintQuickRecordProject(project) !== initialFingerprint;
+    fingerprintQuickRecordProject(project, title) !== initialFingerprint;
 
   const leaveToHome = useCallback(() => {
     replace('/(tabs)');
@@ -297,22 +490,24 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const leaveToAudio = leaveToHome;
 
   const discard = useCallback(async () => {
-    await resetSession();
-    for (const layer of projectRef.current.layers) {
-      await discardPreviewRecording(layer.stemUri ?? '', layer.sourceUri);
-    }
-    resetStore();
-    projectRef.current = useQuickRecordStore.getState().project;
     isLeavingRef.current = true;
+    await abandonInProgressCapture();
     leaveToAudio();
-  }, [leaveToAudio, resetSession, resetStore]);
+  }, [abandonInProgressCapture, leaveToAudio]);
 
+  /**
+   * Leave Quick Record (Discard + hardware back):
+   * - Empty → leave
+   * - Recording / take / dirty → confirm, then stop + clear + leave
+   * Blur still hard-stops a live mic so it can't keep running off-screen.
+   */
   const requestClose = useCallback(() => {
-    if (isRecording || isBusy) {
+    if (isLeavingRef.current) {
       return;
     }
 
-    if (isDirty && !isLeavingRef.current) {
+    const hasSomethingToLose = isRecording || isBusy || isDirty;
+    if (hasSomethingToLose) {
       Alert.alert('Discard recording?', 'Your take will be lost.', [
         { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => void discard() },
@@ -341,8 +536,16 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     if (!hasTake || isRecording || isBusy) {
       return;
     }
+    // Keep session playhead/resume-anchor in sync when restarting from EOF.
+    if (!playback.isPlaying) {
+      const dur = Math.max(playback.duration, durationSeconds);
+      if (dur > 0 && playback.currentTime >= dur - 0.5) {
+        playheadSecondsRef.current = 0;
+        playback.markResumeAt(0);
+      }
+    }
     playback.togglePlayback();
-  }, [hasTake, isBusy, isRecording, playback]);
+  }, [durationSeconds, hasTake, isBusy, isRecording, playback]);
 
   const seekTo = useCallback(
     async (seconds: number) => {
@@ -416,6 +619,8 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
 
   return {
     project,
+    title,
+    setTitle,
     vocal,
     layerId: vocal?.id ?? null,
     stemUri,
@@ -423,11 +628,17 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     sourceUri,
     peaks,
     editChain,
+    captureFx,
+    captureFxSelection,
+    setCaptureFxSelection,
     durationSeconds,
     isRecording,
     isOptimizing,
     isCleaning,
+    isFinalizing,
+    isApplyingCaptureFx,
     isBusy,
+    beginPostRecordBusy,
     hasTake,
     isDirty,
     isPlaying: playback.isPlaying,

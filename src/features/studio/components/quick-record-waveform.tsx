@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import {
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import {
+  LIVE_WINDOW_EDGE_SECONDS,
   LIVE_WINDOW_FOLLOW_LEAD_SECONDS,
+  LIVE_WINDOW_FOLLOW_RATIO,
   LIVE_WINDOW_SECONDS,
   buildLiveWindowTicks,
   clampLiveWindowStart,
-  edgeEnsureLiveWindowStart,
   followLiveWindowStart,
   formatLiveWindowTick,
+  liveWindowPxPerSecond,
+  maxLiveWindowStart,
   playheadLeftInLiveWindow,
 } from '@/features/audio/domain/live-window';
 import { normalizeMetering } from '@/features/audio/domain/recorder-session.helpers';
@@ -20,7 +31,7 @@ import { Text } from '@/shared/components/ui/text';
 
 export { LIVE_WINDOW_SECONDS };
 
-const WAVE_HEIGHT = 140;
+const DEFAULT_WAVE_HEIGHT = 140;
 const EMPTY_BAR_COUNT = 56;
 const BAR_WIDTH = 3;
 
@@ -81,9 +92,17 @@ type QuickRecordWaveformProps = {
   onScrubStart?: () => void;
   onSeek?: (seconds: number) => void;
   onScrubEnd?: (seconds: number) => void;
+  /** Waveform canvas height — capture card uses a shorter strip; edit keeps default. */
+  waveHeight?: number;
 };
 
-function LiveMeterWave({ viewportWidth }: { viewportWidth: number }) {
+function LiveMeterWave({
+  viewportWidth,
+  waveHeight,
+}: {
+  viewportWidth: number;
+  waveHeight: number;
+}) {
   const [bars, setBars] = useState<number[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const pendingRef = useRef(0);
@@ -145,7 +164,7 @@ function LiveMeterWave({ viewportWidth }: { viewportWidth: number }) {
     <View style={{ width: visibleWidth, alignSelf: 'flex-start' }}>
       <StudioPeakWaveform
         peaks={visibleBars}
-        height={WAVE_HEIGHT}
+        height={waveHeight}
         width={visibleWidth}
         color="#A078FF"
         fillSlots={false}
@@ -156,14 +175,20 @@ function LiveMeterWave({ viewportWidth }: { viewportWidth: number }) {
   );
 }
 
-function QuickRecordLiveCapture({ viewportWidth }: { viewportWidth: number }) {
+function QuickRecordLiveCapture({
+  viewportWidth,
+  waveHeight,
+}: {
+  viewportWidth: number;
+  waveHeight: number;
+}) {
   const elapsed = useCaptureElapsed(true);
   const windowStart = followLiveWindowStart(elapsed);
   const playheadLeft = playheadLeftInLiveWindow(elapsed, windowStart, viewportWidth);
 
   return (
     <>
-      <LiveMeterWave viewportWidth={viewportWidth} />
+      <LiveMeterWave viewportWidth={viewportWidth} waveHeight={waveHeight} />
       <Playhead left={playheadLeft} />
     </>
   );
@@ -176,6 +201,7 @@ function StoredTakeWave({
   playheadSeconds,
   windowStart,
   showPlayhead = true,
+  waveHeight,
 }: {
   peaks: number[];
   viewportWidth: number;
@@ -183,6 +209,7 @@ function StoredTakeWave({
   playheadSeconds: number;
   windowStart: number;
   showPlayhead?: boolean;
+  waveHeight: number;
 }) {
   const takeDuration = Math.max(durationSeconds, 0.1);
   const playhead = Math.max(0, playheadSeconds);
@@ -198,7 +225,7 @@ function StoredTakeWave({
         <View style={{ marginLeft: takeStartX, width: takeWidth }}>
           <StudioPeakWaveform
             peaks={peaks}
-            height={WAVE_HEIGHT}
+            height={waveHeight}
             width={takeWidth}
             color="#D0BCFF"
             progress={takeProgress}
@@ -214,10 +241,12 @@ function PunchInLiveMeter({
   viewportWidth,
   windowStart,
   originSeconds,
+  waveHeight,
 }: {
   viewportWidth: number;
   windowStart: number;
   originSeconds: number;
+  waveHeight: number;
 }) {
   const [bars, setBars] = useState<number[]>([]);
   const [elapsed, setElapsed] = useState(0);
@@ -290,13 +319,13 @@ function PunchInLiveMeter({
         position: 'absolute',
         left: visibleLeft,
         width: visibleWidth,
-        height: WAVE_HEIGHT,
+        height: waveHeight,
         justifyContent: 'center',
         overflow: 'hidden',
       }}>
       <StudioPeakWaveform
         peaks={visibleBars.length > 0 ? visibleBars : fullBars}
-        height={WAVE_HEIGHT}
+        height={waveHeight}
         width={visibleWidth}
         color="#A078FF"
         fillSlots={false}
@@ -312,11 +341,13 @@ function PunchInLiveCapture({
   viewportWidth,
   durationSeconds,
   recordOriginSeconds,
+  waveHeight,
 }: {
   peaks: number[];
   viewportWidth: number;
   durationSeconds: number;
   recordOriginSeconds: number;
+  waveHeight: number;
 }) {
   const elapsed = useCaptureElapsed(true);
   const origin = Math.max(0, recordOriginSeconds);
@@ -330,7 +361,7 @@ function PunchInLiveCapture({
   );
 
   return (
-    <View style={{ width: viewportWidth, height: WAVE_HEIGHT, justifyContent: 'center' }}>
+    <View style={{ width: viewportWidth, height: waveHeight, justifyContent: 'center' }}>
       <StoredTakeWave
         peaks={peaks}
         viewportWidth={viewportWidth}
@@ -338,11 +369,13 @@ function PunchInLiveCapture({
         playheadSeconds={timelineSeconds}
         windowStart={windowStart}
         showPlayhead={false}
+        waveHeight={waveHeight}
       />
       <PunchInLiveMeter
         viewportWidth={viewportWidth}
         windowStart={windowStart}
         originSeconds={origin}
+        waveHeight={waveHeight}
       />
       <Playhead left={playheadLeft} />
     </View>
@@ -355,6 +388,183 @@ function Playhead({ left }: { left: number }) {
       <View style={styles.playheadKnob} />
       <View style={styles.playheadLine} />
     </View>
+  );
+}
+
+/**
+ * Stored take: native horizontal scroll pans the timeline; tap seeks the playhead.
+ * Same interaction model as multi-track (swipe vs tap).
+ */
+function ScrollableStoredTake({
+  peaks,
+  viewportWidth,
+  durationSeconds,
+  playheadSeconds,
+  windowStartSeconds,
+  isPlaying,
+  waveHeight,
+  onWindowStartChange,
+  onScrubStart,
+  onSeek,
+  onScrubEnd,
+}: {
+  peaks: number[];
+  viewportWidth: number;
+  durationSeconds: number;
+  playheadSeconds: number;
+  windowStartSeconds: number;
+  isPlaying: boolean;
+  waveHeight: number;
+  onWindowStartChange?: (windowStartSeconds: number) => void;
+  onScrubStart?: () => void;
+  onSeek?: (seconds: number) => void;
+  onScrubEnd?: (seconds: number) => void;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollXRef = useRef(0);
+  const userScrollingRef = useRef(false);
+  const programmaticScrollRef = useRef(false);
+  const onWindowStartChangeRef = useRef(onWindowStartChange);
+  onWindowStartChangeRef.current = onWindowStartChange;
+
+  const pps = liveWindowPxPerSecond(viewportWidth);
+  const takeDuration = Math.max(durationSeconds, 0.1);
+  const contentWidth = Math.max(takeDuration, LIVE_WINDOW_SECONDS) * pps;
+  const takeWidth = Math.max(1, takeDuration * pps);
+  const playhead = Math.max(0, Math.min(takeDuration, playheadSeconds));
+  const takeProgress = Math.min(1, Math.max(0, playhead / takeDuration));
+  const playheadX = playhead * pps;
+  const seekEnabled = Boolean(onSeek || onScrubEnd);
+
+  const emitWindowFromScrollX = (scrollX: number) => {
+    if (pps <= 0) {
+      return;
+    }
+    const next = clampLiveWindowStart(scrollX / pps, durationSeconds);
+    onWindowStartChangeRef.current?.(next);
+  };
+
+  const scrollToWindowStart = (startSeconds: number, animated: boolean) => {
+    if (pps <= 0 || viewportWidth <= 0) {
+      return;
+    }
+    const maxScroll = Math.max(0, contentWidth - viewportWidth);
+    const x = Math.max(
+      0,
+      Math.min(maxScroll, clampLiveWindowStart(startSeconds, durationSeconds) * pps),
+    );
+    if (Math.abs(x - scrollXRef.current) < 1) {
+      return;
+    }
+    programmaticScrollRef.current = true;
+    scrollXRef.current = x;
+    scrollRef.current?.scrollTo({ x, animated });
+  };
+
+  // Keep ScrollView aligned when parent window changes (record stop, clamp, etc.).
+  useEffect(() => {
+    if (userScrollingRef.current) {
+      return;
+    }
+    scrollToWindowStart(windowStartSeconds, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync from parent window only
+  }, [windowStartSeconds, pps, contentWidth, viewportWidth, durationSeconds]);
+
+  // Playback: keep playhead in view with native scroll (no drag-coupled window).
+  useEffect(() => {
+    if (!isPlaying || userScrollingRef.current || pps <= 0 || viewportWidth <= 0) {
+      return;
+    }
+    const left = scrollXRef.current;
+    const right = left + viewportWidth;
+    const edgePx = LIVE_WINDOW_EDGE_SECONDS * pps;
+    if (playheadX >= left + edgePx && playheadX <= right - edgePx) {
+      return;
+    }
+    const targetStart =
+      playheadX / pps - LIVE_WINDOW_SECONDS * LIVE_WINDOW_FOLLOW_RATIO;
+    scrollToWindowStart(targetStart, false);
+    emitWindowFromScrollX(
+      Math.max(0, Math.min(maxLiveWindowStart(durationSeconds) * pps, targetStart * pps)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, playheadX, pps, viewportWidth, durationSeconds]);
+
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = event.nativeEvent.contentOffset.x;
+    scrollXRef.current = x;
+    if (programmaticScrollRef.current) {
+      return;
+    }
+    emitWindowFromScrollX(x);
+  };
+
+  const endProgrammaticScroll = () => {
+    programmaticScrollRef.current = false;
+  };
+
+  const seekFromContentX = (locationX: number) => {
+    if (!seekEnabled || pps <= 0) {
+      return;
+    }
+    const seconds = Math.min(
+      durationSeconds,
+      Math.max(0, locationX / pps),
+    );
+    onScrubStart?.();
+    onSeek?.(seconds);
+    onScrubEnd?.(seconds);
+  };
+
+  if (viewportWidth <= 0 || pps <= 0) {
+    return null;
+  }
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      nestedScrollEnabled
+      directionalLockEnabled
+      showsHorizontalScrollIndicator={false}
+      bounces={false}
+      decelerationRate="normal"
+      scrollEventThrottle={16}
+      onScroll={onScroll}
+      onScrollBeginDrag={() => {
+        userScrollingRef.current = true;
+        programmaticScrollRef.current = false;
+      }}
+      onScrollEndDrag={() => {
+        userScrollingRef.current = false;
+        emitWindowFromScrollX(scrollXRef.current);
+      }}
+      onMomentumScrollBegin={() => {
+        userScrollingRef.current = true;
+      }}
+      onMomentumScrollEnd={() => {
+        userScrollingRef.current = false;
+        endProgrammaticScroll();
+        emitWindowFromScrollX(scrollXRef.current);
+      }}
+      style={{ width: viewportWidth, height: waveHeight }}>
+      <Pressable
+        accessibilityRole="adjustable"
+        accessibilityLabel="Waveform. Swipe to scroll, tap to move playhead"
+        onPress={(event) => seekFromContentX(event.nativeEvent.locationX)}
+        style={{ width: contentWidth, height: waveHeight, justifyContent: 'center' }}>
+        <View style={{ width: takeWidth }}>
+          <StudioPeakWaveform
+            peaks={peaks}
+            height={waveHeight}
+            width={takeWidth}
+            color="#D0BCFF"
+            progress={takeProgress}
+          />
+        </View>
+        <Playhead left={Math.max(0, playheadX - 6)} />
+      </Pressable>
+    </ScrollView>
   );
 }
 
@@ -371,27 +581,9 @@ export function QuickRecordWaveform({
   onScrubStart,
   onSeek,
   onScrubEnd,
+  waveHeight = DEFAULT_WAVE_HEIGHT,
 }: QuickRecordWaveformProps) {
   const [width, setWidth] = useState(0);
-  const widthRef = useRef(0);
-  widthRef.current = width;
-  const [scrubSeconds, setScrubSeconds] = useState<number | null>(null);
-  const lastScrubSecondsRef = useRef(0);
-  const windowStartRef = useRef(windowStartSeconds);
-  const scrubbingRef = useRef(false);
-  const onWindowStartChangeRef = useRef(onWindowStartChange);
-  onWindowStartChangeRef.current = onWindowStartChange;
-
-  windowStartRef.current = windowStartSeconds;
-
-  const emitWindowStart = (next: number) => {
-    const clamped = clampLiveWindowStart(next, durationSeconds);
-    if (Math.abs(clamped - windowStartRef.current) < 0.001) {
-      return;
-    }
-    windowStartRef.current = clamped;
-    onWindowStartChangeRef.current?.(clamped);
-  };
 
   const onLayout = (event: LayoutChangeEvent) => {
     const next = event.nativeEvent.layout.width;
@@ -401,134 +593,38 @@ export function QuickRecordWaveform({
   const showEmpty = !isRecording && !hasTake;
   const punchInRecording = isRecording && hasTake;
   const firstTakeRecording = isRecording && !hasTake;
-  const scrubEnabled =
-    Boolean(onSeek || onScrubEnd) &&
-    !isRecording &&
-    hasTake &&
-    durationSeconds > 0;
-
   const idlePlayheadSeconds =
-    scrubSeconds != null
-      ? scrubSeconds
-      : Math.max(0, progress) * Math.max(durationSeconds, 0);
+    Math.max(0, progress) * Math.max(durationSeconds, 0);
 
-  // After recording stops, snap idle window so the playhead is visible once.
+  // After recording stops, park the window so the playhead is on-screen.
   const wasRecordingRef = useRef(isRecording);
   useEffect(() => {
     const wasRecording = wasRecordingRef.current;
     wasRecordingRef.current = isRecording;
     if (wasRecording && !isRecording && hasTake && durationSeconds > 0) {
-      emitWindowStart(
-        edgeEnsureLiveWindowStart(
-          idlePlayheadSeconds,
-          windowStartRef.current,
-          durationSeconds,
-        ),
+      const playhead = idlePlayheadSeconds;
+      const start = Math.max(
+        0,
+        playhead - LIVE_WINDOW_SECONDS * LIVE_WINDOW_FOLLOW_RATIO,
       );
+      onWindowStartChange?.(clampLiveWindowStart(start, durationSeconds));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot on record stop
   }, [isRecording]);
 
-  // Playback: nudge window only when the playhead hits an edge (not while scrubbing).
-  // Also jump-scroll if the playhead is fully off-screen (e.g. after punch-in seek).
-  useEffect(() => {
-    if (isRecording || scrubbingRef.current || !hasTake || durationSeconds <= 0) {
-      return;
-    }
-    if (scrubSeconds != null) {
-      return;
-    }
-
-    const start = windowStartRef.current;
-    const end = start + LIVE_WINDOW_SECONDS;
-    const outside = idlePlayheadSeconds < start || idlePlayheadSeconds > end;
-    if (!isPlaying && !outside) {
-      return;
-    }
-
-    emitWindowStart(
-      edgeEnsureLiveWindowStart(
-        idlePlayheadSeconds,
-        windowStartRef.current,
-        durationSeconds,
-      ),
-    );
-    // emitWindowStart reads refs; deps are the signals that matter.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    durationSeconds,
-    hasTake,
-    idlePlayheadSeconds,
-    isPlaying,
-    isRecording,
-    scrubSeconds,
-  ]);
-
   // Keep window valid when take length changes.
   useEffect(() => {
-    if (durationSeconds <= 0) {
+    if (durationSeconds <= 0 || !onWindowStartChange) {
       return;
     }
-    emitWindowStart(clampLiveWindowStart(windowStartRef.current, durationSeconds));
+    onWindowStartChange(clampLiveWindowStart(windowStartSeconds, durationSeconds));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationSeconds]);
 
-  const setWindowStart = (next: number) => {
-    emitWindowStart(next);
-  };
-
-  const secondsFromX = (locationX: number): number | null => {
-    if (durationSeconds <= 0 || widthRef.current <= 0) {
-      return null;
-    }
-    const ratio = Math.min(1, Math.max(0, locationX / widthRef.current));
-    const seconds =
-      windowStartRef.current + ratio * LIVE_WINDOW_SECONDS;
-    return Math.min(durationSeconds, Math.max(0, seconds));
-  };
-
-  const scrubFromX = (locationX: number) => {
-    const seconds = secondsFromX(locationX);
-    if (seconds == null) {
-      return;
-    }
-    lastScrubSecondsRef.current = seconds;
-    setScrubSeconds(seconds);
-    // Edge-only autoscroll — viewport stays still until the bar hits a side.
-    const nextWindow = edgeEnsureLiveWindowStart(
-      seconds,
-      windowStartRef.current,
-      durationSeconds,
-    );
-    if (Math.abs(nextWindow - windowStartRef.current) > 0.001) {
-      setWindowStart(nextWindow);
-    }
-    onSeek?.(seconds);
-  };
-
-  const finishScrub = () => {
-    scrubbingRef.current = false;
-    const seconds = lastScrubSecondsRef.current;
-    setScrubSeconds(null);
-    onScrubEnd?.(seconds);
-  };
-
   return (
-    <View
-      className="relative flex-1 justify-center"
-      onLayout={onLayout}
-      onStartShouldSetResponder={() => scrubEnabled}
-      onMoveShouldSetResponder={() => scrubEnabled}
-      onResponderGrant={(event) => {
-        scrubbingRef.current = true;
-        onScrubStart?.();
-        scrubFromX(event.nativeEvent.locationX);
-      }}
-      onResponderMove={(event) => scrubFromX(event.nativeEvent.locationX)}
-      onResponderRelease={finishScrub}
-      onResponderTerminate={finishScrub}>
+    <View className="relative flex-1 justify-center" onLayout={onLayout}>
       {showEmpty ? (
-        <View style={[styles.row, { height: WAVE_HEIGHT }]}>
+        <View style={[styles.row, { height: waveHeight }]}>
           {Array.from({ length: EMPTY_BAR_COUNT }, (_, index) => (
             <View
               key={`bar-${index}`}
@@ -546,7 +642,7 @@ export function QuickRecordWaveform({
       ) : null}
 
       {firstTakeRecording && width > 0 ? (
-        <QuickRecordLiveCapture viewportWidth={width} />
+        <QuickRecordLiveCapture viewportWidth={width} waveHeight={waveHeight} />
       ) : null}
 
       {punchInRecording && width > 0 ? (
@@ -555,16 +651,23 @@ export function QuickRecordWaveform({
           viewportWidth={width}
           durationSeconds={durationSeconds}
           recordOriginSeconds={recordOriginSeconds}
+          waveHeight={waveHeight}
         />
       ) : null}
 
       {!isRecording && hasTake && width > 0 ? (
-        <StoredTakeWave
+        <ScrollableStoredTake
           peaks={peaks}
           viewportWidth={width}
           durationSeconds={durationSeconds}
           playheadSeconds={idlePlayheadSeconds}
-          windowStart={windowStartSeconds}
+          windowStartSeconds={windowStartSeconds}
+          isPlaying={isPlaying}
+          waveHeight={waveHeight}
+          onWindowStartChange={onWindowStartChange}
+          onScrubStart={onScrubStart}
+          onSeek={onSeek}
+          onScrubEnd={onScrubEnd}
         />
       ) : null}
 
