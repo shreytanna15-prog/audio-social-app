@@ -18,7 +18,8 @@ export function ProjectListRow({
   onMorePress,
 }: ProjectListRowProps) {
   const { showError, dialog } = useFeedbackDialog();
-  const meta = `${project.audioItemCount} audio items · ${project.updatedLabel}`;
+  const itemLabel = project.trackCount === 1 ? 'item' : 'items';
+  const meta = `${project.trackCount} ${itemLabel} · ${project.updatedLabel}`;
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -13,6 +13,7 @@ import { PROJECT_VERSION, type AudioProject } from '@/features/audio/types/proje
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
+import { resolveStudioProjectId } from '@/features/studio/utils/resolve-studio-project-id';
 import { getErrorMessage } from '@/core/api/errors';
 import { useSaveTrackDraft } from '@/features/tracks';
 
@@ -34,6 +35,9 @@ function createPendingMultitrackProject(): AudioProject {
  */
 export function useMultitrackStudioScreen() {
   const { replace } = useRouter();
+  const { projectId: projectIdParam } = useLocalSearchParams<{
+    projectId?: string;
+  }>();
   const saveDraft = useSaveTrackDraft();
   const isSaving = saveDraft.isPending;
 
@@ -57,6 +61,7 @@ export function useMultitrackStudioScreen() {
           mixdownUri: payload.mixdownUri,
           kind: 'MULTI',
           title: payload.title?.trim() || 'Untitled session',
+          projectId: resolveStudioProjectId(projectIdParam),
         });
         return true;
       } catch (error) {
@@ -70,7 +75,7 @@ export function useMultitrackStudioScreen() {
         return false;
       }
     },
-    [saveDraft],
+    [projectIdParam, saveDraft],
   );
 
   const studio = useMultitrackSession({

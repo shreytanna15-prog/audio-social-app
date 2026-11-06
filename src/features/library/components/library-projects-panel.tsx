@@ -1,15 +1,17 @@
-import { FlatList, View } from 'react-native';
+import { ActivityIndicator, FlatList, View } from 'react-native';
 
-import { ALL_PROJECTS, ProjectListRow, type ProjectSummary } from '@/features/projects';
+import { ProjectListRow, type ProjectSummary } from '@/features/projects';
 import { Text } from '@/shared/components/ui/text';
 
 import { LibrarySectionHeader } from './library-section-header';
 
 type LibraryProjectsPanelProps = {
-  /** Full project catalog (defaults to shared {@link ALL_PROJECTS}). */
-  projects?: ProjectSummary[];
+  projects: ProjectSummary[];
   onProjectPress: (project: ProjectSummary) => void;
   contentBottomInset?: number;
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 };
 
 /**
@@ -17,10 +19,39 @@ type LibraryProjectsPanelProps = {
  * Shares {@link ProjectListRow} with Recent projects; different list chrome.
  */
 export function LibraryProjectsPanel({
-  projects = ALL_PROJECTS,
+  projects,
   onProjectPress,
   contentBottomInset = 28,
+  isLoading = false,
+  isError = false,
+  onRetry,
 }: LibraryProjectsPanelProps) {
+  if (isLoading && projects.length === 0) {
+    return (
+      <View className="flex-1 items-center justify-center py-16">
+        <ActivityIndicator color="#D0BCFF" />
+      </View>
+    );
+  }
+
+  if (isError && projects.length === 0) {
+    return (
+      <View className="flex-1 items-center gap-3 px-8 py-16">
+        <Text variant="title-md" className="text-on-surface">
+          Couldn’t load projects
+        </Text>
+        {onRetry ? (
+          <Text
+            variant="body-md"
+            className="text-primary"
+            onPress={onRetry}>
+            Retry
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <FlatList
       className="flex-1"

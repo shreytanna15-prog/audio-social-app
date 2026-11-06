@@ -6,6 +6,7 @@ import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MiniPlayer, usePlayerStore } from '@/features/player';
+import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import { CreateSheet, type CreateActionId } from '@/shared/components/create';
 import { Text } from '@/shared/components/ui/text';
 
@@ -123,6 +124,8 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
 
     // Pause global audio for create flows; keep track for mini player on return.
     usePlayerStore.getState().pause();
+    // Tab create is not project-scoped — drop any leftover projectId handoff.
+    useStudioProjectContextStore.getState().clearProjectId();
     setCreateOpen(false);
     requestAnimationFrame(() => {
       push(route as Parameters<typeof push>[0]);

@@ -3,16 +3,25 @@ import { Pressable, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
 
-/**
- * Visual entry only — create flow not wired yet.
- */
-export function CreateProjectCard() {
+type CreateProjectCardProps = {
+  onPress?: () => void;
+  disabled?: boolean;
+};
+
+export function CreateProjectCard({
+  onPress,
+  disabled = false,
+}: CreateProjectCardProps) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Create project"
-      disabled
-      className="mx-4 overflow-hidden rounded-2xl border border-white/5 bg-surface-container opacity-90">
+      disabled={disabled}
+      onPress={onPress}
+      className="mx-4 overflow-hidden rounded-2xl border border-white/5 bg-surface-container"
+      style={({ pressed }) => ({
+        opacity: disabled ? 0.9 : pressed ? 0.9 : 1,
+      })}>
       <View className="flex-row items-center gap-3.5 px-4 py-4">
         <View className="h-12 w-12 items-center justify-center rounded-2xl bg-surface-container-highest">
           <FolderPlus size={22} color="#E4E1EA" strokeWidth={2.2} />

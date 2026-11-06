@@ -5,12 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
 import { loadProjectById } from '@/features/audio/data/project-repository';
+import { useProjects } from '@/features/projects/api/hooks';
+import { mapProjectSummary } from '@/features/projects/utils/map-project';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
+import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import {
   useBackupTrack,
   useDeleteTrack,
   useTracks,
+  useUnpublishTrack,
 } from '@/features/tracks';
 import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
@@ -22,6 +26,7 @@ import { LibraryAudioPanel } from '../components/library-audio-panel';
 import { LibraryPlaylistsPanel } from '../components/library-playlists-panel';
 import { LibraryProjectsPanel } from '../components/library-projects-panel';
 import { LibrarySegmentTabs } from '../components/library-segment-tabs';
+import { PublishTrackSheet } from '../components/publish-track-sheet';
 import {
   LIBRARY_ALBUM_ITEMS,
   LIBRARY_PLAYLIST_ITEMS,
@@ -34,21 +39,29 @@ export function LibraryScreen() {
   const { push, replace } = useRouter();
   const [activeTab, setActiveTab] = useState<LibraryTab>('audio');
   const [audioFilter, setAudioFilter] = useState<LibraryAudioFilter>('all');
+  const [publishTrack, setPublishTrack] = useState<LibraryAudioItem | null>(
+    null,
+  );
   const listBottomInset = Math.max(insets.bottom, 16) + 28;
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
   const tracksQuery = useTracks();
+  const projectsQuery = useProjects();
   const deleteTrack = useDeleteTrack();
   const backupTrack = useBackupTrack();
+  const unpublishTrack = useUnpublishTrack();
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
+  const clearProjectId = useStudioProjectContextStore((s) => s.clearProjectId);
 
   const refetchTracks = tracksQuery.refetch;
+  const refetchProjects = projectsQuery.refetch;
 
   useFocusEffect(
     useCallback(() => {
       void refetchTracks();
-    }, [refetchTracks]),
+      void refetchProjects();
+    }, [refetchProjects, refetchTracks]),
   );
 
   const audioItems = useMemo(
@@ -56,7 +69,13 @@ export function LibraryScreen() {
     [tracksQuery.data],
   );
 
+  const projectItems = useMemo(
+    () => (projectsQuery.data ?? []).map(mapProjectSummary),
+    [projectsQuery.data],
+  );
+
   const openCreate = () => {
+    clearProjectId();
     show({
       title: 'Add to library',
       actions: [
@@ -113,6 +132,25 @@ export function LibraryScreen() {
       });
   };
 
+  const openEditorForItem = (item: LibraryAudioItem) => {
+    void (async () => {
+      const project = await loadProjectById(item.id);
+      if (!project) {
+        showError(item.title, 'Could not load this take locally.');
+        return;
+      }
+
+      if (item.kind === 'MULTI') {
+        setPendingProject(project);
+        push('/studio/multitrack' as Href);
+        return;
+      }
+
+      hydrateFromImport(project, item.title);
+      push('/studio/quick-record/edit' as Href);
+    })();
+  };
+
   const openAudioItem = (item: LibraryAudioItem) => {
     if (item.unavailable) {
       removeUnavailable(item);
@@ -124,23 +162,29 @@ export function LibraryScreen() {
       return;
     }
 
-    void (async () => {
-      const project = await loadProjectById(item.id);
-      if (!project) {
-        showError(item.title, 'Could not load this take locally.');
-        return;
-      }
+    if (item.status === 'PUBLISHED') {
+      confirm(
+        'Unpublish to edit?',
+        'Published tracks are frozen. Unpublish first to open the editor.',
+        {
+          confirmLabel: 'Unpublish',
+          onConfirm: () => {
+            void unpublishTrack
+              .mutateAsync(item.id)
+              .then(() => openEditorForItem(item))
+              .catch((error) => {
+                showError(
+                  'Could not unpublish',
+                  getErrorMessage(error, 'Try again.'),
+                );
+              });
+          },
+        },
+      );
+      return;
+    }
 
-      // New studio screens; keep `/audio/recording/[id]` in the app for other entry points.
-      if (item.kind === 'MULTI') {
-        setPendingProject(project);
-        push('/studio/multitrack' as Href);
-        return;
-      }
-
-      hydrateFromImport(project, item.title);
-      push('/studio/quick-record/edit' as Href);
-    })();
+    openEditorForItem(item);
   };
 
   const onMorePress = (item: LibraryAudioItem) => {
@@ -155,6 +199,37 @@ export function LibraryScreen() {
       actions.push({
         label: backupTrack.isPending ? 'Backing up…' : 'Back up to cloud',
         onPress: () => backupItem(item),
+      });
+    }
+
+    if (item.status === 'DRAFT' && item.storageState === 'SYNCED') {
+      actions.push({
+        label: 'Publish…',
+        onPress: () => setPublishTrack(item),
+      });
+    }
+
+    if (item.status === 'PUBLISHED') {
+      actions.push({
+        label: 'Unpublish',
+        onPress: () => {
+          confirm(
+            'Unpublish track?',
+            'It will return to draft and leave the public feed.',
+            {
+              confirmLabel: 'Unpublish',
+              destructive: true,
+              onConfirm: () => {
+                void unpublishTrack.mutateAsync(item.id).catch((error) => {
+                  showError(
+                    'Could not unpublish',
+                    getErrorMessage(error, 'Try again.'),
+                  );
+                });
+              },
+            },
+          );
+        },
       });
     }
 
@@ -203,7 +278,13 @@ export function LibraryScreen() {
 
         {activeTab === 'projects' ? (
           <LibraryProjectsPanel
+            projects={projectItems}
             contentBottomInset={listBottomInset}
+            isLoading={projectsQuery.isLoading}
+            isError={projectsQuery.isError}
+            onRetry={() => {
+              void projectsQuery.refetch();
+            }}
             onProjectPress={(project) =>
               push({
                 pathname: '/projects/[id]',
@@ -227,6 +308,20 @@ export function LibraryScreen() {
           />
         ) : null}
       </View>
+
+      <PublishTrackSheet
+        open={publishTrack != null}
+        onOpenChange={(open) => {
+          if (!open) setPublishTrack(null);
+        }}
+        track={publishTrack}
+        bottomOffset={Math.max(insets.bottom, 12)}
+        onPublished={() => {
+          showError('Published', 'Your track is live.');
+        }}
+        onError={showError}
+      />
+
       {dialog}
     </View>
   );

@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import { Text } from '@/shared/components/ui/text';
 
 type AddAction = {
@@ -34,10 +35,15 @@ const ACTIONS: AddAction[] = [
   },
 ];
 
+type ProjectAddActionsProps = {
+  projectId: string;
+};
+
 /** Sticky bottom dock — icon + label only. */
-export function ProjectAddActions() {
+export function ProjectAddActions({ projectId }: ProjectAddActionsProps) {
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
+  const setProjectId = useStudioProjectContextStore((s) => s.setProjectId);
 
   return (
     <View
@@ -50,8 +56,12 @@ export function ProjectAddActions() {
             <Pressable
               key={action.id}
               onPress={() => {
+                setProjectId(projectId);
                 requestAnimationFrame(() => {
-                  push(action.route);
+                  push({
+                    pathname: action.route,
+                    params: { projectId },
+                  });
                 });
               }}
               accessibilityRole="button"

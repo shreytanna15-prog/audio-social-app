@@ -1,24 +1,40 @@
 export {
   useBackupTrack,
   useDeleteTrack,
+  useDeleteTrackCover,
+  usePublishTrack,
   useSaveTrackDraft,
   useTracks,
+  useUnpublishTrack,
+  useUploadTrackCover,
   TRACKS_QUERY_KEY,
 } from './api/hooks';
 export {
   completeBackup,
+  completeCoverUpload,
   createBackupUploadUrls,
+  createCoverUploadUrl,
   createTrack,
+  deleteCover,
   deleteTrack,
   listTracks,
+  publishTrack,
+  unpublishTrack,
   updateTrack,
+  uploadAndCompleteCover,
+  uploadCoverToSignedUrl,
   uploadToSignedUrl,
 } from './api/service';
 export { backupTrack } from './api/backup-track';
 export { saveTrackDraft } from './api/save-track-draft';
 export type { SaveTrackDraftInput } from './api/save-track-draft';
 export type {
+  CoverCompleteResponse,
+  CoverContentType,
+  CoverUploadUrlResponse,
   CreateTrackRequest,
+  PublishedTrackItem,
+  PublishTrackRequest,
   TrackDetail,
   TrackDocument,
   TrackKind,
@@ -29,6 +45,14 @@ export type {
   TrackRecord,
   TrackStatus,
   TrackStorageState,
+  UnpublishTrackResponse,
 } from './api/types';
 export { toTrackListItem } from './types';
 export type { AppliedEffect } from './types';
+export {
+  MAX_TRACK_GENRES,
+  MAX_TRACK_KEYWORDS,
+  TRACK_GENRE_LABELS,
+  TRACK_GENRES,
+} from './constants/track-genres';
+export type { TrackGenreId } from './constants/track-genres';

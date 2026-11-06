@@ -52,6 +52,9 @@ export type TrackListItem = {
   title: string;
   durationMs: number;
   mixUrl: string | null;
+  coverUrl: string | null;
+  playCount: number;
+  publishedAt: string | null;
   createdAt: string;
 };
 
@@ -63,6 +66,12 @@ export type TrackDetail = {
   title: string;
   durationMs: number;
   mixUrl: string | null;
+  coverUrl: string | null;
+  caption: string | null;
+  description: string | null;
+  genres: string[];
+  keywords: string[];
+  playCount: number;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -103,6 +112,48 @@ export type CreateTrackRequest = {
   title: string;
   durationMs: number;
   layers: CreateTrackLayerRequest[];
+  projectId?: string;
+};
+
+export type CoverContentType = 'image/jpeg' | 'image/png' | 'image/webp';
+
+export type CoverUploadUrlResponse = {
+  path: string;
+  signedUrl: string;
+  token?: string;
+};
+
+export type CoverCompleteResponse = {
+  path: string;
+  coverUrl: string | null;
+};
+
+export type PublishTrackRequest = {
+  caption?: string | null;
+  description?: string | null;
+  genres: string[];
+  keywords?: string[];
+};
+
+export type PublishedTrackItem = {
+  id: string;
+  kind: TrackKind;
+  title: string;
+  caption: string | null;
+  description: string | null;
+  genres: string[];
+  keywords: string[];
+  durationMs: number;
+  mixUrl: string | null;
+  coverUrl: string | null;
+  playCount: number;
+  publishedAt: string | null;
+  createdAt: string;
+};
+
+export type UnpublishTrackResponse = {
+  id: string;
+  status: TrackStatus;
 };
 
 export type UpdateTrackRequest = {
@@ -137,6 +188,8 @@ export type BackupCompleteResponse = {
 export function toTrackListItem(
   track: TrackRecord,
   mixUrl: string | null,
+  coverUrl: string | null = null,
+  playCount = 0,
 ): TrackListItem {
   return {
     id: track.id,
@@ -146,6 +199,9 @@ export function toTrackListItem(
     title: track.title,
     durationMs: track.durationMs,
     mixUrl,
+    coverUrl,
+    playCount,
+    publishedAt: track.publishedAt,
     createdAt: track.createdAt,
   };
 }

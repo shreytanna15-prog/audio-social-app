@@ -72,6 +72,9 @@ temp_interactive_push.bat
 
 .local-dev-api-data.json
 
+# Local developer QA artifacts (screenshots, notes — never push)
+/developer/
+
 # Local-only e2e / Maestro / screenshots (keep on machine, never push)
 e2e/artifacts/
 e2e/**/*.tmp

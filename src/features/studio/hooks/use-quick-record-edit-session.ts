@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -6,10 +6,14 @@ import { getErrorMessage } from '@/core/api/errors';
 import { hasRecordableContent } from '@/features/audio/domain/project';
 import { useQuickRecordSession } from '@/features/studio/hooks/use-quick-record-session';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
+import { resolveStudioProjectId } from '@/features/studio/utils/resolve-studio-project-id';
 import { useSaveTrackDraft } from '@/features/tracks';
 
 export function useQuickRecordEditSession() {
   const { back, canGoBack, replace } = useRouter();
+  const { projectId: projectIdParam } = useLocalSearchParams<{
+    projectId?: string;
+  }>();
   const session = useQuickRecordSession();
   const resetStore = useQuickRecordStore((state) => state.reset);
   const saveDraft = useSaveTrackDraft();
@@ -80,6 +84,7 @@ export function useQuickRecordEditSession() {
         mixdownUri: layer.stemUri,
         title,
         kind: 'SINGLE',
+        projectId: resolveStudioProjectId(projectIdParam),
       });
 
       resetStore();
@@ -100,7 +105,7 @@ export function useQuickRecordEditSession() {
         setIsSaving(false);
       }
     }
-  }, [isSaving, resetStore, saveDraft, session]);
+  }, [isSaving, projectIdParam, resetStore, saveDraft, session]);
 
   return {
     ...session,

@@ -16,6 +16,7 @@ import {
 } from '@/features/studio/services/import-device-audio.service';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
+import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import { CreateOptionRow } from '@/shared/components/create/create-option-row';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
@@ -59,7 +60,12 @@ export function ImportAudioScreen() {
           layers: [layer],
           selectedLayerId: layer.id,
         });
-        replace('/studio/quick-record/edit');
+        const projectId =
+          useStudioProjectContextStore.getState().projectId ?? undefined;
+        replace({
+          pathname: '/studio/quick-record/edit',
+          params: projectId ? { projectId } : undefined,
+        });
         return;
       }
 
@@ -72,7 +78,14 @@ export function ImportAudioScreen() {
           name: imported.displayName,
         }),
       );
-      replace('/studio/multitrack');
+      {
+        const projectId =
+          useStudioProjectContextStore.getState().projectId ?? undefined;
+        replace({
+          pathname: '/studio/multitrack',
+          params: projectId ? { projectId } : undefined,
+        });
+      }
     } catch (error) {
       showError(
         'Could not import audio',

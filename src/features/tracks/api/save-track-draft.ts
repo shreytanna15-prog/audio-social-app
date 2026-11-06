@@ -22,6 +22,8 @@ export type SaveTrackDraftInput = {
   mixdownUri?: string | null;
   /** When set, updates an existing DRAFT instead of creating. */
   trackId?: string;
+  /** When creating, optionally attach the new track to this project. */
+  projectId?: string;
 };
 
 function toLayerRequests(project: AudioProject): CreateTrackLayerRequest[] {
@@ -70,6 +72,7 @@ function toCreateBody(
               appliedEffects: [],
             },
           ],
+    ...(input.projectId ? { projectId: input.projectId } : {}),
   };
 }
 

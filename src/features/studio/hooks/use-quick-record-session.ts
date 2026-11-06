@@ -29,6 +29,7 @@ import {
   normalizeCaptureFxSelection,
   useQuickRecordStore,
 } from '@/features/studio/store/quick-record.store';
+import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 
 /** UI cap shown on Quick Record (matches timer display). */
 export const QUICK_RECORD_MAX_SECONDS = 180;
@@ -529,7 +530,12 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
       return;
     }
 
-    push('/studio/quick-record/edit' as never);
+    const projectId =
+      useStudioProjectContextStore.getState().projectId ?? undefined;
+    push({
+      pathname: '/studio/quick-record/edit',
+      params: projectId ? { projectId } : undefined,
+    } as never);
   }, [awaitSoftCleanQueue, hasTake, isBusy, isRecording, push]);
 
   const togglePlayback = useCallback(() => {

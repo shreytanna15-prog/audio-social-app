@@ -68,6 +68,7 @@
     "@types/react": "~19.2.2",
     "cross-env": "^7.0.3",
     "patch-package": "^8.0.1",
+    "playwright": "^1.65.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
@@ -86,11 +87,13 @@
     "lint": "expo lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run src/features/profile/utils src/features/users/api/service.test.ts src/features/explore/data/search-tabs.test.ts src/features/audio/store/input-monitor.store.test.ts",
+    "test:unit": "vitest run src/features/profile/utils src/features/users/api/service.test.ts src/features/explore/data/search-tabs.test.ts src/features/audio/store/input-monitor.store.test.ts src/features/projects src/features/studio/store/studio-project-context.store.test.ts",
     "test:integration": "vitest run src/features/users/api/follow-cache.integration.test.ts src/features/audio/services/input-monitor.service.test.ts src/features/audio/services/expo-pcm-capture.monitor.integration.test.ts",
     "test:e2e": "maestro test e2e/maestro/search-follow.yaml",
+    "test:e2e:projects": "maestro test e2e/maestro/projects-library.yaml",
     "test:e2e:monitor": "maestro test e2e/maestro/input-monitor.yaml",
     "test:e2e:adb": "powershell -ExecutionPolicy Bypass -File ./scripts/e2e-android-smoke.ps1",
+    "test:ui:web": "node ./scripts/capture-web-ui-screenshots.mjs",
     "android:run": "cross-env APP_VARIANT=development expo run:android --device Pixel_7"
   },
   "overrides": {

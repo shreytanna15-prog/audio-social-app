@@ -251,6 +251,11 @@ export function getProfileFixture(id: string | undefined): Profile {
   return AURA_MIST_PROFILE;
 }
 
+export function findProfileFixture(id: string | undefined): Profile | null {
+  if (!id) return null;
+  return PROFILE_BY_ID.get(id) ?? null;
+}
+
 /** Logged-in user fixture until auth’d /me exists. */
 export function getMyProfileFixture(): Profile {
   return AURA_MIST_PROFILE;
