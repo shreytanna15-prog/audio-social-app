@@ -14,10 +14,7 @@ import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { getErrorMessage } from '@/core/api/errors';
-import {
-  getSaveTrackDraftTrackId,
-  useSaveTrackDraft,
-} from '@/features/tracks';
+import { useSaveTrackDraft } from '@/features/tracks';
 
 function createPendingMultitrackProject(): AudioProject {
   const layer = createLayer({
@@ -39,18 +36,10 @@ export function useMultitrackStudioScreen() {
   const { replace } = useRouter();
   const saveDraft = useSaveTrackDraft();
   const isSaving = saveDraft.isPending;
-  const lastSaveTrackIdRef = useRef<string | null>(null);
-  const pendingTitleRef = useRef<string | null>(null);
 
   const initialProject = useMemo(() => {
     const pending = useMultitrackEntryStore.getState().consumePendingProject();
-    if (pending?.trackId) {
-      lastSaveTrackIdRef.current = pending.trackId;
-    }
-    if (pending?.title) {
-      pendingTitleRef.current = pending.title;
-    }
-    return pending?.project ?? createPendingMultitrackProject();
+    return pending ?? createPendingMultitrackProject();
   }, []);
 
   const leaveToHome = useCallback(() => {
@@ -63,25 +52,14 @@ export function useMultitrackStudioScreen() {
         return false;
       }
       try {
-        const trackId = lastSaveTrackIdRef.current ?? undefined;
-        const recording = await saveDraft.mutateAsync({
+        await saveDraft.mutateAsync({
           project: payload.project,
           mixdownUri: payload.mixdownUri,
           kind: 'MULTI',
-          title:
-            payload.title?.trim() ||
-            pendingTitleRef.current?.trim() ||
-            'Untitled session',
-          trackId,
-          updateExisting: Boolean(trackId),
+          title: payload.title?.trim() || 'Untitled session',
         });
-        lastSaveTrackIdRef.current = recording.id;
         return true;
       } catch (error) {
-        const failedId = getSaveTrackDraftTrackId(error);
-        if (failedId) {
-          lastSaveTrackIdRef.current = failedId;
-        }
         Alert.alert(
           'Could not save',
           getErrorMessage(

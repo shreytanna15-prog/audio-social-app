@@ -6,7 +6,6 @@ import type {
   BackupUploadUrlsResponse,
   CreateTrackRequest,
   CreateTrackResponse,
-  TrackDetail,
   TrackListItem,
   TrackStatus,
   UpdateTrackRequest,
@@ -45,13 +44,6 @@ export async function listTracks(
   });
 }
 
-export async function getTrack(id: string): Promise<TrackDetail> {
-  return apiRequest<TrackDetail>({
-    path: `/api/tracks/${id}`,
-    method: 'GET',
-  });
-}
-
 export async function deleteTrack(id: string): Promise<CreateTrackResponse> {
   return apiRequest<CreateTrackResponse>({
     path: `/api/tracks/${id}`,
@@ -73,15 +65,6 @@ export async function completeBackup(
 ): Promise<BackupCompleteResponse> {
   return apiRequest<BackupCompleteResponse>({
     path: `/api/tracks/${trackId}/backup/complete`,
-    method: 'POST',
-  });
-}
-
-export async function abortIncompleteBackup(
-  trackId: string,
-): Promise<CreateTrackResponse> {
-  return apiRequest<CreateTrackResponse>({
-    path: `/api/tracks/${trackId}/backup/abort`,
     method: 'POST',
   });
 }

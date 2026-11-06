@@ -2,38 +2,23 @@ import { create } from 'zustand';
 
 import type { AudioProject } from '@/features/audio/types/project';
 
-export type MultitrackPendingEntry = {
-  project: AudioProject;
-  trackId?: string | null;
-  title?: string | null;
-};
-
 type MultitrackEntryStore = {
-  pending: MultitrackPendingEntry | null;
-  setPendingProject: (
-    project: AudioProject,
-    options?: { trackId?: string | null; title?: string | null },
-  ) => void;
-  consumePendingProject: () => MultitrackPendingEntry | null;
+  pendingProject: AudioProject | null;
+  setPendingProject: (project: AudioProject) => void;
+  /** Read-once handoff for Multitrack screen boot. */
+  consumePendingProject: () => AudioProject | null;
   clearPendingProject: () => void;
 };
 
 export const useMultitrackEntryStore = create<MultitrackEntryStore>((set, get) => ({
-  pending: null,
-  setPendingProject: (project, options) =>
-    set({
-      pending: {
-        project,
-        trackId: options?.trackId ?? null,
-        title: options?.title ?? null,
-      },
-    }),
+  pendingProject: null,
+  setPendingProject: (project) => set({ pendingProject: project }),
   consumePendingProject: () => {
-    const pending = get().pending;
+    const pending = get().pendingProject;
     if (pending) {
-      set({ pending: null });
+      set({ pendingProject: null });
     }
     return pending;
   },
-  clearPendingProject: () => set({ pending: null }),
+  clearPendingProject: () => set({ pendingProject: null }),
 }));

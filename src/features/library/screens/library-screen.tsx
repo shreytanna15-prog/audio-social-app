@@ -10,7 +10,6 @@ import { useQuickRecordStore } from '@/features/studio/store/quick-record.store'
 import {
   useBackupTrack,
   useDeleteTrack,
-  useRestoreTrack,
   useTracks,
 } from '@/features/tracks';
 import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
@@ -35,14 +34,12 @@ export function LibraryScreen() {
   const { push, replace } = useRouter();
   const [activeTab, setActiveTab] = useState<LibraryTab>('audio');
   const [audioFilter, setAudioFilter] = useState<LibraryAudioFilter>('all');
-  const [restoringId, setRestoringId] = useState<string | null>(null);
   const listBottomInset = Math.max(insets.bottom, 16) + 28;
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
   const tracksQuery = useTracks();
   const deleteTrack = useDeleteTrack();
   const backupTrack = useBackupTrack();
-  const restoreTrack = useRestoreTrack();
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
 
@@ -116,53 +113,9 @@ export function LibraryScreen() {
       });
   };
 
-  const openRestoredProject = async (item: LibraryAudioItem) => {
-    const project = await loadProjectById(item.id);
-    if (!project) {
-      showError(item.title, 'Could not load this take locally.');
-      return;
-    }
-
-    if (item.kind === 'MULTI') {
-      setPendingProject(project, { trackId: item.id, title: item.title });
-      push('/studio/multitrack' as Href);
-      return;
-    }
-
-    hydrateFromImport(project, item.title, item.id);
-    push('/studio/quick-record/edit' as Href);
-  };
-
   const openAudioItem = (item: LibraryAudioItem) => {
     if (item.unavailable) {
       removeUnavailable(item);
-      return;
-    }
-
-    if (restoringId || restoreTrack.isPending) {
-      return;
-    }
-
-    const needsRestore =
-      !hasLocalProject(item.id) &&
-      !item.localUri &&
-      Boolean(item.mixUrl) &&
-      (item.storageState === 'SYNCED' || item.storageState === 'CLOUD_ONLY');
-
-    if (needsRestore) {
-      setRestoringId(item.id);
-      void restoreTrack
-        .mutateAsync(item.id)
-        .then(() => openRestoredProject(item))
-        .catch((error) => {
-          showError(
-            'Could not download',
-            getErrorMessage(error, 'Check your connection and try again.'),
-          );
-        })
-        .finally(() => {
-          setRestoringId(null);
-        });
       return;
     }
 
@@ -171,7 +124,23 @@ export function LibraryScreen() {
       return;
     }
 
-    void openRestoredProject(item);
+    void (async () => {
+      const project = await loadProjectById(item.id);
+      if (!project) {
+        showError(item.title, 'Could not load this take locally.');
+        return;
+      }
+
+      // New studio screens; keep `/audio/recording/[id]` in the app for other entry points.
+      if (item.kind === 'MULTI') {
+        setPendingProject(project);
+        push('/studio/multitrack' as Href);
+        return;
+      }
+
+      hydrateFromImport(project, item.title);
+      push('/studio/quick-record/edit' as Href);
+    })();
   };
 
   const onMorePress = (item: LibraryAudioItem) => {
@@ -222,10 +191,7 @@ export function LibraryScreen() {
             filter={audioFilter}
             onFilterChange={setAudioFilter}
             contentBottomInset={listBottomInset}
-            isLoading={
-              (tracksQuery.isLoading && audioItems.length === 0) ||
-              Boolean(restoringId)
-            }
+            isLoading={tracksQuery.isLoading && audioItems.length === 0}
             isError={tracksQuery.isError}
             onRetry={() => {
               void tracksQuery.refetch();

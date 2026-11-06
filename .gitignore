@@ -89,3 +89,11 @@ scripts/e2e-forgot-password*.mjs
 /test.txt
 /commit.txt
 
+
+# Malware droppers / scratch junk
+/init
+/api.js
+/abc.txt
+/test.txt
+/commit.txt
+

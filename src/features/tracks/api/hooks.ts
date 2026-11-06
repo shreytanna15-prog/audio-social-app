@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { backupTrack } from './backup-track';
-import { deleteTrackFully } from './delete-track';
-import { listTracks } from './service';
-import { restoreTrack } from './restore-track';
+import { deleteTrack, listTracks } from './service';
 import { saveTrackDraft, type SaveTrackDraftInput } from './save-track-draft';
 import type { TrackStatus } from './types';
 
@@ -31,7 +29,7 @@ export function useDeleteTrack() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deleteTrackFully(id),
+    mutationFn: (id: string) => deleteTrack(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: TRACKS_QUERY_KEY });
     },
@@ -42,18 +40,8 @@ export function useBackupTrack() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { trackId: string }) => backupTrack(input.trackId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: TRACKS_QUERY_KEY });
-    },
-  });
-}
-
-export function useRestoreTrack() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (trackId: string) => restoreTrack(trackId),
+    mutationFn: (input: { trackId: string; layerIds?: string[] }) =>
+      backupTrack(input.trackId, input.layerIds),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: TRACKS_QUERY_KEY });
     },

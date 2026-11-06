@@ -90,16 +90,10 @@ type QuickRecordStore = {
   title: string;
   initialFingerprint: string;
   captureFxSelection: EditChainSelection;
-  lastSaveTrackId: string | null;
   setProject: (project: AudioProject) => void;
   setTitle: (title: string) => void;
   setCaptureFxSelection: (selection: EditChainSelection) => void;
-  setLastSaveTrackId: (trackId: string | null) => void;
-  hydrateFromImport: (
-    project: AudioProject,
-    title?: string,
-    trackId?: string | null,
-  ) => void;
+  hydrateFromImport: (project: AudioProject, title?: string) => void;
   applyStem: (
     layerId: string,
     stemUri: string,
@@ -120,13 +114,11 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
       DEFAULT_QUICK_RECORD_TITLE,
     ),
     captureFxSelection: EMPTY_EDIT_CHAIN,
-    lastSaveTrackId: null,
     setProject: (project) => set({ project }),
     setTitle: (title) =>
       set({
         title: title.trim() || DEFAULT_QUICK_RECORD_TITLE,
       }),
-    setLastSaveTrackId: (trackId) => set({ lastSaveTrackId: trackId }),
     setCaptureFxSelection: (selection) => {
       const next = normalizeCaptureFxSelection(selection);
       const current = get();
@@ -135,18 +127,13 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
         project: withCaptureFxOnVocal(current.project, next),
       });
     },
-    hydrateFromImport: (
-      project,
-      title = DEFAULT_QUICK_RECORD_TITLE,
-      trackId = null,
-    ) => {
+    hydrateFromImport: (project, title = DEFAULT_QUICK_RECORD_TITLE) => {
       const nextTitle = title.trim() || DEFAULT_QUICK_RECORD_TITLE;
       set({
         project,
         title: nextTitle,
         captureFxSelection: captureFxFromProject(project),
         initialFingerprint: fingerprintQuickRecordProject(project, nextTitle),
-        lastSaveTrackId: trackId,
       });
     },
     applyStem: (layerId, stemUri, editChain) => {
@@ -180,7 +167,6 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
         project: next,
         title: DEFAULT_QUICK_RECORD_TITLE,
         captureFxSelection: EMPTY_EDIT_CHAIN,
-        lastSaveTrackId: null,
         initialFingerprint: fingerprintQuickRecordProject(
           next,
           DEFAULT_QUICK_RECORD_TITLE,

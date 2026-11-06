@@ -6,10 +6,7 @@ import { getErrorMessage } from '@/core/api/errors';
 import { hasRecordableContent } from '@/features/audio/domain/project';
 import { useQuickRecordSession } from '@/features/studio/hooks/use-quick-record-session';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
-import {
-  getSaveTrackDraftTrackId,
-  useSaveTrackDraft,
-} from '@/features/tracks';
+import { useSaveTrackDraft } from '@/features/tracks';
 
 export function useQuickRecordEditSession() {
   const { back, canGoBack, replace } = useRouter();
@@ -76,28 +73,19 @@ export function useQuickRecordEditSession() {
         return false;
       }
 
-      const store = useQuickRecordStore.getState();
-      const title = store.title;
-      const trackId = store.lastSaveTrackId ?? undefined;
+      const title = useQuickRecordStore.getState().title;
 
-      const recording = await saveDraft.mutateAsync({
+      await saveDraft.mutateAsync({
         project: latest,
         mixdownUri: layer.stemUri,
         title,
         kind: 'SINGLE',
-        trackId,
-        updateExisting: Boolean(trackId),
       });
 
-      useQuickRecordStore.getState().setLastSaveTrackId(recording.id);
       resetStore();
       session.leaveToHome();
       return true;
     } catch (error) {
-      const failedId = getSaveTrackDraftTrackId(error);
-      if (failedId) {
-        useQuickRecordStore.getState().setLastSaveTrackId(failedId);
-      }
       console.log('Quick Record save failed:', error);
       Alert.alert(
         'Could not save',

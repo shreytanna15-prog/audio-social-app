@@ -20,19 +20,3 @@ export function mapTrackToLibraryItem(track: TrackListItem): LibraryAudioItem {
     unavailable,
   };
 }
-
-export function libraryStorageLabel(item: LibraryAudioItem): string {
-  if (item.unavailable) {
-    return 'Unavailable';
-  }
-  if (item.storageState === 'SYNCED' || item.storageState === 'CLOUD_ONLY') {
-    return item.localUri ? 'Backed up' : 'On cloud';
-  }
-  if (item.storageState === 'LOCAL_ONLY' && item.localUri) {
-    return 'Needs backup';
-  }
-  if (item.status === 'PUBLISHED') {
-    return 'Published';
-  }
-  return 'Draft';
-}

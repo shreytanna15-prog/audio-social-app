@@ -146,7 +146,6 @@ export function useMultitrackRoute(): MultitrackRouteState {
           kind: 'MULTI',
           title: payload.title?.trim() || trackTitle || 'Untitled session',
           trackId: trackId ?? undefined,
-          updateExisting: Boolean(trackId),
         });
         return true;
       } catch (error) {
