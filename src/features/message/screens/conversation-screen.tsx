@@ -2,7 +2,6 @@ import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -14,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/shared/components/ui/text';
+import { imeOverlapPx } from '@/shared/lib/ime-overlap';
 
 import {
   useConversationMessages,
@@ -30,13 +30,6 @@ import { useConversationRealtime } from '../hooks/use-conversation-realtime';
 import type { ChatMessage } from '../types';
 
 const ACCENT = '#D0BCFF';
-
-/** Android edge-to-edge: prefer screenY overlap; height alone under-reports Gboard. */
-function imeOverlapPx(height: number, screenY: number) {
-  const screenH = Dimensions.get('screen').height;
-  const fromScreenY = Math.max(0, screenH - screenY);
-  return Math.max(height, fromScreenY);
-}
 
 export function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -149,7 +142,8 @@ export function ConversationScreen() {
     );
   }
 
-  const { participant } = conversation;
+  const { participant, status } = conversation;
+  const isPending = status === 'PENDING';
   // Full IME overlap as bottom offset (SheetContent equivalent). Do not
   // subtract safe-area — on edge-to-edge that under-lifts and covers Send.
   const androidImeInset =
@@ -191,14 +185,21 @@ export function ConversationScreen() {
             );
           }}
           ListHeaderComponent={
-            <View className="items-center py-4">
+            <View className="items-center gap-3 py-4">
               <View className="rounded-full bg-surface-container px-3 py-1">
                 <Text
                   variant="label-sm"
                   className="font-semibold uppercase tracking-widest text-on-surface-variant">
-                  Conversation
+                  {isPending ? 'Message request' : 'Conversation'}
                 </Text>
               </View>
+              {isPending ? (
+                <Text
+                  variant="body-md"
+                  className="px-8 text-center text-on-surface-variant">
+                  Waiting for {participant.name} to accept before you can chat.
+                </Text>
+              ) : null}
             </View>
           }
           ListEmptyComponent={
@@ -206,13 +207,17 @@ export function ConversationScreen() {
               <Text
                 variant="body-md"
                 className="text-center text-on-surface-variant">
-                No messages yet. Say hello.
+                {isPending
+                  ? 'Your request was sent.'
+                  : 'No messages yet. Say hello.'}
               </Text>
             </View>
           }
           contentContainerStyle={{
             // Reserve space for absolute composer (+ IME when open)
-            paddingBottom: 88 + androidImeInset,
+            paddingBottom: isPending
+              ? Math.max(insets.bottom, 24) + 24
+              : 88 + androidImeInset,
             flexGrow: 1,
           }}
           keyboardShouldPersistTaps="handled"
@@ -224,20 +229,21 @@ export function ConversationScreen() {
         />
       )}
 
-      {/* Absolute bottom anchor — same geometry as SheetContent.sheetAnchor */}
-      <View
-        pointerEvents="box-none"
-        style={[
-          styles.composerAnchor,
-          { bottom: androidImeInset },
-        ]}>
-        <ConversationComposer
-          sending={sendText.isPending || sendVoice.isPending}
-          bottomPadding={composerBottomPad}
-          onSend={(body) => sendText.mutate(body.trim())}
-          onSendVoiceNote={(input) => sendVoice.mutate(input)}
-        />
-      </View>
+      {isPending ? null : (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.composerAnchor,
+            { bottom: androidImeInset },
+          ]}>
+          <ConversationComposer
+            sending={sendText.isPending || sendVoice.isPending}
+            bottomPadding={composerBottomPad}
+            onSend={(body) => sendText.mutate(body.trim())}
+            onSendVoiceNote={(input) => sendVoice.mutate(input)}
+          />
+        </View>
+      )}
     </View>
   );
 

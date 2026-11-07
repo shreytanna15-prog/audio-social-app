@@ -17,9 +17,14 @@ import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 
-import { useCreateProject, useProjects } from '../api/hooks';
+import {
+  useCreateProject,
+  useDeleteProject,
+  useProjects,
+} from '../api/hooks';
 import { CreateProjectCard } from '../components/create-project-card';
 import { RecentProjectsList } from '../components/recent-projects-list';
+import type { ProjectSummary } from '../types';
 import { mapProjectSummary } from '../utils/map-project';
 
 /**
@@ -29,9 +34,10 @@ import { mapProjectSummary } from '../utils/map-project';
 export function ProjectsScreen() {
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
-  const { showError, dialog } = useFeedbackDialog();
+  const { show, showError, dialog } = useFeedbackDialog();
   const projectsQuery = useProjects();
   const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -39,6 +45,69 @@ export function ProjectsScreen() {
   const projects = (projectsQuery.data ?? [])
     .slice(0, 5)
     .map(mapProjectSummary);
+
+  const openProject = (project: ProjectSummary) => {
+    push({
+      pathname: '/projects/[id]',
+      params: { id: project.id, title: project.title },
+    });
+  };
+
+  const openProjectMenu = (project: ProjectSummary) => {
+    show({
+      title: project.title,
+      actions: [
+        {
+          label: 'Open',
+          variant: 'soft',
+          onPress: () => openProject(project),
+        },
+        {
+          label: 'Delete project…',
+          variant: 'destructive',
+          onPress: () => {
+            show({
+              title: 'Delete project?',
+              message:
+                'Keep the tracks in your library, or delete the tracks too.',
+              actions: [
+                { label: 'Cancel', variant: 'ghost' },
+                {
+                  label: 'Keep tracks',
+                  variant: 'soft',
+                  onPress: () => {
+                    void deleteProject
+                      .mutateAsync({ id: project.id, deleteTracks: false })
+                      .catch((error) => {
+                        showError(
+                          'Could not delete',
+                          getErrorMessage(error, 'Try again.'),
+                        );
+                      });
+                  },
+                },
+                {
+                  label: 'Delete tracks too',
+                  variant: 'destructive',
+                  onPress: () => {
+                    void deleteProject
+                      .mutateAsync({ id: project.id, deleteTracks: true })
+                      .catch((error) => {
+                        showError(
+                          'Could not delete',
+                          getErrorMessage(error, 'Try again.'),
+                        );
+                      });
+                  },
+                },
+              ],
+            });
+          },
+        },
+        { label: 'Cancel', variant: 'ghost' },
+      ],
+    });
+  };
 
   const submitCreate = () => {
     const trimmed = title.trim();
@@ -100,12 +169,8 @@ export function ProjectsScreen() {
           <RecentProjectsList
             projects={projects}
             contentBottomInset={Math.max(insets.bottom, 16) + 24}
-            onProjectPress={(project) =>
-              push({
-                pathname: '/projects/[id]',
-                params: { id: project.id, title: project.title },
-              })
-            }
+            onProjectPress={openProject}
+            onMorePress={openProjectMenu}
           />
         )}
       </View>

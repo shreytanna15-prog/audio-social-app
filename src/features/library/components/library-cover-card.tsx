@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { MoreVertical } from 'lucide-react-native';
+import { Music2, MoreVertical } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -12,7 +12,7 @@ import { Text } from '@/shared/components/ui/text';
 type LibraryCoverCardProps = {
   id: string;
   title: string;
-  coverUrl: string;
+  coverUrl: string | null;
   accessibilityLabel: string;
   meta: ReactNode;
   onPress: () => void;
@@ -29,7 +29,8 @@ export function LibraryCoverCard({
   onMorePress,
 }: LibraryCoverCardProps) {
   return (
-    <View className="min-w-0 flex-1 gap-2.5 px-1.5">
+    // Half-width cell — avoid flex-1 alone (odd last row stretches full width).
+    <View className="w-1/2 gap-2.5 px-1.5">
       <View
         className="relative aspect-square overflow-hidden rounded-2xl bg-surface-container"
         style={{ borderCurve: 'continuous' }}>
@@ -39,13 +40,19 @@ export function LibraryCoverCard({
           accessibilityLabel={accessibilityLabel}
           className="absolute inset-0"
           style={({ pressed }) => ({ opacity: pressed ? 0.94 : 1 })}>
-          <Image
-            source={{ uri: coverUrl }}
-            style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
-            recyclingKey={id}
-            transition={160}
-          />
+          {coverUrl ? (
+            <Image
+              source={{ uri: coverUrl }}
+              style={{ width: '100%', height: '100%' }}
+              contentFit="cover"
+              recyclingKey={id}
+              transition={160}
+            />
+          ) : (
+            <View className="h-full w-full items-center justify-center">
+              <Music2 size={36} color="#958EA0" strokeWidth={1.8} />
+            </View>
+          )}
           <View
             pointerEvents="none"
             className="absolute inset-0"

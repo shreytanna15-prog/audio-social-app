@@ -67,11 +67,7 @@ export function ArtistMessageSheet({
         onSuccess: (result) => {
           setDraft('');
           handleClose(false);
-          if (result.conversation.status === 'ACCEPTED') {
-            push(`/message/${result.conversation.id}` as Href);
-            return;
-          }
-          push('/(tabs)/chat' as Href);
+          push(`/message/${result.conversation.id}` as Href);
         },
         onError: (err) => {
           setError(

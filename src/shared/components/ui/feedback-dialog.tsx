@@ -39,6 +39,9 @@ export function FeedbackDialog({ feedback, onOpenChange }: FeedbackDialogProps) 
       ? feedback.actions
       : [{ label: 'OK', variant: 'soft' }];
 
+  // 3+ actions = action sheet (stack). 1–2 = alert/confirm (row).
+  const stacked = actions.length > 2;
+
   return (
     <Dialog
       open={feedback != null}
@@ -50,7 +53,12 @@ export function FeedbackDialog({ feedback, onOpenChange }: FeedbackDialogProps) 
         {feedback?.message ? (
           <DialogDescription>{feedback.message}</DialogDescription>
         ) : null}
-        <DialogFooter>
+        <DialogFooter
+          className={
+            stacked
+              ? 'mt-1 flex-col items-stretch gap-2'
+              : undefined
+          }>
           {actions.map((action, index) => {
             const isLast = index === actions.length - 1;
             const variant =
@@ -59,7 +67,8 @@ export function FeedbackDialog({ feedback, onOpenChange }: FeedbackDialogProps) 
               <Button
                 key={`${action.label}-${index}`}
                 variant={variant}
-                size="sm"
+                size={stacked ? 'default' : 'sm'}
+                className={stacked ? 'w-full' : undefined}
                 onPress={() => {
                   onOpenChange(false);
                   action.onPress?.();

@@ -1,11 +1,12 @@
 import { Globe, Lock } from 'lucide-react-native';
-import { FlatList, View } from 'react-native';
+import { ActivityIndicator, FlatList, View } from 'react-native';
 
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
 
 import type { LibraryPlaylistItem } from '../types';
 import { LibraryCoverCard } from './library-cover-card';
+import { LibraryNewCollectionButton } from './library-new-collection-button';
 import { LibrarySectionHeader } from './library-section-header';
 
 const ACCENT = '#A078FF';
@@ -14,15 +15,48 @@ const META = '#958EA0';
 type LibraryPlaylistsPanelProps = {
   items: LibraryPlaylistItem[];
   onItemPress?: (item: LibraryPlaylistItem) => void;
+  onMorePress?: (item: LibraryPlaylistItem) => void;
+  onCreatePress?: () => void;
   contentBottomInset?: number;
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 };
 
 export function LibraryPlaylistsPanel({
   items,
   onItemPress,
+  onMorePress,
+  onCreatePress,
   contentBottomInset = 28,
+  isLoading = false,
+  isError = false,
+  onRetry,
 }: LibraryPlaylistsPanelProps) {
   const { showError, dialog } = useFeedbackDialog();
+
+  if (isLoading && items.length === 0) {
+    return (
+      <View className="flex-1 items-center justify-center py-16">
+        <ActivityIndicator color="#D0BCFF" />
+      </View>
+    );
+  }
+
+  if (isError && items.length === 0) {
+    return (
+      <View className="flex-1 items-center gap-3 px-8 py-16">
+        <Text variant="title-md" className="text-on-surface">
+          Couldn’t load playlists
+        </Text>
+        {onRetry ? (
+          <Text variant="body-md" className="text-primary" onPress={onRetry}>
+            Retry
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <>
@@ -42,6 +76,14 @@ export function LibraryPlaylistsPanel({
             <LibrarySectionHeader
               label="Curated collections"
               count={items.length}
+              trailing={
+                onCreatePress ? (
+                  <LibraryNewCollectionButton
+                    label="New playlist"
+                    onPress={onCreatePress}
+                  />
+                ) : null
+              }
             />
           </View>
         }
@@ -61,11 +103,15 @@ export function LibraryPlaylistsPanel({
                   onItemPress(item);
                   return;
                 }
-                showError(item.title, 'Playlist details coming soon.');
+                showError(item.title, 'Couldn’t open playlist.');
               }}
-              onMorePress={() =>
-                showError(item.title, 'Playlist options coming soon.')
-              }
+              onMorePress={() => {
+                if (onMorePress) {
+                  onMorePress(item);
+                  return;
+                }
+                onItemPress?.(item);
+              }}
               meta={
                 <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">
                   <Text

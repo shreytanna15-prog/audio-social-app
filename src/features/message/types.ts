@@ -12,6 +12,7 @@ export type MessageParticipant = {
 
 export type ConversationPreview = {
   id: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
   participant: MessageParticipant;
   previewKind: MessagePreviewKind;
   previewText: string;

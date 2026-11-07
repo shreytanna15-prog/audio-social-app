@@ -1,6 +1,6 @@
 import { AudioLines, FileUp, Mic } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
@@ -58,10 +58,10 @@ export function ProjectAddActions({ projectId }: ProjectAddActionsProps) {
               onPress={() => {
                 setProjectId(projectId);
                 requestAnimationFrame(() => {
-                  push({
-                    pathname: action.route,
-                    params: { projectId },
-                  });
+                  // Query param keeps projectId on nested studio routes (index/edit).
+                  push(
+                    `${action.route}?projectId=${encodeURIComponent(projectId)}` as Href,
+                  );
                 });
               }}
               accessibilityRole="button"

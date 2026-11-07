@@ -14,6 +14,7 @@ import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.serv
 import type { RecordingEditorRouteParams } from '@/features/audio/types/recording-editor-route';
 import type { AudioProject } from '@/features/audio/types/project';
 import type { StudioEditorProps, StudioSavePayload } from '@/features/audio/types/studio';
+import { leaveStudioSession } from '@/features/studio/utils/leave-studio-session';
 import { useSaveTrackDraft } from '@/features/tracks';
 import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
 
@@ -130,7 +131,7 @@ export function useMultitrackRoute(): MultitrackRouteState {
   ]);
 
   const leave = useCallback(() => {
-    router.replace('/(tabs)');
+    leaveStudioSession(router);
   }, [router]);
 
   const handleSave = useCallback(

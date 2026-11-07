@@ -1,6 +1,6 @@
 import { type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useCreateConversationRequest } from '@/features/message/api/hooks';
 import { Button } from '@/shared/components/ui/button';
@@ -45,6 +45,8 @@ export function ProfileMessageSheet({
     onOpenChange(next);
   };
 
+  const canSend = draft.trim().length > 0 && !createRequest.isPending;
+
   const handleSend = () => {
     const trimmed = draft.trim();
     if (!trimmed || createRequest.isPending) return;
@@ -56,12 +58,8 @@ export function ProfileMessageSheet({
         onSuccess: (result) => {
           setDraft('');
           handleClose(false);
-          if (result.conversation.status === 'ACCEPTED') {
-            push(`/message/${result.conversation.id}` as Href);
-            return;
-          }
-          // Request is pending on the recipient side — inbox stays empty until accept.
-          push('/(tabs)/chat' as Href);
+          // Pending shows in Messages as “Pending”; open the thread to confirm send.
+          push(`/message/${result.conversation.id}` as Href);
         },
         onError: (err) => {
           setError(
@@ -76,13 +74,41 @@ export function ProfileMessageSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent bottomOffset={bottomOffset} className="bg-[#17171D]">
+      <SheetContent
+        useModal
+        bottomOffset={bottomOffset}
+        className="bg-[#17171D]">
         <SheetClose />
-        <SheetHeader>
-          <SheetTitle>Message {profileName}</SheetTitle>
-          <SheetDescription>
-            Send a message request. They’ll need to accept before you can chat.
-          </SheetDescription>
+        <SheetHeader className="pr-14">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1 gap-1">
+              <SheetTitle>Message {profileName}</SheetTitle>
+              <SheetDescription>
+                Send a message request. They’ll need to accept before you can
+                chat.
+              </SheetDescription>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send"
+              accessibilityState={{ disabled: !canSend }}
+              accessible
+              disabled={!canSend}
+              onPress={handleSend}
+              hitSlop={12}
+              className="min-h-11 min-w-14 items-end justify-center pt-1"
+              testID="profile-message-send-header"
+              style={{ zIndex: 2 }}>
+              <Text
+                variant="label-md"
+                accessible={false}
+                className={
+                  canSend ? 'text-primary' : 'text-on-surface-variant'
+                }>
+                {createRequest.isPending ? 'Sending…' : 'Send'}
+              </Text>
+            </Pressable>
+          </View>
         </SheetHeader>
 
         <SheetBody>
@@ -93,6 +119,7 @@ export function ProfileMessageSheet({
               placeholder="Write a message…"
               className={textareaClassName}
               editable={!createRequest.isPending}
+              accessibilityLabel="Write a message"
             />
             {error ? (
               <Text variant="body-md" className="text-error">
@@ -100,8 +127,10 @@ export function ProfileMessageSheet({
               </Text>
             ) : null}
             <Button
+              testID="profile-message-send"
+              accessibilityLabel="Send request"
               onPress={handleSend}
-              disabled={draft.trim().length === 0 || createRequest.isPending}>
+              disabled={!canSend}>
               <Text>
                 {createRequest.isPending ? 'Sending…' : 'Send request'}
               </Text>

@@ -8,6 +8,7 @@ import { LibrarySectionHeader } from './library-section-header';
 type LibraryProjectsPanelProps = {
   projects: ProjectSummary[];
   onProjectPress: (project: ProjectSummary) => void;
+  onMorePress?: (project: ProjectSummary) => void;
   contentBottomInset?: number;
   isLoading?: boolean;
   isError?: boolean;
@@ -21,6 +22,7 @@ type LibraryProjectsPanelProps = {
 export function LibraryProjectsPanel({
   projects,
   onProjectPress,
+  onMorePress,
   contentBottomInset = 28,
   isLoading = false,
   isError = false,
@@ -68,7 +70,11 @@ export function LibraryProjectsPanel({
         </View>
       }
       renderItem={({ item }) => (
-        <ProjectListRow project={item} onPress={onProjectPress} />
+        <ProjectListRow
+          project={item}
+          onPress={onProjectPress}
+          onMorePress={onMorePress}
+        />
       )}
       ListEmptyComponent={
         <View className="items-center gap-2 px-8 py-16">

@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -30,6 +30,7 @@ import {
   useQuickRecordStore,
 } from '@/features/studio/store/quick-record.store';
 import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
+import { leaveStudioSession } from '@/features/studio/utils/leave-studio-session';
 
 /** UI cap shown on Quick Record (matches timer display). */
 export const QUICK_RECORD_MAX_SECONDS = 180;
@@ -42,7 +43,20 @@ type UseQuickRecordSessionOptions = {
 export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}) {
   const [isFocused, setIsFocused] = useState(true);
   const captureEnabled = (options.captureEnabled ?? true) && isFocused;
-  const { replace, push } = useRouter();
+  const { replace, push, dismissTo, back, canGoBack } = useRouter();
+  const { projectId: projectIdParam } = useLocalSearchParams<{
+    projectId?: string;
+  }>();
+  const resolvedProjectId = Array.isArray(projectIdParam)
+    ? projectIdParam[0]
+    : projectIdParam;
+
+  // Keep project handoff if the route param arrives after the Projects push.
+  useEffect(() => {
+    if (typeof resolvedProjectId === 'string' && resolvedProjectId.length > 0) {
+      useStudioProjectContextStore.getState().setProjectId(resolvedProjectId);
+    }
+  }, [resolvedProjectId]);
 
   const project = useQuickRecordStore((state) => state.project);
   const title = useQuickRecordStore((state) => state.title);
@@ -484,8 +498,11 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     fingerprintQuickRecordProject(project, title) !== initialFingerprint;
 
   const leaveToHome = useCallback(() => {
-    replace('/(tabs)');
-  }, [replace]);
+    leaveStudioSession(
+      { back, canGoBack, dismissTo, replace },
+      resolvedProjectId ?? useStudioProjectContextStore.getState().projectId,
+    );
+  }, [back, canGoBack, dismissTo, replace, resolvedProjectId]);
 
   /** @deprecated Prefer leaveToHome — kept for call sites mid-rename. */
   const leaveToAudio = leaveToHome;

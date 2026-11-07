@@ -22,6 +22,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/shared/components/ui/text';
+import { imeOverlapPx } from '@/shared/lib/ime-overlap';
 import { cn } from '@/shared/lib/utils';
 
 const OPEN_MS = 240;
@@ -99,7 +100,8 @@ function SheetContent({
     const hideEvent =
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const onShow = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+      const { height, screenY } = event.endCoordinates;
+      setKeyboardHeight(imeOverlapPx(height, screenY));
     });
     const onHide = Keyboard.addListener(hideEvent, () => {
       setKeyboardHeight(0);
@@ -188,11 +190,12 @@ function SheetContent({
           style={[
             styles.sheetAnchor,
             {
+              // When the IME is open, clear the keyboard (+ small gap). Tab-bar
+              // bottomOffset alone is not enough and height alone under-reports Gboard.
               paddingBottom:
-                resolvedBottomOffset +
-                (keyboardHeight > 0
-                  ? Math.max(keyboardHeight - resolvedBottomOffset, 0)
-                  : 0),
+                keyboardHeight > 0
+                  ? keyboardHeight + 12
+                  : resolvedBottomOffset,
             },
           ]}>
           <Animated.View

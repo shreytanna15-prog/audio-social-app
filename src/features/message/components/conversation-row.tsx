@@ -20,14 +20,22 @@ type ConversationRowProps = {
 };
 
 export function ConversationRow({ conversation, onPress }: ConversationRowProps) {
-  const { id, participant, previewKind, previewText, lastMessageAt, unread } =
-    conversation;
+  const {
+    id,
+    status,
+    participant,
+    previewKind,
+    previewText,
+    lastMessageAt,
+    unread,
+  } = conversation;
+  const isPending = status === 'PENDING';
 
   return (
     <Pressable
       onPress={() => onPress(id)}
       accessibilityRole="button"
-      accessibilityLabel={`${participant.name}${participant.online ? ', online' : ''}, ${previewText}${unread ? ', unread' : ''}`}
+      accessibilityLabel={`${participant.name}${participant.online ? ', online' : ''}${isPending ? ', pending request' : ''}, ${previewText}${unread ? ', unread' : ''}`}
       className="flex-row items-center active:bg-white/5"
       style={{
         paddingHorizontal: 16,
@@ -59,18 +67,32 @@ export function ConversationRow({ conversation, onPress }: ConversationRowProps)
           </Text>
 
           <View className="flex-row items-center" style={{ gap: 6 }}>
-            <Text
-              className="font-sans"
-              style={{
-                color: TIME,
-                fontSize: 12,
-                lineHeight: 16,
-                fontWeight: '400',
-                letterSpacing: 0,
-              }}>
-              {formatConversationTime(lastMessageAt)}
-            </Text>
-            {unread ? (
+            {isPending ? (
+              <Text
+                className="font-sans"
+                style={{
+                  color: ACCENT,
+                  fontSize: 12,
+                  lineHeight: 16,
+                  fontWeight: '600',
+                  letterSpacing: 0,
+                }}>
+                Pending
+              </Text>
+            ) : (
+              <Text
+                className="font-sans"
+                style={{
+                  color: TIME,
+                  fontSize: 12,
+                  lineHeight: 16,
+                  fontWeight: '400',
+                  letterSpacing: 0,
+                }}>
+                {formatConversationTime(lastMessageAt)}
+              </Text>
+            )}
+            {unread && !isPending ? (
               <View
                 style={{
                   width: 8,

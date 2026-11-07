@@ -11,6 +11,7 @@ import { Text } from '@/shared/components/ui/text';
 
 import type { LibraryAudioItem } from '../types';
 import { formatTrackCreatedAt } from '../utils/format-track-created-at';
+import { libraryAudioStatusLabel } from '../utils/library-audio-status-label';
 
 const ACCENT = '#A078FF';
 const META = '#958EA0';
@@ -39,13 +40,7 @@ export function LibraryAudioRow({
 }: LibraryAudioRowProps) {
   const { showError, dialog } = useFeedbackDialog();
   const Icon = KIND_ICON[item.kind];
-  const statusLabel = item.unavailable
-    ? 'Unavailable'
-    : item.storageState === 'SYNCED' || item.storageState === 'CLOUD_ONLY'
-      ? 'Backed up'
-      : item.status === 'PUBLISHED'
-        ? 'Published'
-        : 'Draft';
+  const statusLabel = libraryAudioStatusLabel(item);
   const when = formatTrackCreatedAt(item.createdAt);
   const meta = when
     ? `${KIND_LABEL[item.kind]} • ${statusLabel} • ${when}`

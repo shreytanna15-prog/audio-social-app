@@ -1,6 +1,8 @@
 import * as React from 'react';
 import {
+  Keyboard,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -9,6 +11,7 @@ import {
 } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
+import { imeOverlapPx } from '@/shared/lib/ime-overlap';
 import { cn } from '@/shared/lib/utils';
 
 type DialogContextValue = {
@@ -61,6 +64,30 @@ function DialogContent({
   dismissOnBackdropPress = true,
 }: DialogContentProps) {
   const { open, onOpenChange } = useDialogContext();
+  const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+
+  // Modal sits above windowSoftInputMode — lift the card so footers clear the IME.
+  React.useEffect(() => {
+    if (!open) {
+      setKeyboardHeight(0);
+      return;
+    }
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      const { height, screenY } = event.endCoordinates;
+      setKeyboardHeight(imeOverlapPx(height, screenY));
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [open]);
 
   return (
     <Modal
@@ -80,7 +107,18 @@ function DialogContent({
             }
           }}
         />
-        <View pointerEvents="box-none" style={styles.center}>
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.center,
+            // Sit just above the IME — centering in the leftover band leaves a huge gap.
+            keyboardHeight > 0
+              ? {
+                  justifyContent: 'flex-end',
+                  paddingBottom: keyboardHeight + 12,
+                }
+              : null,
+          ]}>
           <View
             accessibilityViewIsModal
             className={cn(className)}

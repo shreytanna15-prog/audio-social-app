@@ -52,11 +52,11 @@ export function ProfileScreenShell({
 
   const sheetBottomOffset = Math.max(insets.bottom, 10) + 12;
   const featuredPlaying =
-    isPlaying && currentTrack?.id === `profile-featured-${profile.featuredSong.id}`;
+    isPlaying && currentTrack?.id === profile.featuredSong.id;
 
   const playTrack = (track: ProfileTrack) => {
     play({
-      id: `profile-${profile.id}-${track.id}`,
+      id: track.id,
       title: track.title,
       artist: profile.name,
       coverUrl: track.coverUrl,
@@ -68,7 +68,7 @@ export function ProfileScreenShell({
   };
 
   const playFeatured = () => {
-    const featuredId = `profile-featured-${profile.featuredSong.id}`;
+    const featuredId = profile.featuredSong.id;
     if (currentTrack?.id === featuredId) {
       togglePlay();
       return;
@@ -91,27 +91,17 @@ export function ProfileScreenShell({
   };
 
   const onAlbumPress = (album: ProfileAlbum) => {
-    const first = profile.songs[0];
-    if (!first) return;
-    play({
-      id: `profile-${profile.id}-album-${album.id}`,
-      title: album.title,
-      artist: profile.name,
-      coverUrl: album.coverUrl,
-      artistAvatarUrl: profile.avatarUrl ?? undefined,
-      verified: profile.verified,
-    });
+    push({
+      pathname: '/albums/[id]',
+      params: { id: album.id, title: album.title },
+    } as Href);
   };
 
   const onPlaylistPress = (playlist: ProfilePlaylist) => {
-    play({
-      id: `profile-${profile.id}-playlist-${playlist.id}`,
-      title: playlist.title,
-      artist: profile.name,
-      coverUrl: playlist.coverUrl,
-      artistAvatarUrl: profile.avatarUrl ?? undefined,
-      verified: profile.verified,
-    });
+    push({
+      pathname: '/playlists/[id]',
+      params: { id: playlist.id, title: playlist.title },
+    } as Href);
   };
 
   return (

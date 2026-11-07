@@ -8,6 +8,7 @@ import { ProjectListRow } from './project-list-row';
 type RecentProjectsListProps = {
   projects: ProjectSummary[];
   onProjectPress: (project: ProjectSummary) => void;
+  onMorePress?: (project: ProjectSummary) => void;
   /** Extra bottom padding for safe area / tab bar. */
   contentBottomInset?: number;
 };
@@ -19,6 +20,7 @@ type RecentProjectsListProps = {
 export function RecentProjectsList({
   projects,
   onProjectPress,
+  onMorePress,
   contentBottomInset = 24,
 }: RecentProjectsListProps) {
   return (
@@ -43,7 +45,11 @@ export function RecentProjectsList({
         </View>
       }
       renderItem={({ item }) => (
-        <ProjectListRow project={item} onPress={onProjectPress} />
+        <ProjectListRow
+          project={item}
+          onPress={onProjectPress}
+          onMorePress={onMorePress}
+        />
       )}
       ListEmptyComponent={
         <View className="items-center gap-2 px-8 py-16">

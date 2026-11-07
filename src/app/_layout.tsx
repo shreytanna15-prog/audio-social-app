@@ -52,6 +52,20 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="playlists"
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="albums"
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
                     name="notifications"
                     options={{
                       headerShown: false,

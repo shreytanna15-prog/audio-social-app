@@ -16,6 +16,7 @@ import {
 } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { isApiTrackId } from '@/features/saves';
 import { AppHeader } from '@/shared/components/layout/app-header';
 import { Text } from '@/shared/components/ui/text';
 
@@ -66,6 +67,7 @@ export function NowPlayingScreen() {
   const playsLabel = track.playsLabel ?? '24.5K plays';
   const likeLabel = track.likeCountLabel ?? '1.2K';
   const commentCount = track.commentCount ?? 382;
+  const canLike = isApiTrackId(track.id);
 
   return (
     <View className="flex-1 bg-background">
@@ -218,22 +220,24 @@ export function NowPlayingScreen() {
             />
           </Pressable>
 
-          <Pressable
-            onPress={toggleLike}
-            accessibilityRole="button"
-            accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-            hitSlop={8}
-            className="h-11 flex-row items-center gap-1.5 px-1">
-            <Heart
-              size={22}
-              color={isLiked ? '#FFB0CD' : ICON}
-              strokeWidth={1.8}
-              fill={isLiked ? '#FFB0CD' : 'transparent'}
-            />
-            <Text variant="label-md" className="text-on-surface-variant">
-              {likeLabel}
-            </Text>
-          </Pressable>
+          {canLike ? (
+            <Pressable
+              onPress={toggleLike}
+              accessibilityRole="button"
+              accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
+              hitSlop={8}
+              className="h-11 flex-row items-center gap-1.5 px-1">
+              <Heart
+                size={22}
+                color={isLiked ? '#FFB0CD' : ICON}
+                strokeWidth={1.8}
+                fill={isLiked ? '#FFB0CD' : 'transparent'}
+              />
+              <Text variant="label-md" className="text-on-surface-variant">
+                {likeLabel}
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"
@@ -263,7 +267,7 @@ export function NowPlayingScreen() {
           </Pressable>
         </View>
 
-        <PlayerComments commentCount={commentCount} />
+        <PlayerComments trackId={track.id} commentCount={commentCount} />
       </ScrollView>
     </View>
   );

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Heart, Pause, Play, SkipForward } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
+import { isApiTrackId } from '@/features/saves';
 import { Text } from '@/shared/components/ui/text';
 
 import { usePlayerStore } from '../store/player.store';
@@ -18,6 +19,8 @@ export function MiniPlayer() {
   const toggleLike = usePlayerStore((s) => s.toggleLike);
 
   if (!track) return null;
+
+  const canLike = isApiTrackId(track.id);
 
   return (
     <Pressable
@@ -59,19 +62,21 @@ export function MiniPlayer() {
         </View>
 
         <View className="flex-row items-center gap-1">
-          <Pressable
-            onPress={toggleLike}
-            accessibilityRole="button"
-            accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-            hitSlop={8}
-            className="h-9 w-9 items-center justify-center">
-            <Heart
-              size={18}
-              color={isLiked ? '#FFB0CD' : '#CBC3D7'}
-              strokeWidth={1.8}
-              fill={isLiked ? '#FFB0CD' : 'transparent'}
-            />
-          </Pressable>
+          {canLike ? (
+            <Pressable
+              onPress={toggleLike}
+              accessibilityRole="button"
+              accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
+              hitSlop={8}
+              className="h-9 w-9 items-center justify-center">
+              <Heart
+                size={18}
+                color={isLiked ? '#FFB0CD' : '#CBC3D7'}
+                strokeWidth={1.8}
+                fill={isLiked ? '#FFB0CD' : 'transparent'}
+              />
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={togglePlay}

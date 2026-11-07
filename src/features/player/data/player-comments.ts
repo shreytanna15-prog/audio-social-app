@@ -5,6 +5,9 @@ export type PlayerComment = {
   timeAgo: string;
   body: string;
   likeCount: number;
+  isLiked?: boolean;
+  isOwn?: boolean;
+  replies?: PlayerComment[];
 };
 
 export const PLAYER_COMMENTS: PlayerComment[] = [

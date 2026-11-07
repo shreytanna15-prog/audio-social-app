@@ -1,4 +1,4 @@
-import { Pressable, View } from 'react-native';
+import { Pressable, ScrollView } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
 
@@ -9,6 +9,7 @@ const TABS: { id: LibraryTab; label: string }[] = [
   { id: 'projects', label: 'Projects' },
   { id: 'albums', label: 'Albums' },
   { id: 'playlists', label: 'Playlists' },
+  { id: 'saved', label: 'Saved' },
 ];
 
 const ACTIVE_BG = '#A078FF';
@@ -22,7 +23,12 @@ type LibrarySegmentTabsProps = {
 
 export function LibrarySegmentTabs({ activeTab, onChange }: LibrarySegmentTabsProps) {
   return (
-    <View className="mx-4 flex-row items-center gap-2">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="grow-0"
+      contentContainerClassName="gap-2 px-4"
+      contentContainerStyle={{ alignItems: 'center' }}>
       {TABS.map((tab) => {
         const active = tab.id === activeTab;
         return (
@@ -32,7 +38,7 @@ export function LibrarySegmentTabs({ activeTab, onChange }: LibrarySegmentTabsPr
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={tab.label}
-            className="h-9 flex-1 items-center justify-center rounded-full px-1"
+            className="h-9 items-center justify-center rounded-full px-3"
             style={{
               backgroundColor: active ? ACTIVE_BG : 'transparent',
               borderCurve: 'continuous',
@@ -49,6 +55,6 @@ export function LibrarySegmentTabs({ activeTab, onChange }: LibrarySegmentTabsPr
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }

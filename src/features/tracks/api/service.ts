@@ -166,6 +166,24 @@ export async function unpublishTrack(
   });
 }
 
+export async function recordPlay(
+  trackId: string,
+): Promise<{ playCount: number; recorded: boolean }> {
+  return apiRequest<{ playCount: number; recorded: boolean }>({
+    path: `/api/tracks/${trackId}/play`,
+    method: 'POST',
+  });
+}
+
+export async function listPublishedTracksByUser(
+  userId: string,
+): Promise<PublishedTrackItem[]> {
+  return apiRequest<PublishedTrackItem[]>({
+    path: `/api/users/${userId}/tracks`,
+    method: 'GET',
+  });
+}
+
 export async function uploadAndCompleteCover(
   trackId: string,
   localUri: string,

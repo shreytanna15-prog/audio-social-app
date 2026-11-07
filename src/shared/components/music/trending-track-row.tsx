@@ -69,14 +69,16 @@ export function TrendingTrackRow({
       </Pressable>
 
       <View className="flex-row items-center gap-1">
-        <Pressable
-          onPress={onLikePress}
-          accessibilityRole="button"
-          accessibilityLabel={`Like ${track.title}`}
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center">
-          <Heart size={18} color="#CBC3D7" strokeWidth={1.8} />
-        </Pressable>
+        {onLikePress ? (
+          <Pressable
+            onPress={onLikePress}
+            accessibilityRole="button"
+            accessibilityLabel={`Like ${track.title}`}
+            hitSlop={8}
+            className="h-9 w-9 items-center justify-center">
+            <Heart size={18} color="#CBC3D7" strokeWidth={1.8} />
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={onMorePress}
           accessibilityRole="button"

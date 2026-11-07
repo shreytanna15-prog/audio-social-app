@@ -1,7 +1,8 @@
-import { useLocalSearchParams } from 'expo-router';
+import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 
+import { useConversations } from '@/features/message';
 import { useFollowUser, useUnfollowUser } from '@/features/users';
 import { Text } from '@/shared/components/ui/text';
 
@@ -17,15 +18,43 @@ const ACCENT = '#D0BCFF';
 
 /** Public profile via /artist/[id] — Follow / Message actions. */
 export function PublicProfileScreen() {
+  const { push } = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const profileId = typeof id === 'string' ? id : undefined;
   const { profile, apiProfile, isLoading, isError, refetch } =
     usePublicProfile(profileId);
   const sheetBottomOffset = useProfileSheetBottomOffset();
+  const conversationsQuery = useConversations();
 
   const follow = useFollowUser();
   const unfollow = useUnfollowUser();
   const [messageOpen, setMessageOpen] = useState(false);
+
+  const findThreadWithUser = (userId: string) =>
+    (conversationsQuery.data ?? []).find(
+      (item) => item.participant.id === userId,
+    );
+
+  const handleMessagePress = async () => {
+    if (!apiProfile) return;
+
+    const cached = findThreadWithUser(apiProfile.id);
+    if (cached) {
+      push(`/message/${cached.id}` as Href);
+      return;
+    }
+
+    const { data } = await conversationsQuery.refetch();
+    const existing = (data ?? []).find(
+      (item) => item.participant.id === apiProfile.id,
+    );
+    if (existing) {
+      push(`/message/${existing.id}` as Href);
+      return;
+    }
+
+    setMessageOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -73,7 +102,9 @@ export function PublicProfileScreen() {
             name={profile.name}
             following={apiProfile.isFollowing}
             onToggleFollow={toggleFollow}
-            onMessagePress={() => setMessageOpen(true)}
+            onMessagePress={() => {
+              void handleMessagePress();
+            }}
           />
         )
       }

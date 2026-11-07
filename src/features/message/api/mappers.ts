@@ -30,6 +30,7 @@ export function mapConversationPreview(
 ): ConversationPreview {
   return {
     id: dto.id,
+    status: dto.status,
     participant: mapParticipant(dto.participant),
     previewKind: dto.previewKind,
     previewText: dto.previewText,

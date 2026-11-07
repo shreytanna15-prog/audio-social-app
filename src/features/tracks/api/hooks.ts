@@ -4,8 +4,10 @@ import { backupTrack } from './backup-track';
 import {
   deleteCover,
   deleteTrack,
+  listPublishedTracksByUser,
   listTracks,
   publishTrack,
+  recordPlay,
   unpublishTrack,
   uploadAndCompleteCover,
 } from './service';
@@ -113,5 +115,19 @@ export function useUnpublishTrack() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: TRACKS_QUERY_KEY });
     },
+  });
+}
+
+export function useRecordPlay() {
+  return useMutation({
+    mutationFn: (trackId: string) => recordPlay(trackId),
+  });
+}
+
+export function usePublishedTracksByUser(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['users', userId, 'tracks', 'published'] as const,
+    queryFn: () => listPublishedTracksByUser(userId!),
+    enabled: !!userId,
   });
 }

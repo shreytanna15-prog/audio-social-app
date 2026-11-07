@@ -13,6 +13,7 @@ import { PROJECT_VERSION, type AudioProject } from '@/features/audio/types/proje
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
+import { leaveStudioSession } from '@/features/studio/utils/leave-studio-session';
 import { resolveStudioProjectId } from '@/features/studio/utils/resolve-studio-project-id';
 import { getErrorMessage } from '@/core/api/errors';
 import { useSaveTrackDraft } from '@/features/tracks';
@@ -34,10 +35,13 @@ function createPendingMultitrackProject(): AudioProject {
  * No attach / soft-clean / punch logic lives here — that stays in the session.
  */
 export function useMultitrackStudioScreen() {
-  const { replace } = useRouter();
+  const { replace, dismissTo, back, canGoBack } = useRouter();
   const { projectId: projectIdParam } = useLocalSearchParams<{
     projectId?: string;
   }>();
+  const resolvedProjectId = Array.isArray(projectIdParam)
+    ? projectIdParam[0]
+    : projectIdParam;
   const saveDraft = useSaveTrackDraft();
   const isSaving = saveDraft.isPending;
 
@@ -47,8 +51,11 @@ export function useMultitrackStudioScreen() {
   }, []);
 
   const leaveToHome = useCallback(() => {
-    replace('/(tabs)');
-  }, [replace]);
+    leaveStudioSession(
+      { back, canGoBack, dismissTo, replace },
+      resolvedProjectId,
+    );
+  }, [back, canGoBack, dismissTo, replace, resolvedProjectId]);
 
   const handleSave = useCallback(
     async (payload: StudioSavePayload): Promise<boolean> => {

@@ -4,9 +4,25 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
+import { useAlbums, useCreateAlbum, useDeleteAlbum } from '@/features/albums';
 import { loadProjectById } from '@/features/audio/data/project-repository';
-import { useProjects } from '@/features/projects/api/hooks';
+import {
+  useCreatePlaylist,
+  useDeletePlaylist,
+  usePlaylists,
+} from '@/features/playlists';
+import { useDeleteProject, useProjects } from '@/features/projects/api/hooks';
+import type { ProjectSummary } from '@/features/projects';
 import { mapProjectSummary } from '@/features/projects/utils/map-project';
+import { usePlayerStore } from '@/features/player';
+import {
+  useLikedTracks,
+  useSavedAlbums,
+  useSavedPlaylists,
+  useUnlikeTrack,
+  useUnsaveAlbum,
+  useUnsavePlaylist,
+} from '@/features/saves';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
 import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
@@ -23,15 +39,29 @@ import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { LibraryAddButton } from '../components/library-add-button';
 import { LibraryAlbumsPanel } from '../components/library-albums-panel';
 import { LibraryAudioPanel } from '../components/library-audio-panel';
+import { LibraryCreateCollectionDialog } from '../components/library-create-collection-dialog';
 import { LibraryPlaylistsPanel } from '../components/library-playlists-panel';
 import { LibraryProjectsPanel } from '../components/library-projects-panel';
+import { LibrarySavedPanel } from '../components/library-saved-panel';
 import { LibrarySegmentTabs } from '../components/library-segment-tabs';
 import { PublishTrackSheet } from '../components/publish-track-sheet';
+import type {
+  LibraryAlbumItem,
+  LibraryAudioFilter,
+  LibraryAudioItem,
+  LibraryLikedTrackItem,
+  LibraryPlaylistItem,
+  LibraryPlaylistVisibility,
+  LibrarySavedCollectionItem,
+  LibraryTab,
+} from '../types';
 import {
-  LIBRARY_ALBUM_ITEMS,
-  LIBRARY_PLAYLIST_ITEMS,
-} from '../data/library.fixtures';
-import type { LibraryAudioFilter, LibraryAudioItem, LibraryTab } from '../types';
+  mapAlbumToLibraryItem,
+  mapPlaylistToLibraryItem,
+  mapSavedAlbumToLibraryItem,
+  mapSavedPlaylistToLibraryItem,
+} from '../utils/map-collections-to-library-items';
+import { mapLikedTrackToLibraryItem } from '../utils/map-liked-track-to-library-item';
 import { mapTrackToLibraryItem } from '../utils/map-track-to-library-item';
 
 export function LibraryScreen() {
@@ -50,18 +80,53 @@ export function LibraryScreen() {
   const deleteTrack = useDeleteTrack();
   const backupTrack = useBackupTrack();
   const unpublishTrack = useUnpublishTrack();
+  const likedTracksQuery = useLikedTracks();
+  const unlikeTrack = useUnlikeTrack();
+  const playlistsQuery = usePlaylists();
+  const albumsQuery = useAlbums();
+  const savedPlaylistsQuery = useSavedPlaylists();
+  const savedAlbumsQuery = useSavedAlbums();
+  const createPlaylist = useCreatePlaylist();
+  const createAlbum = useCreateAlbum();
+  const deletePlaylist = useDeletePlaylist();
+  const deleteAlbum = useDeleteAlbum();
+  const deleteProject = useDeleteProject();
+  const unsavePlaylist = useUnsavePlaylist();
+  const unsaveAlbum = useUnsaveAlbum();
+  const [createKind, setCreateKind] = useState<'playlist' | 'album' | null>(
+    null,
+  );
+  const play = usePlayerStore((s) => s.play);
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
   const clearProjectId = useStudioProjectContextStore((s) => s.clearProjectId);
 
   const refetchTracks = tracksQuery.refetch;
   const refetchProjects = projectsQuery.refetch;
+  const refetchLikedTracks = likedTracksQuery.refetch;
+  const refetchPlaylists = playlistsQuery.refetch;
+  const refetchAlbums = albumsQuery.refetch;
+  const refetchSavedPlaylists = savedPlaylistsQuery.refetch;
+  const refetchSavedAlbums = savedAlbumsQuery.refetch;
 
   useFocusEffect(
     useCallback(() => {
       void refetchTracks();
       void refetchProjects();
-    }, [refetchProjects, refetchTracks]),
+      void refetchLikedTracks();
+      void refetchPlaylists();
+      void refetchAlbums();
+      void refetchSavedPlaylists();
+      void refetchSavedAlbums();
+    }, [
+      refetchAlbums,
+      refetchLikedTracks,
+      refetchPlaylists,
+      refetchProjects,
+      refetchSavedAlbums,
+      refetchSavedPlaylists,
+      refetchTracks,
+    ]),
   );
 
   const audioItems = useMemo(
@@ -73,6 +138,278 @@ export function LibraryScreen() {
     () => (projectsQuery.data ?? []).map(mapProjectSummary),
     [projectsQuery.data],
   );
+
+  const likedItems = useMemo(
+    () =>
+      (likedTracksQuery.data ?? []).flatMap((dto) => {
+        const item = mapLikedTrackToLibraryItem(dto);
+        return item ? [item] : [];
+      }),
+    [likedTracksQuery.data],
+  );
+
+  const playlistItems = useMemo(
+    () => (playlistsQuery.data ?? []).map(mapPlaylistToLibraryItem),
+    [playlistsQuery.data],
+  );
+
+  const albumItems = useMemo(
+    () => (albumsQuery.data ?? []).map(mapAlbumToLibraryItem),
+    [albumsQuery.data],
+  );
+
+  const savedPlaylistItems = useMemo(
+    () => (savedPlaylistsQuery.data ?? []).map(mapSavedPlaylistToLibraryItem),
+    [savedPlaylistsQuery.data],
+  );
+
+  const savedAlbumItems = useMemo(
+    () => (savedAlbumsQuery.data ?? []).map(mapSavedAlbumToLibraryItem),
+    [savedAlbumsQuery.data],
+  );
+
+  const submitCreateCollection = (input: {
+    title: string;
+    visibility: LibraryPlaylistVisibility;
+  }) => {
+    if (!input.title) {
+      showError('Title required', 'Give it a name.');
+      return;
+    }
+
+    if (createKind === 'playlist') {
+      void createPlaylist
+        .mutateAsync({
+          title: input.title,
+          visibility: input.visibility === 'public' ? 'PUBLIC' : 'PRIVATE',
+        })
+        .then(() => setCreateKind(null))
+        .catch((error) => {
+          showError(
+            'Could not create playlist',
+            getErrorMessage(error, 'Try again.'),
+          );
+        });
+      return;
+    }
+
+    void createAlbum
+      .mutateAsync({ title: input.title })
+      .then(() => setCreateKind(null))
+      .catch((error) => {
+        showError(
+          'Could not create album',
+          getErrorMessage(error, 'Try again.'),
+        );
+      });
+  };
+
+  const openPlaylist = (item: LibraryPlaylistItem) => {
+    push({
+      pathname: '/playlists/[id]',
+      params: { id: item.id, title: item.title },
+    });
+  };
+
+  const openAlbum = (item: LibraryAlbumItem) => {
+    push({
+      pathname: '/albums/[id]',
+      params: { id: item.id, title: item.title },
+    });
+  };
+
+  const openProject = (project: ProjectSummary) => {
+    push({
+      pathname: '/projects/[id]',
+      params: { id: project.id, title: project.title },
+    });
+  };
+
+  const openPlaylistMenu = (item: LibraryPlaylistItem) => {
+    show({
+      title: item.title,
+      actions: [
+        {
+          label: 'Open',
+          variant: 'soft',
+          onPress: () => openPlaylist(item),
+        },
+        {
+          label: 'Delete playlist…',
+          variant: 'destructive',
+          onPress: () => {
+            confirm(
+              'Delete playlist?',
+              'Tracks stay in your library. Only the playlist is removed.',
+              {
+                confirmLabel: 'Delete',
+                destructive: true,
+                onConfirm: () => {
+                  void deletePlaylist.mutateAsync(item.id).catch((error) => {
+                    showError(
+                      'Could not delete',
+                      getErrorMessage(error, 'Try again.'),
+                    );
+                  });
+                },
+              },
+            );
+          },
+        },
+        { label: 'Cancel', variant: 'ghost' },
+      ],
+    });
+  };
+
+  const openAlbumMenu = (item: LibraryAlbumItem) => {
+    show({
+      title: item.title,
+      actions: [
+        {
+          label: 'Open',
+          variant: 'soft',
+          onPress: () => openAlbum(item),
+        },
+        {
+          label: 'Delete album…',
+          variant: 'destructive',
+          onPress: () => {
+            confirm(
+              'Delete album?',
+              'Tracks stay published as singles. Only the album is removed.',
+              {
+                confirmLabel: 'Delete',
+                destructive: true,
+                onConfirm: () => {
+                  void deleteAlbum.mutateAsync(item.id).catch((error) => {
+                    showError(
+                      'Could not delete',
+                      getErrorMessage(error, 'Try again.'),
+                    );
+                  });
+                },
+              },
+            );
+          },
+        },
+        { label: 'Cancel', variant: 'ghost' },
+      ],
+    });
+  };
+
+  const openProjectMenu = (project: ProjectSummary) => {
+    show({
+      title: project.title,
+      actions: [
+        {
+          label: 'Open',
+          variant: 'soft',
+          onPress: () => openProject(project),
+        },
+        {
+          label: 'Delete project…',
+          variant: 'destructive',
+          onPress: () => {
+            show({
+              title: 'Delete project?',
+              message:
+                'Keep the tracks in your library, or delete the tracks too.',
+              actions: [
+                { label: 'Cancel', variant: 'ghost' },
+                {
+                  label: 'Keep tracks',
+                  variant: 'soft',
+                  onPress: () => {
+                    void deleteProject
+                      .mutateAsync({ id: project.id, deleteTracks: false })
+                      .catch((error) => {
+                        showError(
+                          'Could not delete',
+                          getErrorMessage(error, 'Try again.'),
+                        );
+                      });
+                  },
+                },
+                {
+                  label: 'Delete tracks too',
+                  variant: 'destructive',
+                  onPress: () => {
+                    void deleteProject
+                      .mutateAsync({ id: project.id, deleteTracks: true })
+                      .catch((error) => {
+                        showError(
+                          'Could not delete',
+                          getErrorMessage(error, 'Try again.'),
+                        );
+                      });
+                  },
+                },
+              ],
+            });
+          },
+        },
+        { label: 'Cancel', variant: 'ghost' },
+      ],
+    });
+  };
+
+  const openSavedCollection = (item: LibrarySavedCollectionItem) => {
+    if (!item.available) {
+      showError(item.title, 'This is no longer available.');
+      return;
+    }
+
+    push({
+      pathname: item.kind === 'playlist' ? '/playlists/[id]' : '/albums/[id]',
+      params: { id: item.id, title: item.title },
+    });
+  };
+
+  const openSavedCollectionMenu = (item: LibrarySavedCollectionItem) => {
+    const unsave = item.kind === 'playlist' ? unsavePlaylist : unsaveAlbum;
+
+    show({
+      title: item.title,
+      actions: [
+        { label: 'Cancel', variant: 'ghost' },
+        {
+          label: 'Remove from saved',
+          variant: 'destructive',
+          onPress: () => {
+            void unsave.mutateAsync(item.id).catch((error) => {
+              showError(
+                'Could not remove',
+                getErrorMessage(error, 'Try again.'),
+              );
+            });
+          },
+        },
+      ],
+    });
+  };
+
+  const openLikedTrack = (item: LibraryLikedTrackItem) => {
+    if (!item.available) {
+      showError(item.title, 'This track is no longer available.');
+      return;
+    }
+
+    play({
+      id: item.id,
+      title: item.title,
+      artist: item.artist,
+      coverUrl: item.coverUrl ?? '',
+      artistAvatarUrl: item.artistAvatarUrl,
+      likeCountLabel: String(item.likeCount),
+      durationSec: item.durationSec,
+    });
+  };
+
+  const unlikeItem = (item: LibraryLikedTrackItem) => {
+    void unlikeTrack.mutateAsync(item.id).catch((error) => {
+      showError('Could not unlike', getErrorMessage(error, 'Try again.'));
+    });
+  };
 
   const openCreate = () => {
     clearProjectId();
@@ -285,26 +622,70 @@ export function LibraryScreen() {
             onRetry={() => {
               void projectsQuery.refetch();
             }}
-            onProjectPress={(project) =>
-              push({
-                pathname: '/projects/[id]',
-                params: { id: project.id, title: project.title },
-              })
-            }
+            onProjectPress={openProject}
+            onMorePress={openProjectMenu}
           />
         ) : null}
 
         {activeTab === 'albums' ? (
           <LibraryAlbumsPanel
-            items={LIBRARY_ALBUM_ITEMS}
+            items={albumItems}
             contentBottomInset={listBottomInset}
+            isLoading={albumsQuery.isLoading}
+            isError={albumsQuery.isError}
+            onRetry={() => {
+              void albumsQuery.refetch();
+            }}
+            onItemPress={openAlbum}
+            onMorePress={openAlbumMenu}
+            onCreatePress={() => setCreateKind('album')}
           />
         ) : null}
 
         {activeTab === 'playlists' ? (
           <LibraryPlaylistsPanel
-            items={LIBRARY_PLAYLIST_ITEMS}
+            items={playlistItems}
             contentBottomInset={listBottomInset}
+            isLoading={playlistsQuery.isLoading}
+            isError={playlistsQuery.isError}
+            onRetry={() => {
+              void playlistsQuery.refetch();
+            }}
+            onItemPress={openPlaylist}
+            onMorePress={openPlaylistMenu}
+            onCreatePress={() => setCreateKind('playlist')}
+          />
+        ) : null}
+
+        {activeTab === 'saved' ? (
+          <LibrarySavedPanel
+            likedTracks={likedItems}
+            savedPlaylists={savedPlaylistItems}
+            savedAlbums={savedAlbumItems}
+            playlistsState={{
+              isLoading: savedPlaylistsQuery.isLoading,
+              isError: savedPlaylistsQuery.isError,
+              onRetry: () => {
+                void savedPlaylistsQuery.refetch();
+              },
+            }}
+            albumsState={{
+              isLoading: savedAlbumsQuery.isLoading,
+              isError: savedAlbumsQuery.isError,
+              onRetry: () => {
+                void savedAlbumsQuery.refetch();
+              },
+            }}
+            onTrackPress={openLikedTrack}
+            onUnlikePress={unlikeItem}
+            onCollectionPress={openSavedCollection}
+            onCollectionMorePress={openSavedCollectionMenu}
+            contentBottomInset={listBottomInset}
+            isLoading={likedTracksQuery.isLoading}
+            isError={likedTracksQuery.isError}
+            onRetry={() => {
+              void likedTracksQuery.refetch();
+            }}
           />
         ) : null}
       </View>
@@ -320,6 +701,17 @@ export function LibraryScreen() {
           showError('Published', 'Your track is live.');
         }}
         onError={showError}
+      />
+
+      <LibraryCreateCollectionDialog
+        key={createKind ?? 'closed'}
+        kind={createKind ?? 'playlist'}
+        open={createKind != null}
+        onOpenChange={(open) => {
+          if (!open) setCreateKind(null);
+        }}
+        isPending={createPlaylist.isPending || createAlbum.isPending}
+        onSubmit={submitCreateCollection}
       />
 
       {dialog}

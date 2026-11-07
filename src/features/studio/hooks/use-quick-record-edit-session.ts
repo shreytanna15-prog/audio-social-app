@@ -6,11 +6,12 @@ import { getErrorMessage } from '@/core/api/errors';
 import { hasRecordableContent } from '@/features/audio/domain/project';
 import { useQuickRecordSession } from '@/features/studio/hooks/use-quick-record-session';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
+import { leaveStudioSession } from '@/features/studio/utils/leave-studio-session';
 import { resolveStudioProjectId } from '@/features/studio/utils/resolve-studio-project-id';
 import { useSaveTrackDraft } from '@/features/tracks';
 
 export function useQuickRecordEditSession() {
-  const { back, canGoBack, replace } = useRouter();
+  const { back, canGoBack, replace, dismissTo } = useRouter();
   const { projectId: projectIdParam } = useLocalSearchParams<{
     projectId?: string;
   }>();
@@ -78,17 +79,22 @@ export function useQuickRecordEditSession() {
       }
 
       const title = useQuickRecordStore.getState().title;
+      const projectId = resolveStudioProjectId(projectIdParam);
 
       await saveDraft.mutateAsync({
         project: latest,
         mixdownUri: layer.stemUri,
         title,
         kind: 'SINGLE',
-        projectId: resolveStudioProjectId(projectIdParam),
+        projectId,
       });
 
       resetStore();
-      session.leaveToHome();
+      leaveStudioSession(
+        { back, canGoBack, dismissTo, replace },
+        projectId,
+        { unwindToProject: Boolean(projectId) },
+      );
       return true;
     } catch (error) {
       console.log('Quick Record save failed:', error);
@@ -105,7 +111,17 @@ export function useQuickRecordEditSession() {
         setIsSaving(false);
       }
     }
-  }, [isSaving, projectIdParam, resetStore, saveDraft, session]);
+  }, [
+    back,
+    canGoBack,
+    dismissTo,
+    isSaving,
+    projectIdParam,
+    replace,
+    resetStore,
+    saveDraft,
+    session,
+  ]);
 
   return {
     ...session,
