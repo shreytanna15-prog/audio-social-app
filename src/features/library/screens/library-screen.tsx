@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
 import { useAlbums, useCreateAlbum, useDeleteAlbum } from '@/features/albums';
-import { loadProjectById } from '@/features/audio/data/project-repository';
+import { loadProjectBundle } from '@/features/audio/data/project-repository';
 import {
   useCreatePlaylist,
   useDeletePlaylist,
@@ -471,19 +471,20 @@ export function LibraryScreen() {
 
   const openEditorForItem = (item: LibraryAudioItem) => {
     void (async () => {
-      const project = await loadProjectById(item.id);
-      if (!project) {
+      const loaded = await loadProjectBundle(item.id);
+      if (!loaded) {
         showError(item.title, 'Could not load this take locally.');
         return;
       }
 
       if (item.kind === 'MULTI') {
-        setPendingProject(project);
+        setPendingProject(loaded.project);
         push('/studio/multitrack' as Href);
         return;
       }
 
-      hydrateFromImport(project, item.title);
+      // Prefer on-disk title so renames survive reopen even if list cache lags.
+      hydrateFromImport(loaded.project, loaded.title || item.title, item.id);
       push('/studio/quick-record/edit' as Href);
     })();
   };

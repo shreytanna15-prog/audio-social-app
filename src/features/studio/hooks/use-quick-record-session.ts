@@ -2,8 +2,10 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { updateProjectTitle } from '@/features/audio/data/project-repository';
 import { discardPreviewRecording } from '@/features/audio/data/recording-repository';
 import { fromStoredEditChain } from '@/features/audio/domain/edit-chain-persistence';
+import { updateTrack } from '@/features/tracks/api/service';
 import {
   createLayer,
   hasRecordableContent,
@@ -62,8 +64,23 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const title = useQuickRecordStore((state) => state.title);
   const initialFingerprint = useQuickRecordStore((state) => state.initialFingerprint);
   const setStoreProject = useQuickRecordStore((state) => state.setProject);
-  const setTitle = useQuickRecordStore((state) => state.setTitle);
+  const setStoreTitle = useQuickRecordStore((state) => state.setTitle);
   const resetStore = useQuickRecordStore((state) => state.reset);
+
+  const setTitle = useCallback((nextTitle: string) => {
+    setStoreTitle(nextTitle);
+    const { title, trackId } = useQuickRecordStore.getState();
+    if (!trackId) {
+      return;
+    }
+    // Rename dialog Save must survive leave/reopen — write disk + draft API.
+    void updateProjectTitle(trackId, title).catch(() => {
+      // Keep in-memory title if local project file is missing.
+    });
+    void updateTrack(trackId, { title }).catch(() => {
+      // Offline / not yet synced draft — local file is enough for reopen.
+    });
+  }, [setStoreTitle]);
   const applyStem = useQuickRecordStore((state) => state.applyStem);
   const applyCaptureFxStem = useQuickRecordStore((state) => state.applyCaptureFxStem);
   const setCaptureFxSelectionStore = useQuickRecordStore(

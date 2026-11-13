@@ -88,12 +88,18 @@ export function fingerprintQuickRecordProject(
 type QuickRecordStore = {
   project: AudioProject;
   title: string;
+  /** Set when editing an existing library take — save updates instead of create. */
+  trackId: string | null;
   initialFingerprint: string;
   captureFxSelection: EditChainSelection;
   setProject: (project: AudioProject) => void;
   setTitle: (title: string) => void;
   setCaptureFxSelection: (selection: EditChainSelection) => void;
-  hydrateFromImport: (project: AudioProject, title?: string) => void;
+  hydrateFromImport: (
+    project: AudioProject,
+    title?: string,
+    trackId?: string | null,
+  ) => void;
   applyStem: (
     layerId: string,
     stemUri: string,
@@ -109,6 +115,7 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
   return {
     project: initial,
     title: DEFAULT_QUICK_RECORD_TITLE,
+    trackId: null,
     initialFingerprint: fingerprintQuickRecordProject(
       initial,
       DEFAULT_QUICK_RECORD_TITLE,
@@ -127,11 +134,16 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
         project: withCaptureFxOnVocal(current.project, next),
       });
     },
-    hydrateFromImport: (project, title = DEFAULT_QUICK_RECORD_TITLE) => {
+    hydrateFromImport: (
+      project,
+      title = DEFAULT_QUICK_RECORD_TITLE,
+      trackId = null,
+    ) => {
       const nextTitle = title.trim() || DEFAULT_QUICK_RECORD_TITLE;
       set({
         project,
         title: nextTitle,
+        trackId: trackId?.trim() ? trackId.trim() : null,
         captureFxSelection: captureFxFromProject(project),
         initialFingerprint: fingerprintQuickRecordProject(project, nextTitle),
       });
@@ -166,6 +178,7 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
       set({
         project: next,
         title: DEFAULT_QUICK_RECORD_TITLE,
+        trackId: null,
         captureFxSelection: EMPTY_EDIT_CHAIN,
         initialFingerprint: fingerprintQuickRecordProject(
           next,

@@ -232,7 +232,20 @@ async function cleanupPendingUris(
   }
 }
 
+export type LoadedProjectBundle = {
+  id: string;
+  title: string;
+  project: AudioProject;
+};
+
 export async function loadProjectById(trackId: string): Promise<AudioProject | null> {
+  const loaded = await loadProjectBundle(trackId);
+  return loaded?.project ?? null;
+}
+
+export async function loadProjectBundle(
+  trackId: string,
+): Promise<LoadedProjectBundle | null> {
   const projectUri = getRecordingProjectFileUri(trackId);
 
   try {
@@ -243,13 +256,37 @@ export async function loadProjectById(trackId: string): Promise<AudioProject | n
     }
 
     return {
-      version: PROJECT_VERSION,
-      selectedLayerId: parsed.selectedLayerId,
-      layers: parsed.layers.map(fromStoredLayer),
+      id: typeof parsed.id === 'string' && parsed.id ? parsed.id : trackId,
+      title:
+        typeof parsed.title === 'string' && parsed.title.trim()
+          ? parsed.title.trim()
+          : 'Untitled take',
+      project: {
+        version: PROJECT_VERSION,
+        selectedLayerId: parsed.selectedLayerId,
+        layers: parsed.layers.map(fromStoredLayer),
+      },
     };
   } catch {
     return null;
   }
+}
+
+/** Persist rename without rewriting stems. */
+export async function updateProjectTitle(
+  trackId: string,
+  title: string,
+): Promise<void> {
+  const projectUri = getRecordingProjectFileUri(trackId);
+  const contents = await readAsStringAsync(projectUri);
+  const parsed = JSON.parse(contents) as StoredAudioProject;
+  if (!parsed || !Array.isArray(parsed.layers)) {
+    throw new Error(`Project not found: ${trackId}`);
+  }
+
+  parsed.title = title.trim() || 'Untitled take';
+  parsed.updatedAt = new Date().toISOString();
+  await writeAsStringAsync(projectUri, JSON.stringify(parsed, null, 2));
 }
 
 export async function loadProjectForRecording(

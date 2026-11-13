@@ -78,7 +78,7 @@ export function useQuickRecordEditSession() {
         return false;
       }
 
-      const title = useQuickRecordStore.getState().title;
+      const { title, trackId } = useQuickRecordStore.getState();
       const projectId = resolveStudioProjectId(projectIdParam);
 
       await saveDraft.mutateAsync({
@@ -87,6 +87,7 @@ export function useQuickRecordEditSession() {
         title,
         kind: 'SINGLE',
         projectId,
+        trackId: trackId ?? undefined,
       });
 
       resetStore();
