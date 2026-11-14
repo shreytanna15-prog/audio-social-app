@@ -8,13 +8,16 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 
 import {
   LIVE_WINDOW_EDGE_SECONDS,
-  LIVE_WINDOW_FOLLOW_LEAD_SECONDS,
   LIVE_WINDOW_FOLLOW_RATIO,
   LIVE_WINDOW_SECONDS,
-  buildLiveWindowTicks,
+  buildLiveWindowRulerMarks,
   clampLiveWindowStart,
   followLiveWindowStart,
   formatLiveWindowTick,
@@ -34,6 +37,9 @@ export { LIVE_WINDOW_SECONDS };
 const DEFAULT_WAVE_HEIGHT = 140;
 const EMPTY_BAR_COUNT = 56;
 const BAR_WIDTH = 3;
+const RULER_HEIGHT = 28;
+/** Label row above ticks — playhead starts below this so numbers stay clear. */
+const RULER_LABEL_INSET = 16;
 
 type QuickRecordTimelineProps = {
   isRecording: boolean;
@@ -41,6 +47,8 @@ type QuickRecordTimelineProps = {
   recordOriginSeconds?: number;
   /** Controlled 30s window start (shared with the waveform). */
   windowStartSeconds?: number;
+  /** Playhead time while idle / scrubbing / playing. */
+  playheadSeconds?: number;
 };
 
 /**
@@ -51,28 +59,69 @@ export function QuickRecordTimeline({
   isRecording,
   recordOriginSeconds = 0,
   windowStartSeconds = 0,
+  playheadSeconds = 0,
 }: QuickRecordTimelineProps) {
   const elapsed = useCaptureElapsed(isRecording);
   const timelineSeconds = isRecording
     ? Math.max(0, recordOriginSeconds) + elapsed
-    : 0;
+    : Math.max(0, playheadSeconds);
 
   const windowStart = isRecording
     ? followLiveWindowStart(timelineSeconds)
     : Math.max(0, windowStartSeconds);
   const windowEnd = windowStart + LIVE_WINDOW_SECONDS;
-  const ticks = buildLiveWindowTicks(windowStart, windowEnd);
+  const marks = buildLiveWindowRulerMarks(windowStart, windowEnd);
+  const caretSeconds = isRecording
+    ? timelineSeconds
+    : Math.max(0, playheadSeconds);
+  const nowRatio = Math.min(
+    1,
+    Math.max(0, (caretSeconds - windowStart) / LIVE_WINDOW_SECONDS),
+  );
 
   return (
-    <View className="flex-row justify-between pt-1">
-      {ticks.map((at, index) => (
-        <Text
-          key={`tick-${index}-${Math.floor(at * 10) / 10}`}
-          variant="caption"
-          className="text-slate-muted">
-          {formatLiveWindowTick(at)}
-        </Text>
-      ))}
+    <View style={styles.ruler}>
+      <View style={styles.rulerLabels}>
+        {marks
+          .filter((mark) => mark.major)
+          .map((mark) => (
+            <Text
+              key={`label-${mark.at}`}
+              variant="caption"
+              style={[
+                styles.rulerLabel,
+                {
+                  left: `${mark.ratio * 100}%`,
+                  transform: [
+                    {
+                      translateX:
+                        mark.ratio <= 0.02 ? 0 : mark.ratio >= 0.98 ? -26 : -13,
+                    },
+                  ],
+                },
+              ]}>
+              {formatLiveWindowTick(mark.at)}
+            </Text>
+          ))}
+      </View>
+      <View style={styles.rulerTrack}>
+        <View style={styles.rulerBaseline} />
+        {marks.map((mark) => (
+          <View
+            key={`tick-${mark.at}`}
+            pointerEvents="none"
+            style={[
+              styles.rulerTick,
+              mark.major ? styles.rulerTickMajor : styles.rulerTickMinor,
+              { left: `${mark.ratio * 100}%` },
+            ]}
+          />
+        ))}
+        <View
+          pointerEvents="none"
+          style={[styles.nowCaret, { left: `${nowRatio * 100}%` }]}
+        />
+      </View>
     </View>
   );
 }
@@ -94,35 +143,95 @@ type QuickRecordWaveformProps = {
   onScrubEnd?: (seconds: number) => void;
   /** Waveform canvas height — capture card uses a shorter strip; edit keeps default. */
   waveHeight?: number;
+  /** Ruler shares the same scroll as the wave. @default true */
+  showRuler?: boolean;
 };
 
-function LiveMeterWave({
-  viewportWidth,
-  waveHeight,
+/** Absolute-time ruler — positions are `at * pps`; parent supplies the scroll. */
+function RulerRail({
+  pps,
+  rangeStart,
+  rangeEnd,
+  contentWidth,
 }: {
-  viewportWidth: number;
-  waveHeight: number;
+  pps: number;
+  rangeStart: number;
+  rangeEnd: number;
+  contentWidth: number;
 }) {
+  const marks = buildLiveWindowRulerMarks(rangeStart, rangeEnd);
+
+  return (
+    <View style={[styles.ruler, { width: contentWidth }]}>
+      <View style={[styles.rulerLabels, { width: contentWidth }]}>
+        {marks
+          .filter((mark) => mark.major)
+          .map((mark) => (
+            <Text
+              key={`label-${mark.at}`}
+              variant="caption"
+              style={[
+                styles.rulerLabel,
+                {
+                  left: mark.at * pps,
+                  transform: [{ translateX: mark.at <= 0.01 ? 0 : -13 }],
+                },
+              ]}>
+              {formatLiveWindowTick(mark.at)}
+            </Text>
+          ))}
+      </View>
+      <View style={[styles.rulerTrack, { width: contentWidth }]}>
+        <View style={styles.rulerBaseline} />
+        {marks.map((mark) => (
+          <View
+            key={`tick-${mark.at}`}
+            pointerEvents="none"
+            style={[
+              styles.rulerTick,
+              mark.major ? styles.rulerTickMajor : styles.rulerTickMinor,
+              { left: mark.at * pps },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function useLiveMeterBars(
+  pps: number,
+  scrollX?: { set: (value: number) => void },
+  timelineOffsetSeconds = 0,
+) {
   const [bars, setBars] = useState<number[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const pendingRef = useRef(0);
   const elapsedRef = useRef(0);
-  const pps = viewportWidth > 0 ? viewportWidth / LIVE_WINDOW_SECONDS : 0;
   const ppsRef = useRef(pps);
+  const offsetRef = useRef(timelineOffsetSeconds);
   ppsRef.current = pps;
+  offsetRef.current = timelineOffsetSeconds;
 
   useEffect(() => {
     const interval = setInterval(() => {
       const tick = recordingSessionService.getTick();
       const level = normalizeMetering(tick.metering);
       const seconds = tick.durationMillis / 1000;
+      const ppsNow = ppsRef.current;
       pendingRef.current = Math.max(pendingRef.current, level);
       if (Math.abs(seconds - elapsedRef.current) >= 0.05) {
         elapsedRef.current = seconds;
         setElapsed(seconds);
       }
 
-      const needed = slotBarCount(liveClipWidthPx(seconds, ppsRef.current));
+      if (scrollX && ppsNow > 0) {
+        scrollX.set(
+          -followLiveWindowStart(offsetRef.current + seconds) * ppsNow,
+        );
+      }
+
+      const needed = slotBarCount(liveClipWidthPx(seconds, ppsNow));
       if (needed <= 0) {
         return;
       }
@@ -131,7 +240,6 @@ function LiveMeterWave({
         if (previous.length >= needed) {
           return previous;
         }
-
         const next = previous.slice();
         while (next.length < needed) {
           next.push(pendingRef.current);
@@ -141,250 +249,196 @@ function LiveMeterWave({
       });
     }, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [scrollX]);
+
+  return { bars, elapsed };
+}
+
+/**
+ * Live first-take: one translateX scrolls ruler + wave together.
+ * Playhead stays fixed in the viewport.
+ */
+function SharedScrollLiveCapture({
+  viewportWidth,
+  waveHeight,
+  showRuler,
+}: {
+  viewportWidth: number;
+  waveHeight: number;
+  showRuler: boolean;
+}) {
+  const pps = liveWindowPxPerSecond(viewportWidth);
+  const scrollX = useSharedValue(0);
+  const { bars, elapsed } = useLiveMeterBars(pps, scrollX);
+
+  const contentStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: scrollX.get() }],
+  }));
 
   if (viewportWidth <= 0 || pps <= 0) {
     return null;
   }
 
-  const following = elapsed >= LIVE_WINDOW_FOLLOW_LEAD_SECONDS;
-  const historyWidth = following
-    ? LIVE_WINDOW_FOLLOW_LEAD_SECONDS * pps
-    : liveClipWidthPx(elapsed, pps);
-  const visibleWidth = Math.min(viewportWidth, Math.max(0, historyWidth));
-  if (visibleWidth <= 0) {
-    return null;
-  }
-
-  const historySlots = slotBarCount(visibleWidth);
+  const windowStart = followLiveWindowStart(elapsed);
+  const contentWidth =
+    Math.max(elapsed, LIVE_WINDOW_SECONDS) * pps + viewportWidth * 0.25;
+  const rangeStart = Math.max(0, windowStart - 1);
+  const rangeEnd = windowStart + LIVE_WINDOW_SECONDS + 1;
+  const waveLeft = windowStart * pps;
+  const waveWidth = Math.max(0, elapsed * pps - waveLeft);
+  const historySlots = slotBarCount(waveWidth);
   const visibleBars =
     bars.length <= historySlots ? bars : bars.slice(bars.length - historySlots);
-
-  return (
-    <View style={{ width: visibleWidth, alignSelf: 'flex-start' }}>
-      <StudioPeakWaveform
-        peaks={visibleBars}
-        height={waveHeight}
-        width={visibleWidth}
-        color="#A078FF"
-        fillSlots={false}
-        pinBars
-        progress={1}
-      />
-    </View>
+  const playheadLeft = playheadLeftInLiveWindow(
+    elapsed,
+    windowStart,
+    viewportWidth,
   );
-}
-
-function QuickRecordLiveCapture({
-  viewportWidth,
-  waveHeight,
-}: {
-  viewportWidth: number;
-  waveHeight: number;
-}) {
-  const elapsed = useCaptureElapsed(true);
-  const windowStart = followLiveWindowStart(elapsed);
-  const playheadLeft = playheadLeftInLiveWindow(elapsed, windowStart, viewportWidth);
+  const stripHeight = (showRuler ? RULER_HEIGHT : 0) + waveHeight;
 
   return (
-    <>
-      <LiveMeterWave viewportWidth={viewportWidth} waveHeight={waveHeight} />
-      <Playhead left={playheadLeft} />
-    </>
-  );
-}
-
-function StoredTakeWave({
-  peaks,
-  viewportWidth,
-  durationSeconds,
-  playheadSeconds,
-  windowStart,
-  showPlayhead = true,
-  waveHeight,
-}: {
-  peaks: number[];
-  viewportWidth: number;
-  durationSeconds: number;
-  playheadSeconds: number;
-  windowStart: number;
-  showPlayhead?: boolean;
-  waveHeight: number;
-}) {
-  const takeDuration = Math.max(durationSeconds, 0.1);
-  const playhead = Math.max(0, playheadSeconds);
-  const pps = viewportWidth / LIVE_WINDOW_SECONDS;
-  const takeStartX = (0 - windowStart) * pps;
-  const takeWidth = Math.max(1, takeDuration * pps);
-  const takeProgress = Math.min(1, Math.max(0, playhead / takeDuration));
-  const playheadLeft = playheadLeftInLiveWindow(playhead, windowStart, viewportWidth);
-
-  return (
-    <>
-      <View style={{ width: viewportWidth, overflow: 'hidden' }}>
-        <View style={{ marginLeft: takeStartX, width: takeWidth }}>
-          <StudioPeakWaveform
-            peaks={peaks}
-            height={waveHeight}
-            width={takeWidth}
-            color="#D0BCFF"
-            progress={takeProgress}
+    <View style={{ width: viewportWidth, height: stripHeight, overflow: 'hidden' }}>
+      <Animated.View style={[{ width: contentWidth }, contentStyle]}>
+        {showRuler ? (
+          <RulerRail
+            pps={pps}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            contentWidth={contentWidth}
           />
+        ) : null}
+        <View style={{ height: waveHeight, justifyContent: 'center' }}>
+          {waveWidth > 1 && visibleBars.length > 0 ? (
+            <View style={{ marginLeft: waveLeft, width: waveWidth }}>
+              <StudioPeakWaveform
+                peaks={visibleBars}
+                height={waveHeight}
+                width={waveWidth}
+                color="#A078FF"
+                fillSlots={false}
+                pinBars
+                progress={1}
+              />
+            </View>
+          ) : null}
         </View>
-      </View>
-      {showPlayhead ? <Playhead left={playheadLeft} /> : null}
-    </>
-  );
-}
-
-function PunchInLiveMeter({
-  viewportWidth,
-  windowStart,
-  originSeconds,
-  waveHeight,
-}: {
-  viewportWidth: number;
-  windowStart: number;
-  originSeconds: number;
-  waveHeight: number;
-}) {
-  const [bars, setBars] = useState<number[]>([]);
-  const [elapsed, setElapsed] = useState(0);
-  const pendingRef = useRef(0);
-  const pps = viewportWidth > 0 ? viewportWidth / LIVE_WINDOW_SECONDS : 0;
-  const ppsRef = useRef(pps);
-  ppsRef.current = pps;
-
-  const elapsedRef = useRef(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const tick = recordingSessionService.getTick();
-      const level = normalizeMetering(tick.metering);
-      const seconds = tick.durationMillis / 1000;
-      pendingRef.current = Math.max(pendingRef.current, level);
-      if (Math.abs(seconds - elapsedRef.current) >= 0.05) {
-        elapsedRef.current = seconds;
-        setElapsed(seconds);
-      }
-
-      const needed = slotBarCount(liveClipWidthPx(seconds, ppsRef.current));
-      if (needed <= 0) {
-        return;
-      }
-
-      setBars((previous) => {
-        if (previous.length >= needed) {
-          return previous;
-        }
-        const next = previous.slice();
-        while (next.length < needed) {
-          next.push(pendingRef.current);
-        }
-        pendingRef.current = 0;
-        return next;
-      });
-    }, 100);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (viewportWidth <= 0 || pps <= 0 || elapsed <= 0 || bars.length === 0) {
-    return null;
-  }
-
-  const startX = (originSeconds - windowStart) * pps;
-  const liveWidth = liveClipWidthPx(elapsed, pps);
-  const visibleLeft = Math.max(0, startX);
-  const visibleRight = Math.min(viewportWidth, startX + liveWidth);
-  const visibleWidth = visibleRight - visibleLeft;
-  if (visibleWidth <= 1) {
-    return null;
-  }
-
-  const cropLeft = Math.max(0, -startX);
-  const historySlots = slotBarCount(liveWidth);
-  const fullBars =
-    bars.length <= historySlots ? bars : bars.slice(bars.length - historySlots);
-  const cropSlots = slotBarCount(cropLeft);
-  const visibleSlots = slotBarCount(visibleWidth);
-  const visibleBars = fullBars.slice(
-    cropSlots,
-    Math.max(cropSlots + 1, cropSlots + visibleSlots),
-  );
-
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        left: visibleLeft,
-        width: visibleWidth,
-        height: waveHeight,
-        justifyContent: 'center',
-        overflow: 'hidden',
-      }}>
-      <StudioPeakWaveform
-        peaks={visibleBars.length > 0 ? visibleBars : fullBars}
-        height={waveHeight}
-        width={visibleWidth}
-        color="#A078FF"
-        fillSlots={false}
-        pinBars
-        progress={1}
-      />
+      </Animated.View>
+      <Playhead left={playheadLeft} topInset={showRuler ? RULER_LABEL_INSET : 0} />
     </View>
   );
 }
 
-function PunchInLiveCapture({
+/**
+ * Punch-in: stored take + live extension share one translateX with the ruler.
+ */
+function SharedScrollPunchIn({
   peaks,
   viewportWidth,
   durationSeconds,
   recordOriginSeconds,
   waveHeight,
+  showRuler,
 }: {
   peaks: number[];
   viewportWidth: number;
   durationSeconds: number;
   recordOriginSeconds: number;
   waveHeight: number;
+  showRuler: boolean;
 }) {
-  const elapsed = useCaptureElapsed(true);
   const origin = Math.max(0, recordOriginSeconds);
+  const pps = liveWindowPxPerSecond(viewportWidth);
+  const scrollX = useSharedValue(0);
+  const { bars, elapsed } = useLiveMeterBars(pps, scrollX, origin);
+
+  const contentStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: scrollX.get() }],
+  }));
+
+  if (viewportWidth <= 0 || pps <= 0) {
+    return null;
+  }
+
   const timelineSeconds = origin + elapsed;
-  // Local follow only — never push 10Hz window updates to parent state.
   const windowStart = followLiveWindowStart(timelineSeconds);
+  const takeDuration = Math.max(durationSeconds, 0.1);
+  const takeWidth = Math.max(1, takeDuration * pps);
+  const liveWidth = liveClipWidthPx(elapsed, pps);
+  const contentEnd = Math.max(timelineSeconds, takeDuration, LIVE_WINDOW_SECONDS);
+  const contentWidth = contentEnd * pps + viewportWidth * 0.25;
+  const rangeStart = Math.max(0, windowStart - 1);
+  const rangeEnd = windowStart + LIVE_WINDOW_SECONDS + 1;
+  const takeProgress = Math.min(1, Math.max(0, timelineSeconds / takeDuration));
+  const historySlots = slotBarCount(liveWidth);
+  const liveBars =
+    bars.length <= historySlots ? bars : bars.slice(bars.length - historySlots);
   const playheadLeft = playheadLeftInLiveWindow(
     timelineSeconds,
     windowStart,
     viewportWidth,
   );
+  const stripHeight = (showRuler ? RULER_HEIGHT : 0) + waveHeight;
 
   return (
-    <View style={{ width: viewportWidth, height: waveHeight, justifyContent: 'center' }}>
-      <StoredTakeWave
-        peaks={peaks}
-        viewportWidth={viewportWidth}
-        durationSeconds={durationSeconds}
-        playheadSeconds={timelineSeconds}
-        windowStart={windowStart}
-        showPlayhead={false}
-        waveHeight={waveHeight}
-      />
-      <PunchInLiveMeter
-        viewportWidth={viewportWidth}
-        windowStart={windowStart}
-        originSeconds={origin}
-        waveHeight={waveHeight}
-      />
-      <Playhead left={playheadLeft} />
+    <View style={{ width: viewportWidth, height: stripHeight, overflow: 'hidden' }}>
+      <Animated.View style={[{ width: contentWidth }, contentStyle]}>
+        {showRuler ? (
+          <RulerRail
+            pps={pps}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            contentWidth={contentWidth}
+          />
+        ) : null}
+        <View style={{ height: waveHeight, justifyContent: 'center' }}>
+          <View style={{ width: takeWidth }}>
+            <StudioPeakWaveform
+              peaks={peaks}
+              height={waveHeight}
+              width={takeWidth}
+              color="#D0BCFF"
+              progress={takeProgress}
+            />
+          </View>
+          {liveWidth > 1 && liveBars.length > 0 ? (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                left: origin * pps,
+                width: liveWidth,
+                height: waveHeight,
+                justifyContent: 'center',
+              }}>
+              <StudioPeakWaveform
+                peaks={liveBars}
+                height={waveHeight}
+                width={liveWidth}
+                color="#A078FF"
+                fillSlots={false}
+                pinBars
+                progress={1}
+              />
+            </View>
+          ) : null}
+        </View>
+      </Animated.View>
+      <Playhead left={playheadLeft} topInset={showRuler ? RULER_LABEL_INSET : 0} />
     </View>
   );
 }
 
-function Playhead({ left }: { left: number }) {
+function Playhead({
+  left,
+  topInset = 0,
+}: {
+  left: number;
+  topInset?: number;
+}) {
   return (
-    <View style={[styles.playhead, { left }]} pointerEvents="none">
+    <View
+      style={[styles.playhead, { left, top: topInset }]}
+      pointerEvents="none">
       <View style={styles.playheadKnob} />
       <View style={styles.playheadLine} />
     </View>
@@ -392,8 +446,7 @@ function Playhead({ left }: { left: number }) {
 }
 
 /**
- * Stored take: native horizontal scroll pans the timeline; tap seeks the playhead.
- * Same interaction model as multi-track (swipe vs tap).
+ * Stored take: one native scroll moves ruler + wave together.
  */
 function ScrollableStoredTake({
   peaks,
@@ -403,6 +456,7 @@ function ScrollableStoredTake({
   windowStartSeconds,
   isPlaying,
   waveHeight,
+  showRuler,
   onWindowStartChange,
   onScrubStart,
   onSeek,
@@ -415,6 +469,7 @@ function ScrollableStoredTake({
   windowStartSeconds: number;
   isPlaying: boolean;
   waveHeight: number;
+  showRuler: boolean;
   onWindowStartChange?: (windowStartSeconds: number) => void;
   onScrubStart?: () => void;
   onSeek?: (seconds: number) => void;
@@ -435,6 +490,8 @@ function ScrollableStoredTake({
   const takeProgress = Math.min(1, Math.max(0, playhead / takeDuration));
   const playheadX = playhead * pps;
   const seekEnabled = Boolean(onSeek || onScrubEnd);
+  const stripHeight = (showRuler ? RULER_HEIGHT : 0) + waveHeight;
+  const rangeEnd = Math.max(takeDuration, LIVE_WINDOW_SECONDS);
 
   const emitWindowFromScrollX = (scrollX: number) => {
     if (pps <= 0) {
@@ -461,7 +518,6 @@ function ScrollableStoredTake({
     scrollRef.current?.scrollTo({ x, animated });
   };
 
-  // Keep ScrollView aligned when parent window changes (record stop, clamp, etc.).
   useEffect(() => {
     if (userScrollingRef.current) {
       return;
@@ -470,7 +526,6 @@ function ScrollableStoredTake({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync from parent window only
   }, [windowStartSeconds, pps, contentWidth, viewportWidth, durationSeconds]);
 
-  // Playback: keep playhead in view with native scroll (no drag-coupled window).
   useEffect(() => {
     if (!isPlaying || userScrollingRef.current || pps <= 0 || viewportWidth <= 0) {
       return;
@@ -547,22 +602,35 @@ function ScrollableStoredTake({
         endProgrammaticScroll();
         emitWindowFromScrollX(scrollXRef.current);
       }}
-      style={{ width: viewportWidth, height: waveHeight }}>
+      style={{ width: viewportWidth, height: stripHeight }}>
       <Pressable
         accessibilityRole="adjustable"
         accessibilityLabel="Waveform. Swipe to scroll, tap to move playhead"
         onPress={(event) => seekFromContentX(event.nativeEvent.locationX)}
-        style={{ width: contentWidth, height: waveHeight, justifyContent: 'center' }}>
-        <View style={{ width: takeWidth }}>
-          <StudioPeakWaveform
-            peaks={peaks}
-            height={waveHeight}
-            width={takeWidth}
-            color="#D0BCFF"
-            progress={takeProgress}
+        style={{ width: contentWidth }}>
+        {showRuler ? (
+          <RulerRail
+            pps={pps}
+            rangeStart={0}
+            rangeEnd={rangeEnd}
+            contentWidth={contentWidth}
           />
+        ) : null}
+        <View style={{ height: waveHeight, justifyContent: 'center' }}>
+          <View style={{ width: takeWidth }}>
+            <StudioPeakWaveform
+              peaks={peaks}
+              height={waveHeight}
+              width={takeWidth}
+              color="#D0BCFF"
+              progress={takeProgress}
+            />
+          </View>
         </View>
-        <Playhead left={Math.max(0, playheadX - 6)} />
+        <Playhead
+          left={Math.max(0, playheadX - 6)}
+          topInset={showRuler ? RULER_LABEL_INSET : 0}
+        />
       </Pressable>
     </ScrollView>
   );
@@ -582,6 +650,7 @@ export function QuickRecordWaveform({
   onSeek,
   onScrubEnd,
   waveHeight = DEFAULT_WAVE_HEIGHT,
+  showRuler = true,
 }: QuickRecordWaveformProps) {
   const [width, setWidth] = useState(0);
 
@@ -595,6 +664,8 @@ export function QuickRecordWaveform({
   const firstTakeRecording = isRecording && !hasTake;
   const idlePlayheadSeconds =
     Math.max(0, progress) * Math.max(durationSeconds, 0);
+  const stripHeight = (showRuler ? RULER_HEIGHT : 0) + waveHeight;
+  const emptyPps = liveWindowPxPerSecond(width);
 
   // After recording stops, park the window so the playhead is on-screen.
   const wasRecordingRef = useRef(isRecording);
@@ -623,35 +694,51 @@ export function QuickRecordWaveform({
 
   return (
     <View className="relative flex-1 justify-center" onLayout={onLayout}>
-      {showEmpty ? (
-        <View style={[styles.row, { height: waveHeight }]}>
-          {Array.from({ length: EMPTY_BAR_COUNT }, (_, index) => (
-            <View
-              key={`bar-${index}`}
-              style={[
-                styles.bar,
-                {
-                  height: 4,
-                  backgroundColor: '#3A3648',
-                  opacity: 0.55,
-                },
-              ]}
+      {showEmpty && width > 0 ? (
+        <View style={{ width, height: stripHeight, overflow: 'hidden' }}>
+          {showRuler ? (
+            <RulerRail
+              pps={emptyPps}
+              rangeStart={0}
+              rangeEnd={LIVE_WINDOW_SECONDS}
+              contentWidth={width}
             />
-          ))}
+          ) : null}
+          <View style={[styles.row, { height: waveHeight }]}>
+            {Array.from({ length: EMPTY_BAR_COUNT }, (_, index) => (
+              <View
+                key={`bar-${index}`}
+                style={[
+                  styles.bar,
+                  {
+                    height: 4,
+                    backgroundColor: '#3A3648',
+                    opacity: 0.55,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <Playhead left={0} topInset={showRuler ? RULER_LABEL_INSET : 0} />
         </View>
       ) : null}
 
       {firstTakeRecording && width > 0 ? (
-        <QuickRecordLiveCapture viewportWidth={width} waveHeight={waveHeight} />
+        <SharedScrollLiveCapture
+          viewportWidth={width}
+          waveHeight={waveHeight}
+          showRuler={showRuler}
+        />
       ) : null}
 
       {punchInRecording && width > 0 ? (
-        <PunchInLiveCapture
+        <SharedScrollPunchIn
           peaks={peaks}
           viewportWidth={width}
           durationSeconds={durationSeconds}
           recordOriginSeconds={recordOriginSeconds}
           waveHeight={waveHeight}
+          showRuler={showRuler}
         />
       ) : null}
 
@@ -664,14 +751,13 @@ export function QuickRecordWaveform({
           windowStartSeconds={windowStartSeconds}
           isPlaying={isPlaying}
           waveHeight={waveHeight}
+          showRuler={showRuler}
           onWindowStartChange={onWindowStartChange}
           onScrubStart={onScrubStart}
           onSeek={onSeek}
           onScrubEnd={onScrubEnd}
         />
       ) : null}
-
-      {showEmpty ? <Playhead left={0} /> : null}
     </View>
   );
 }
@@ -687,19 +773,71 @@ const styles = StyleSheet.create({
     width: BAR_WIDTH,
     borderRadius: 2,
   },
+  ruler: {
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
+  rulerLabels: {
+    height: 14,
+    marginBottom: 2,
+    position: 'relative',
+  },
+  rulerLabel: {
+    position: 'absolute',
+    top: 0,
+    fontSize: 11,
+    lineHeight: 14,
+    color: 'rgba(226, 224, 236, 0.88)',
+  },
+  rulerTrack: {
+    height: 10,
+    position: 'relative',
+    justifyContent: 'flex-end',
+  },
+  rulerBaseline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255, 255, 255, 0.32)',
+  },
+  rulerTick: {
+    position: 'absolute',
+    bottom: 0,
+    width: StyleSheet.hairlineWidth,
+    marginLeft: -StyleSheet.hairlineWidth / 2,
+    backgroundColor: 'rgba(208, 188, 255, 0.42)',
+  },
+  rulerTickMajor: {
+    height: 8,
+    backgroundColor: 'rgba(208, 188, 255, 0.72)',
+  },
+  rulerTickMinor: {
+    height: 4,
+  },
+  nowCaret: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    marginLeft: -1,
+    borderRadius: 1,
+    backgroundColor: '#A078FF',
+  },
   playhead: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 12,
+    width: 8,
     alignItems: 'center',
   },
   playheadKnob: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#A078FF',
-    boxShadow: '0 0 10px rgba(160, 120, 255, 0.55)',
+    boxShadow: '0 0 8px rgba(160, 120, 255, 0.5)',
   },
   playheadLine: {
     flex: 1,

@@ -26,9 +26,9 @@ import type {
 import type { AudioProject, ProjectLayer } from '@/features/audio/types/project';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
 import { applyCaptureFx } from '@/features/studio/services/apply-capture-fx.service';
+import { useCaptureFxPrefsStore } from '@/features/studio/store/capture-fx-prefs.store';
 import {
   fingerprintQuickRecordProject,
-  normalizeCaptureFxSelection,
   useQuickRecordStore,
 } from '@/features/studio/store/quick-record.store';
 import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
@@ -40,11 +40,13 @@ export const QUICK_RECORD_MAX_SECONDS = 180;
 type UseQuickRecordSessionOptions = {
   /** When false, ignore capture preview handoffs (stacked under edit). */
   captureEnabled?: boolean;
+  confirmDiscard?: (onConfirm: () => void) => void;
 };
 
 export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}) {
   const [isFocused, setIsFocused] = useState(true);
   const captureEnabled = (options.captureEnabled ?? true) && isFocused;
+  const confirmDiscard = options.confirmDiscard;
   const { replace, push, dismissTo, back, canGoBack } = useRouter();
   const { projectId: projectIdParam } = useLocalSearchParams<{
     projectId?: string;
@@ -59,6 +61,16 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
       useStudioProjectContextStore.getState().setProjectId(resolvedProjectId);
     }
   }, [resolvedProjectId]);
+
+  useEffect(() => {
+    const hydrate = () => {
+      useQuickRecordStore.getState().hydrateCaptureFxFromPrefs();
+    };
+    if (useCaptureFxPrefsStore.persist.hasHydrated()) {
+      hydrate();
+    }
+    return useCaptureFxPrefsStore.persist.onFinishHydration(hydrate);
+  }, []);
 
   const project = useQuickRecordStore((state) => state.project);
   const title = useQuickRecordStore((state) => state.title);
@@ -100,7 +112,6 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const playheadSecondsRef = useRef(0);
   const wasPlayingBeforeScrubRef = useRef(false);
   const recordReplaceAllRef = useRef(true);
-  const punchEndSecondsRef = useRef<number | null>(null);
   /** Seek only after soft-clean — seeking during URI swap releases the player. */
   const pendingSeekRef = useRef<number | null>(null);
   const wasCleaningRef = useRef(false);
@@ -175,6 +186,8 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   const playback = useRecordingPlayback(stemUri ?? '', {
     fallbackDurationSeconds: durationSeconds,
   });
+  const playbackRef = useRef(playback);
+  playbackRef.current = playback;
 
   // Keep playhead ref in sync while idle / playing (not while capturing).
   useEffect(() => {
@@ -240,11 +253,6 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
         replaceAll,
       });
 
-      punchEndSecondsRef.current = replaceAll
-        ? result.project.layers.find((layer) => layer.id === input.layerId)
-            ?.durationSeconds ?? input.durationSeconds
-        : originSeconds + input.durationSeconds;
-
       if (!mountedRef.current) {
         return result.stemUri;
       }
@@ -257,11 +265,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
 
   const handleTakeAttached = useCallback(
     (layerId: string, attachedUri: string) => {
-      const seekTo = punchEndSecondsRef.current;
-      punchEndSecondsRef.current = null;
-      pendingSeekRef.current =
-        seekTo != null && Number.isFinite(seekTo) ? Math.max(0, seekTo) : null;
-      // Clean the committed source/stem (same URI after attach) — prefer store.
+      pendingSeekRef.current = 0;
       const layer = projectRef.current.layers.find((item) => item.id === layerId);
       const uriToClean = layer?.sourceUri ?? layer?.stemUri ?? attachedUri;
       softCleanEnqueuedRef.current = true;
@@ -278,20 +282,27 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
   }, []);
 
   const runCaptureFxApply = useCallback(
-    async (layerId: string) => {
+    async (
+      layerId: string,
+      options?: { preservePlayhead?: boolean },
+    ) => {
       const generation = ++captureFxApplyGenRef.current;
       const layer = projectRef.current.layers.find((item) => item.id === layerId);
-      // Prefer post-soft-clean baseline so FX never stack on a prior FX stem.
       const baseUri = layer?.baselineUri ?? layer?.stemUri;
       if (!layer?.stemUri || !baseUri) {
         return;
       }
+
+      const resumeAt = options?.preservePlayhead
+        ? Math.max(0, playheadSecondsRef.current)
+        : null;
 
       setIsApplyingCaptureFx(true);
       try {
         const selection = useQuickRecordStore.getState().captureFxSelection;
         const nextStem = await applyCaptureFx({
           baselineUri: baseUri,
+          sourcePreGateUri: layer.sourceUri ?? null,
           selection,
         });
         if (!mountedRef.current || captureFxApplyGenRef.current !== generation) {
@@ -299,8 +310,22 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
         }
         applyCaptureFxStem(layerId, nextStem);
         projectRef.current = useQuickRecordStore.getState().project;
+
+        if (resumeAt != null) {
+          playheadSecondsRef.current = resumeAt;
+          playbackRef.current.markResumeAt(resumeAt);
+          setTimeout(() => {
+            void playbackRef.current.seekTo(resumeAt).catch(() => {});
+          }, 80);
+        }
       } catch (error) {
         console.warn('[CaptureFx] apply failed', error);
+        Alert.alert(
+          "Couldn't apply edit",
+          error instanceof Error
+            ? error.message
+            : 'Effects could not be applied to this take.',
+        );
       } finally {
         if (mountedRef.current && captureFxApplyGenRef.current === generation) {
           setIsApplyingCaptureFx(false);
@@ -392,7 +417,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     pendingCaptureFxApplyRef.current = false;
     setIsFinalizing(true);
     void (async () => {
-      await runCaptureFxApply(layerId);
+      await runCaptureFxApply(layerId, { preservePlayhead: true });
       if (mountedRef.current) {
         setIsFinalizing(false);
       }
@@ -401,11 +426,10 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
 
   const setCaptureFxSelection = useCallback(
     (selection: EditChainSelection) => {
-      setCaptureFxSelectionStore(normalizeCaptureFxSelection(selection));
+      setCaptureFxSelectionStore(selection);
 
       const layer = selectedLayer(projectRef.current);
       if (!layer?.stemUri) {
-        // Empty project — selection only until a take exists.
         return;
       }
 
@@ -416,7 +440,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
 
       setIsFinalizing(true);
       void (async () => {
-        await runCaptureFxApply(layer.id);
+        await runCaptureFxApply(layer.id, { preservePlayhead: true });
         if (mountedRef.current) {
           setIsFinalizing(false);
         }
@@ -496,17 +520,28 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
 
   const onStemChange = useCallback(
     (layerId: string, nextStemUri: string, nextEditChain?: StoredEditChain) => {
+      const layer = projectRef.current.layers.find((item) => item.id === layerId);
+      const sameStem = layer?.stemUri === nextStemUri;
+      const sameChain =
+        nextEditChain === undefined ||
+        JSON.stringify(layer?.editChain ?? null) === JSON.stringify(nextEditChain);
+      if (sameStem && sameChain) {
+        return;
+      }
+
+      const resumeAt = Math.max(0, playheadSecondsRef.current);
       applyStem(layerId, nextStemUri, nextEditChain);
-      // Keep capture chips in sync when edit-screen FX change the stem.
-      // Use the store setter (selection only) — do not re-run capture apply.
       if (nextEditChain !== undefined) {
         useQuickRecordStore
           .getState()
-          .setCaptureFxSelection(
-            normalizeCaptureFxSelection(fromStoredEditChain(nextEditChain)),
-          );
+          .setCaptureFxSelection(fromStoredEditChain(nextEditChain));
       }
       projectRef.current = useQuickRecordStore.getState().project;
+      playheadSecondsRef.current = resumeAt;
+      playbackRef.current.markResumeAt(resumeAt);
+      setTimeout(() => {
+        void playbackRef.current.seekTo(resumeAt).catch(() => {});
+      }, 80);
     },
     [applyStem],
   );
@@ -532,8 +567,8 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
 
   /**
    * Leave Quick Record (Discard + hardware back):
-   * - Empty → leave
-   * - Recording / take / dirty → confirm, then stop + clear + leave
+   * - Empty (no take) → leave — FX prefs alone do not count
+   * - Recording / busy / take → confirm, then stop + clear + leave
    * Blur still hard-stops a live mic so it can't keep running off-screen.
    */
   const requestClose = useCallback(() => {
@@ -541,8 +576,14 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
       return;
     }
 
-    const hasSomethingToLose = isRecording || isBusy || isDirty;
+    const hasSomethingToLose = isRecording || isBusy || hasTake;
     if (hasSomethingToLose) {
+      if (confirmDiscard) {
+        confirmDiscard(() => {
+          void discard();
+        });
+        return;
+      }
       Alert.alert('Discard recording?', 'Your take will be lost.', [
         { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => void discard() },
@@ -551,7 +592,7 @@ export function useQuickRecordSession(options: UseQuickRecordSessionOptions = {}
     }
 
     leaveToAudio();
-  }, [discard, isBusy, isDirty, isRecording, leaveToAudio]);
+  }, [confirmDiscard, discard, hasTake, isBusy, isRecording, leaveToAudio]);
 
   const goNext = useCallback(async () => {
     if (!hasTake || isRecording || isBusy) {

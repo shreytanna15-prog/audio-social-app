@@ -9,10 +9,7 @@ import { QuickRecordTimer } from '@/features/studio/components/quick-record-time
 import { QuickRecordTitlePill } from '@/features/studio/components/quick-record-title-pill';
 import { QuickRecordToolRow } from '@/features/studio/components/quick-record-tool-row';
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
-import {
-  QuickRecordTimeline,
-  QuickRecordWaveform,
-} from '@/features/studio/components/quick-record-waveform';
+import { QuickRecordWaveform } from '@/features/studio/components/quick-record-waveform';
 import { useQuickRecordEditSession } from '@/features/studio/hooks/use-quick-record-edit-session';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 
@@ -62,12 +59,6 @@ export function QuickRecordEditScreen() {
           />
         </View>
 
-        <QuickRecordTimeline
-          isRecording={session.isRecording}
-          durationSeconds={session.durationSeconds}
-          recordOriginSeconds={session.recordOriginSeconds}
-          windowStartSeconds={windowStartSeconds}
-        />
       </View>
 
       <View className="flex-1 px-4 pt-3 pb-4">

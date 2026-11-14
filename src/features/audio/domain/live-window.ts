@@ -12,12 +12,11 @@ export const LIVE_WINDOW_EDGE_SECONDS =
   LIVE_WINDOW_SECONDS * LIVE_WINDOW_EDGE_RATIO;
 
 const TICK_COUNT = 6;
+export const LIVE_WINDOW_MAJOR_SECONDS = 5;
+export const LIVE_WINDOW_MINOR_SECONDS = 1;
 
 export function formatLiveWindowTick(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
-  if (safe < 60) {
-    return `${safe}s`;
-  }
   const minutes = Math.floor(safe / 60);
   const rem = safe % 60;
   return `${minutes}:${rem.toString().padStart(2, '0')}`;
@@ -33,6 +32,44 @@ export function buildLiveWindowTicks(
     { length: tickCount },
     (_, index) => windowStart + (index / (tickCount - 1)) * span,
   );
+}
+
+export type LiveWindowRulerMark = {
+  at: number;
+  major: boolean;
+  /** 0–1 across the visible window */
+  ratio: number;
+};
+
+/** Major/minor marks for a DAW-style ruler inside the live window. */
+export function buildLiveWindowRulerMarks(
+  windowStart: number,
+  windowEnd: number,
+): LiveWindowRulerMark[] {
+  const start = Math.max(0, windowStart);
+  const end = Math.max(start, windowEnd);
+  const span = Math.max(0.001, end - start);
+  const first =
+    Math.ceil(start / LIVE_WINDOW_MINOR_SECONDS) * LIVE_WINDOW_MINOR_SECONDS;
+  const marks: LiveWindowRulerMark[] = [];
+
+  for (
+    let t = first;
+    t <= end + 1e-6;
+    t += LIVE_WINDOW_MINOR_SECONDS
+  ) {
+    const at = Math.round(t);
+    if (at < start - 1e-6 || at > end + 1e-6) {
+      continue;
+    }
+    marks.push({
+      at,
+      major: at % LIVE_WINDOW_MAJOR_SECONDS === 0,
+      ratio: (at - start) / span,
+    });
+  }
+
+  return marks;
 }
 
 export function maxLiveWindowStart(durationSeconds: number): number {

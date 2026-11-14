@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
-import {
-  VoiceOrb,
-  useVoiceAmplitude,
-  type VoiceOrbState,
-} from 'expo-thinking-orbs';
+import { VoiceOrb, useVoiceAmplitude } from 'expo-thinking-orbs';
 
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 
-const ORB_SIZE = 200;
-/** Poll live capture tick — same source as the waveform meter. */
+const ORB_SIZE = 280;
 const METER_POLL_MS = 50;
-/** dBFS: below this → calm idle shell while still "recording". */
+const AMPLITUDE_BOOST = 1.35;
+const MIC_FLOOR_DB = -40;
+const MIC_CURVE = 1;
+const VOICE_DB = -36;
 const SILENCE_DB = -42;
-const VOICE_DB = -38;
+const ATTACK = 0.55;
+const RELEASE = 0.16;
 
 type QuickRecordCaptureStageProps = {
   isRecording: boolean;
@@ -32,14 +32,27 @@ function levelFromPeaks(peaks: number[], progress: number): number {
   const a = peaks[Math.max(0, index - 1)] ?? 0;
   const b = peaks[index] ?? 0;
   const c = peaks[Math.min(peaks.length - 1, index + 1)] ?? 0;
-  // Peaks are already ~0–1 display levels; take the hot sample, not a smear.
   return Math.max(0, Math.max(a, b, c));
 }
 
-/**
- * Capture stage: VoiceOrb driven by live mic dBFS (record) / peaks (playback).
- * Timeline punch-in stays in the card below.
- */
+function boostLevel(level01: number): number {
+  if (!(level01 > 0)) return 0;
+  return Math.min(1, level01 * AMPLITUDE_BOOST);
+}
+
+function levelFromDb(db: number): number {
+  if (Number.isNaN(db) || db <= MIC_FLOOR_DB) return 0;
+  const norm = (db - MIC_FLOOR_DB) / -MIC_FLOOR_DB;
+  const clamped = norm < 0 ? 0 : norm > 1 ? 1 : norm;
+  return boostLevel(clamped ** MIC_CURVE);
+}
+
+function followLevel(current: number, target: number): number {
+  const coeff = target > current ? ATTACK : RELEASE;
+  const next = current + (target - current) * coeff;
+  return next < 0.004 ? 0 : next;
+}
+
 export function QuickRecordCaptureStage({
   isRecording,
   hasTake,
@@ -47,53 +60,98 @@ export function QuickRecordCaptureStage({
   peaks,
   progress = 0,
 }: QuickRecordCaptureStageProps) {
-  const mic = useVoiceAmplitude({ floorDb: -50, curve: 0.65 });
-  const playback = useVoiceAmplitude();
+  const level = useVoiceAmplitude({ floorDb: MIC_FLOOR_DB, curve: MIC_CURVE });
   const [voiceActive, setVoiceActive] = useState(false);
+  const [isFocused, setIsFocused] = useState(true);
+  const levelRef = useRef(level);
+  const displayRef = useRef(0);
+  const peaksRef = useRef(peaks);
+  const progressRef = useRef(progress);
+  levelRef.current = level;
+  peaksRef.current = peaks;
+  progressRef.current = progress;
+
+  const wantsMeterPreview = isFocused && !isRecording && !isPlaying;
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => {
+        setIsFocused(false);
+        recordingSessionService.stopMeterPreview();
+        displayRef.current = 0;
+        levelRef.current.set(0);
+        setVoiceActive(false);
+      };
+    }, []),
+  );
 
   useEffect(() => {
-    if (!isRecording) {
-      mic.set(0);
+    if (!wantsMeterPreview) {
+      recordingSessionService.stopMeterPreview();
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await recordingSessionService.startMeterPreview();
+      } catch (error) {
+        console.warn('[QuickRecord] meter preview failed', error);
+      }
+      if (cancelled) {
+        recordingSessionService.stopMeterPreview();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      recordingSessionService.stopMeterPreview();
+    };
+  }, [wantsMeterPreview]);
+
+  useEffect(() => {
+    const useMic = !isPlaying && (isRecording || wantsMeterPreview);
+    if (!useMic && !isPlaying) {
+      displayRef.current = 0;
+      level.set(0);
       setVoiceActive(false);
       return;
     }
 
     const interval = setInterval(() => {
-      const { metering } = recordingSessionService.getTick();
-      const db =
-        typeof metering === 'number' && Number.isFinite(metering)
-          ? metering
-          : -160;
-      mic.setDb(db);
-      setVoiceActive((prev) => {
-        if (prev) return db > SILENCE_DB;
-        return db > VOICE_DB;
-      });
+      let target = 0;
+      let db = -160;
+
+      if (isPlaying) {
+        target = boostLevel(
+          levelFromPeaks(peaksRef.current, progressRef.current),
+        );
+      } else {
+        const tick = recordingSessionService.getTick();
+        db =
+          typeof tick.metering === 'number' && Number.isFinite(tick.metering)
+            ? tick.metering
+            : -160;
+        target = levelFromDb(db);
+      }
+
+      const next = followLevel(displayRef.current, target);
+      displayRef.current = next;
+      level.set(next);
+
+      if (!isPlaying) {
+        setVoiceActive((prev) => {
+          if (prev) return db > SILENCE_DB || next > 0.02;
+          return db > VOICE_DB;
+        });
+      }
     }, METER_POLL_MS);
 
     return () => {
       clearInterval(interval);
-      mic.set(0);
     };
-  }, [isRecording, mic]);
-
-  const playbackLevel = isPlaying ? levelFromPeaks(peaks, progress) : 0;
-
-  useEffect(() => {
-    if (!isPlaying) {
-      playback.set(0);
-      return;
-    }
-    playback.set(playbackLevel);
-  }, [isPlaying, playback, playbackLevel]);
-
-  // Stay in listening/speaking for the whole take so amplitude release
-  // settles the shell — flipping to idle ignores level and snaps to rest.
-  const state: VoiceOrbState = isRecording
-    ? 'listening'
-    : isPlaying
-      ? 'speaking'
-      : 'idle';
+  }, [isPlaying, isRecording, wantsMeterPreview, level]);
 
   const label = isRecording
     ? voiceActive
@@ -101,18 +159,19 @@ export function QuickRecordCaptureStage({
       : 'Waiting for voice'
     : isPlaying
       ? 'Playing take'
-      : hasTake
-        ? 'Take ready'
-        : 'Ready to record';
+      : voiceActive
+        ? 'Listening'
+        : hasTake
+          ? 'Take ready'
+          : 'Ready to record';
 
   return (
     <View className="items-center justify-center py-2">
       <VoiceOrb
-        state={state}
+        state="speaking"
         size={ORB_SIZE}
         theme="dark"
-        inputAmplitude={mic.level}
-        outputAmplitude={playback.level}
+        outputAmplitude={level.level}
         accessibilityLabel={label}
         color={isRecording ? '#EF5350' : '#D0BCFF'}
         colorTo={isRecording ? '#FFAB91' : '#FFB0CD'}

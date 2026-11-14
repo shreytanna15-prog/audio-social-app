@@ -77,6 +77,7 @@ let writer: StreamingWavWriter | null = null;
 let captureUri: string | null = null;
 let nativeWriteActive = false;
 let isRecording = false;
+let isMeterPreview = false;
 let isPaused = false;
 let lastMetering = -160;
 let actualSampleRate = TARGET_SAMPLE_RATE;
@@ -136,6 +137,7 @@ function clearStreamListeners(): void {
 
 function resetSessionState(): void {
   isRecording = false;
+  isMeterPreview = false;
   isPaused = false;
   lastMetering = -160;
   actualSampleRate = TARGET_SAMPLE_RATE;
@@ -184,7 +186,7 @@ function capturedMillis(): number {
 }
 
 function handleTick(payload: AudioStreamTick): void {
-  if (!isRecording) {
+  if (!isRecording && !isMeterPreview) {
     return;
   }
 
@@ -194,7 +196,11 @@ function handleTick(payload: AudioStreamTick): void {
   if (typeof payload.channels === 'number' && payload.channels > 0) {
     actualChannels = payload.channels;
   }
-  if (typeof payload.durationMillis === 'number' && Number.isFinite(payload.durationMillis)) {
+  if (
+    isRecording &&
+    typeof payload.durationMillis === 'number' &&
+    Number.isFinite(payload.durationMillis)
+  ) {
     capturedDurationMillis = payload.durationMillis;
   }
   if (typeof payload.meteringDb === 'number' && Number.isFinite(payload.meteringDb)) {
@@ -207,7 +213,7 @@ function handleBuffer(payload: {
   sampleRate?: number;
   channels?: number;
 }): void {
-  if (!isRecording || isPaused || !writer || !payload.data) {
+  if ((!isRecording && !isMeterPreview) || isPaused || !payload.data) {
     return;
   }
 
@@ -218,13 +224,31 @@ function handleBuffer(payload: {
   const pcmBytes =
     ENCODING === 'int16' ? raw : float32PcmToInt16Bytes(raw);
 
-  writer.appendInt16Pcm(pcmBytes);
+  if (isRecording && writer) {
+    writer.appendInt16Pcm(pcmBytes);
+  }
 
   const peak =
     ENCODING === 'int16'
       ? peakLevelFromInt16Pcm(pcmBytes, METERING_STRIDE)
       : peakLevelFromFloat32Pcm(raw);
   lastMetering = dbFromPeak(peak);
+}
+
+function stopMeterPreviewInternal(): void {
+  if (!isMeterPreview) {
+    return;
+  }
+
+  isMeterPreview = false;
+  try {
+    stream?.stop();
+  } catch {
+    // Stream may already be stopped.
+  }
+  clearStreamListeners();
+  stream = null;
+  lastMetering = -160;
 }
 
 export const expoPcmCaptureService = {
@@ -235,6 +259,73 @@ export const expoPcmCaptureService = {
       durationMillis: isRecording ? capturedMillis() : capturedDurationMillis,
       metering: lastMetering,
     };
+  },
+
+  isMeterPreviewActive(): boolean {
+    return isMeterPreview;
+  },
+
+  async startMeterPreview(): Promise<void> {
+    if (isRecording || isMeterPreview) {
+      return;
+    }
+
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      allowsRecording: true,
+    });
+
+    // Record may have claimed the mic while we awaited audio mode.
+    if (isRecording || isMeterPreview) {
+      return;
+    }
+
+    const AudioModule = getAudioStreamModule();
+    const nextStream = new AudioModule.AudioStream({
+      sampleRate: TARGET_SAMPLE_RATE,
+      channels: TARGET_CHANNELS,
+      encoding: ENCODING,
+      nativeWrite: false,
+      emitBuffersToJs: true,
+      inputMonitor: false,
+      monitorGain: 1,
+    });
+
+    if (isRecording || isMeterPreview) {
+      try {
+        nextStream.stop();
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    clearStreamListeners();
+    writer?.discard();
+    writer = null;
+    captureUri = null;
+    nativeWriteActive = false;
+    isPaused = false;
+    lastMetering = -160;
+    isMeterPreview = true;
+    stream = nextStream;
+
+    bufferSub = nextStream.addListener('audioStreamBuffer', handleBuffer);
+    tickSub = nextStream.addListener('audioStreamTick', handleTick);
+    try {
+      await nextStream.start();
+    } catch (error) {
+      stopMeterPreviewInternal();
+      throw error;
+    }
+
+    if (isRecording) {
+      stopMeterPreviewInternal();
+    }
+  },
+
+  stopMeterPreview(): void {
+    stopMeterPreviewInternal();
   },
 
   /**
@@ -271,10 +362,15 @@ export const expoPcmCaptureService = {
       return;
     }
 
+    stopMeterPreviewInternal();
+
     await setAudioModeAsync({
       playsInSilentMode: true,
       allowsRecording: true,
     });
+
+    // Preview may have started during setAudioModeAsync — reclaim the mic.
+    stopMeterPreviewInternal();
 
     const monitorPreferred = useInputMonitorStore.getState().preferredEnabled;
     const nextUri = createCaptureWavUri();

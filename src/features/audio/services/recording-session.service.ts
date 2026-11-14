@@ -118,4 +118,12 @@ export const recordingSessionService = {
   getTick() {
     return expoPcmCaptureService.getTick();
   },
+
+  startMeterPreview(): Promise<void> {
+    return expoPcmCaptureService.startMeterPreview();
+  },
+
+  stopMeterPreview(): void {
+    expoPcmCaptureService.stopMeterPreview();
+  },
 };

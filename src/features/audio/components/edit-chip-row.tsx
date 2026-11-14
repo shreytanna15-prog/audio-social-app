@@ -24,7 +24,6 @@ type EditChipRowProps = {
   isProcessing?: boolean;
   processingLabel?: string;
   variant?: 'light' | 'dark';
-  /** Quick Record capture: Soft SpectralGate is fixed; hide Clean Voice chip. */
   hideCleanVoice?: boolean;
   /**
    * When false, chips stay tappable while processing (selection queues; apply deferred).

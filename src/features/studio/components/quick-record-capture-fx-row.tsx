@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Alert } from 'react-native';
 
 import {
   EditChipRow,
@@ -14,6 +15,7 @@ import {
   createEchoSelection,
   createEqSelection,
   createReverbSelection,
+  getEditChainProcessingLabel,
   type CompressorPresetId,
   type EchoPresetId,
   type EditChainSelection,
@@ -43,10 +45,51 @@ export function QuickRecordCaptureFxRow({
 
   const closeSheet = useCallback(() => setPresetSheet(null), []);
 
+  const toggleCleanVoice = useCallback(() => {
+    if (selection.cleanVoice) {
+      onChange({ ...selection, cleanVoice: false });
+      return;
+    }
+
+    Alert.alert(
+      'Clean Voice',
+      'Clean Voice is made for speech and singing — not instruments. On guitar, piano, or other instruments it can make the sound worse or remove musical detail.\n\nProcessing can take a little while. Please wait until it finishes.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => onChange({ ...selection, cleanVoice: true }),
+        },
+      ],
+    );
+  }, [onChange, selection]);
+
   const selectFx = useCallback(
     (value: FxSelection | null) => {
-      onChange({ ...selection, cleanVoice: false, fx: value });
-      closeSheet();
+      if (value == null) {
+        onChange({ ...selection, fx: null });
+        closeSheet();
+        return;
+      }
+
+      const apply = () => {
+        onChange({ ...selection, fx: value });
+        closeSheet();
+      };
+
+      if (selection.fx != null) {
+        apply();
+        return;
+      }
+
+      Alert.alert(
+        'FX',
+        'FX is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse.\n\nProcessing can take a little while. Please wait until it finishes.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: apply },
+        ],
+      );
     },
     [closeSheet, onChange, selection],
   );
@@ -57,7 +100,7 @@ export function QuickRecordCaptureFxRow({
         preset == null || selection.compressor?.preset === preset
           ? null
           : createCompressorSelection(preset);
-      onChange({ ...selection, cleanVoice: false, compressor: next });
+      onChange({ ...selection, compressor: next });
       closeSheet();
     },
     [closeSheet, onChange, selection],
@@ -69,7 +112,7 @@ export function QuickRecordCaptureFxRow({
         preset == null || selection.eq?.preset === preset
           ? null
           : createEqSelection(preset);
-      onChange({ ...selection, cleanVoice: false, eq: next });
+      onChange({ ...selection, eq: next });
       closeSheet();
     },
     [closeSheet, onChange, selection],
@@ -81,7 +124,7 @@ export function QuickRecordCaptureFxRow({
         preset == null || selection.echo?.preset === preset
           ? null
           : createEchoSelection(preset);
-      onChange({ ...selection, cleanVoice: false, echo: next });
+      onChange({ ...selection, echo: next });
       closeSheet();
     },
     [closeSheet, onChange, selection],
@@ -93,7 +136,7 @@ export function QuickRecordCaptureFxRow({
         preset == null || selection.reverb?.preset === preset
           ? null
           : createReverbSelection(preset);
-      onChange({ ...selection, cleanVoice: false, reverb: next });
+      onChange({ ...selection, reverb: next });
       closeSheet();
     },
     [closeSheet, onChange, selection],
@@ -104,11 +147,14 @@ export function QuickRecordCaptureFxRow({
       <EditChipRow
         selection={selection}
         variant="dark"
-        hideCleanVoice
         disableWhileProcessing={false}
         disabled={disabled}
         isProcessing={isProcessing}
-        processingLabel={processingLabel}
+        processingLabel={
+          processingLabel ??
+          (isProcessing ? getEditChainProcessingLabel(selection) : undefined)
+        }
+        onCleanVoicePress={toggleCleanVoice}
         onOpenFx={() => setPresetSheet('fx')}
         onOpenCompressor={() => setPresetSheet('compressor')}
         onOpenEq={() => setPresetSheet('eq')}

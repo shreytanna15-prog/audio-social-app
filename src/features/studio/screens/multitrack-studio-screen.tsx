@@ -156,6 +156,7 @@ export function MultitrackStudioScreen() {
           isRecording={studio.isRecording}
           recordOriginSeconds={studio.recordOriginSeconds}
           windowStartSeconds={windowStartSeconds}
+          playheadSeconds={playback.currentTime}
         />
         <View className="flex-1 pt-2">
           <MultitrackLayerStack

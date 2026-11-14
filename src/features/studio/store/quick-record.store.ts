@@ -10,12 +10,15 @@ import {
   nextLayerName,
   selectedLayer,
 } from '@/features/audio/domain/project';
-import {
-  EMPTY_EDIT_CHAIN,
-  type EditChainSelection,
-  type StoredEditChain,
+import type {
+  EditChainSelection,
+  StoredEditChain,
 } from '@/features/audio/types/edit-chips';
 import type { AudioProject } from '@/features/audio/types/project';
+import {
+  readCaptureFxPrefs,
+  rememberCaptureFxSelection,
+} from '@/features/studio/store/capture-fx-prefs.store';
 
 function createQuickRecordProject(): AudioProject {
   const layer = createLayer({
@@ -31,23 +34,19 @@ function createQuickRecordProject(): AudioProject {
 
 export const DEFAULT_QUICK_RECORD_TITLE = 'Untitled take';
 
-/** Capture FX never uses Clean Voice (soft SpectralGate is fixed post-stop). */
-export function normalizeCaptureFxSelection(
-  selection: EditChainSelection,
-): EditChainSelection {
-  return { ...selection, cleanVoice: false };
-}
-
 function captureFxFromProject(project: AudioProject): EditChainSelection {
   const layer = selectedLayer(project);
-  return normalizeCaptureFxSelection(fromStoredEditChain(layer?.captureFx));
+  if (layer?.captureFx || layer?.editChain) {
+    return fromStoredEditChain(layer.captureFx ?? layer.editChain);
+  }
+  return readCaptureFxPrefs();
 }
 
 function withCaptureFxOnVocal(
   project: AudioProject,
   selection: EditChainSelection,
 ): AudioProject {
-  const stored = toStoredEditChain(normalizeCaptureFxSelection(selection));
+  const stored = toStoredEditChain(selection);
   const vocalId =
     project.selectedLayerId ??
     project.layers.find((layer) => layer.kind === 'vocal')?.id ??
@@ -88,13 +87,13 @@ export function fingerprintQuickRecordProject(
 type QuickRecordStore = {
   project: AudioProject;
   title: string;
-  /** Set when editing an existing library take — save updates instead of create. */
   trackId: string | null;
   initialFingerprint: string;
   captureFxSelection: EditChainSelection;
   setProject: (project: AudioProject) => void;
   setTitle: (title: string) => void;
   setCaptureFxSelection: (selection: EditChainSelection) => void;
+  hydrateCaptureFxFromPrefs: () => void;
   hydrateFromImport: (
     project: AudioProject,
     title?: string,
@@ -112,26 +111,46 @@ type QuickRecordStore = {
 
 export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
   const initial = createQuickRecordProject();
+  const initialFx = readCaptureFxPrefs();
+  const initialWithFx = withCaptureFxOnVocal(initial, initialFx);
   return {
-    project: initial,
+    project: initialWithFx,
     title: DEFAULT_QUICK_RECORD_TITLE,
     trackId: null,
     initialFingerprint: fingerprintQuickRecordProject(
-      initial,
+      initialWithFx,
       DEFAULT_QUICK_RECORD_TITLE,
     ),
-    captureFxSelection: EMPTY_EDIT_CHAIN,
+    captureFxSelection: initialFx,
     setProject: (project) => set({ project }),
     setTitle: (title) =>
       set({
         title: title.trim() || DEFAULT_QUICK_RECORD_TITLE,
       }),
     setCaptureFxSelection: (selection) => {
-      const next = normalizeCaptureFxSelection(selection);
+      rememberCaptureFxSelection(selection);
       const current = get();
       set({
-        captureFxSelection: next,
-        project: withCaptureFxOnVocal(current.project, next),
+        captureFxSelection: selection,
+        project: withCaptureFxOnVocal(current.project, selection),
+      });
+    },
+    hydrateCaptureFxFromPrefs: () => {
+      const selection = readCaptureFxPrefs();
+      const current = get();
+      const project = withCaptureFxOnVocal(current.project, selection);
+      const empty = !selectedLayer(project)?.stemUri;
+      set({
+        captureFxSelection: selection,
+        project,
+        ...(empty
+          ? {
+              initialFingerprint: fingerprintQuickRecordProject(
+                project,
+                current.title,
+              ),
+            }
+          : {}),
       });
     },
     hydrateFromImport: (
@@ -140,12 +159,15 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
       trackId = null,
     ) => {
       const nextTitle = title.trim() || DEFAULT_QUICK_RECORD_TITLE;
+      const selection = captureFxFromProject(project);
+      rememberCaptureFxSelection(selection);
+      const nextProject = withCaptureFxOnVocal(project, selection);
       set({
-        project,
+        project: nextProject,
         title: nextTitle,
         trackId: trackId?.trim() ? trackId.trim() : null,
-        captureFxSelection: captureFxFromProject(project),
-        initialFingerprint: fingerprintQuickRecordProject(project, nextTitle),
+        captureFxSelection: selection,
+        initialFingerprint: fingerprintQuickRecordProject(nextProject, nextTitle),
       });
     },
     applyStem: (layerId, stemUri, editChain) => {
@@ -175,13 +197,15 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
     },
     reset: () => {
       const next = createQuickRecordProject();
+      const prefs = readCaptureFxPrefs();
+      const nextWithFx = withCaptureFxOnVocal(next, prefs);
       set({
-        project: next,
+        project: nextWithFx,
         title: DEFAULT_QUICK_RECORD_TITLE,
         trackId: null,
-        captureFxSelection: EMPTY_EDIT_CHAIN,
+        captureFxSelection: prefs,
         initialFingerprint: fingerprintQuickRecordProject(
-          next,
+          nextWithFx,
           DEFAULT_QUICK_RECORD_TITLE,
         ),
       });

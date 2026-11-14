@@ -12,12 +12,10 @@ import { QuickRecordCaptureTransport } from '@/features/studio/components/quick-
 import { QuickRecordProcessingOverlay } from '@/features/studio/components/quick-record-processing-overlay';
 import { QuickRecordTimer } from '@/features/studio/components/quick-record-timer';
 import { QuickRecordTitlePill } from '@/features/studio/components/quick-record-title-pill';
-import {
-  QuickRecordTimeline,
-  QuickRecordWaveform,
-} from '@/features/studio/components/quick-record-waveform';
+import { QuickRecordWaveform } from '@/features/studio/components/quick-record-waveform';
 import { useQuickRecordSession } from '@/features/studio/hooks/use-quick-record-session';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
 
 const CAPTURE_WAVE_HEIGHT = 72;
@@ -25,7 +23,19 @@ const CAPTURE_WAVE_HEIGHT = 72;
 export function QuickRecordScreen() {
   const insets = useSafeAreaInsets();
   useAudioRecorderBinding();
-  const session = useQuickRecordSession();
+  const { confirm, dialog } = useFeedbackDialog();
+  const confirmDiscard = useCallback(
+    (onConfirm: () => void) => {
+      confirm('Discard recording?', 'Your take will be lost.', {
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard',
+        destructive: true,
+        onConfirm,
+      });
+    },
+    [confirm],
+  );
+  const session = useQuickRecordSession({ confirmDiscard });
   const monitor = useInputMonitor();
   const { requestClose } = session;
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
@@ -104,9 +114,6 @@ export function QuickRecordScreen() {
           selection={session.captureFxSelection}
           disabled={false}
           isProcessing={session.isApplyingCaptureFx}
-          processingLabel={
-            session.isApplyingCaptureFx ? 'Applying effects…' : undefined
-          }
           onChange={session.setCaptureFxSelection}
         />
       </View>
@@ -122,13 +129,7 @@ export function QuickRecordScreen() {
             borderCurve: 'continuous',
             boxShadow: '0 10px 28px rgba(0,0,0,0.35)',
           }}>
-          <QuickRecordTimeline
-            isRecording={session.isRecording}
-            durationSeconds={session.durationSeconds}
-            recordOriginSeconds={session.recordOriginSeconds}
-            windowStartSeconds={windowStartSeconds}
-          />
-          <View style={{ height: CAPTURE_WAVE_HEIGHT + 8 }} className="mt-1">
+          <View style={{ height: CAPTURE_WAVE_HEIGHT + 36 }}>
             <QuickRecordWaveform
               peaks={session.peaks}
               isRecording={session.isRecording}
@@ -178,6 +179,7 @@ export function QuickRecordScreen() {
         visible={session.isBusy}
         title={overlayTitle}
       />
+      {dialog}
     </View>
   );
 }
