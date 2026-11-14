@@ -1,41 +1,23 @@
 {
   "version": 1,
   "skills": {
+    "audio-app-codebase-patterns": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/audio-app-codebase-patterns/SKILL.md",
+      "computedHash": "local"
+    },
     "building-native-ui": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/building-native-ui/SKILL.md",
       "computedHash": "1c46c05dfcd276872f9660f7795d15f7253f0f0be31c009953ba6ff8b40b3e2b"
     },
-    "design-skill": {
-      "source": "grapeot/design_skill",
-      "sourceType": "github",
-      "skillPath": "skills/design_skill.md",
-      "computedHash": "vendored"
-    },
     "expo-clean-architecture": {
       "source": "local",
       "sourceType": "local",
       "skillPath": ".agents/skills/expo-clean-architecture/SKILL.md",
       "computedHash": "local"
-    },
-    "expo-tailwind-setup": {
-      "source": "expo/skills",
-      "sourceType": "github",
-      "skillPath": "plugins/expo/skills/expo-tailwind-setup/SKILL.md",
-      "computedHash": "6a3faa984445c88c4a034f5443ed4c3be8091ca57a1c5ec345c995c7201fcfaa"
-    },
-    "frontend-design": {
-      "source": "anthropics/skills",
-      "sourceType": "github",
-      "skillPath": "skills/frontend-design/SKILL.md",
-      "computedHash": "93f53fd1c0352d3d7ec17b8f73d7351bf76f4821e55d123c9d2abc2c53ba48e4"
-    },
-    "grill-me": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/productivity/grill-me/SKILL.md",
-      "computedHash": "67e31b63e6e9e454cc2f51cd85b9cf1396ee46379a87c07a1450f33c47c1276a"
     },
     "mobile-design": {
       "source": "RubenGlez/mobile-design",
@@ -48,18 +30,6 @@
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/native-data-fetching/SKILL.md",
       "computedHash": "d7e2f2e822b00d7546595cb7a2c0cbb8e7d7b6b8d3122a8451ad1632be946cbb"
-    },
-    "sleek-design-mobile-apps": {
-      "source": "sleekdotdesign/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/design-mobile-apps/SKILL.md",
-      "computedHash": "2513397fcb314887f4331c7b0615b16cfec1cfbcb19fa3174bd39a58b6d4f410"
-    },
-    "ui-design-brain": {
-      "source": "carmahhawwari/ui-design-brain",
-      "sourceType": "github",
-      "skillPath": "SKILL.md",
-      "computedHash": "a51816925376721c7bd63cf8ff97905146f596e481c3c7598bfa0722ca75b1f4"
     },
     "vercel-react-native-skills": {
       "source": "vercel-labs/agent-skills",
