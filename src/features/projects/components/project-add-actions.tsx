@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 type AddAction = {
   id: 'quick-record' | 'multitrack' | 'import-audio';
@@ -43,6 +44,7 @@ type ProjectAddActionsProps = {
 export function ProjectAddActions({ projectId }: ProjectAddActionsProps) {
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const setProjectId = useStudioProjectContextStore((s) => s.setProjectId);
 
   return (
@@ -59,9 +61,9 @@ export function ProjectAddActions({ projectId }: ProjectAddActionsProps) {
                 setProjectId(projectId);
                 requestAnimationFrame(() => {
                   // Query param keeps projectId on nested studio routes (index/edit).
-                  push(
+                  guard(() => push(
                     `${action.route}?projectId=${encodeURIComponent(projectId)}` as Href,
-                  );
+                  ));
                 });
               }}
               accessibilityRole="button"

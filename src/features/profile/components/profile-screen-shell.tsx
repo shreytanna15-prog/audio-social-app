@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePlayerStore } from '@/features/player';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import type { Profile, ProfileAlbum, ProfileContentTab, ProfilePlaylist, ProfileTrack } from '../types';
 import { ProfileAlbumGrid } from './profile-album-grid';
@@ -37,6 +38,7 @@ export function ProfileScreenShell({
   messageSheet,
 }: ProfileScreenShellProps) {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const insets = useSafeAreaInsets();
 
   const play = usePlayerStore((s) => s.play);
@@ -87,21 +89,21 @@ export function ProfileScreenShell({
 
   const openTrackAndPlay = (track: ProfileTrack) => {
     playTrack(track);
-    push('/player');
+    guard(() => push('/player'));
   };
 
   const onAlbumPress = (album: ProfileAlbum) => {
-    push({
+    guard(() => push({
       pathname: '/albums/[id]',
       params: { id: album.id, title: album.title },
-    } as Href);
+    } as Href));
   };
 
   const onPlaylistPress = (playlist: ProfilePlaylist) => {
-    push({
+    guard(() => push({
       pathname: '/playlists/[id]',
       params: { id: playlist.id, title: playlist.title },
-    } as Href);
+    } as Href));
   };
 
   return (
@@ -119,7 +121,7 @@ export function ProfileScreenShell({
           bioExpanded={bioExpanded}
           onToggleBio={() => setBioExpanded((prev) => !prev)}
           onMorePress={() => setOptionsOpen(true)}
-          onNotificationsPress={() => push('/notifications' as Href)}
+          onNotificationsPress={() => guard(() => push('/notifications' as Href))}
         />
 
         <View className="gap-8" style={{ marginTop: 16 }}>

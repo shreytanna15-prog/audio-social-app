@@ -21,6 +21,7 @@ import { Button } from '@/shared/components/ui/button';
 import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { useRequestPasswordReset } from '../api/hooks';
 import { AuthBackground } from '../components/auth-background';
@@ -36,6 +37,7 @@ export function ForgotPasswordScreen() {
   const { back, push } = useRouter();
   const { width } = useWindowDimensions();
   const requestReset = useRequestPasswordReset();
+  const { guard } = useNavigationGuard();
   const [apiError, setApiError] = useState<string | null>(null);
 
   const {
@@ -56,9 +58,9 @@ export function ForgotPasswordScreen() {
       { email },
       {
         onSuccess: () => {
-          push(
+          guard(() => push(
             `/(auth)/verify-reset-otp?email=${encodeURIComponent(email)}` as Href,
-          );
+          ));
         },
         onError: (err) => {
           setApiError(getErrorMessage(err, 'Could not send reset code.'));
@@ -82,7 +84,7 @@ export function ForgotPasswordScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View className="w-full max-w-130 self-center">
-          <OnboardingBackButton onPress={back} />
+          <OnboardingBackButton onPress={() => guard(() => back())} />
 
           <View className="mt-5 items-center">
             <AppLogo
@@ -147,7 +149,7 @@ export function ForgotPasswordScreen() {
           </View>
 
           <Pressable
-            onPress={back}
+            onPress={() => guard(() => back())}
             accessibilityRole="link"
             disabled={busy}
             className="mt-8 items-center py-3">

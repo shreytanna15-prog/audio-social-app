@@ -17,6 +17,7 @@ import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { SignupLayout } from '../components/signup-layout';
 
@@ -36,6 +37,7 @@ function Requirement({ met, children }: { met: boolean; children: string }) {
 
 export function SignupScreenThree() {
   const { replace } = useRouter();
+  const { guard } = useNavigationGuard();
   const signupMutation = useSignup();
   const draft = useAuthStore((s) => s.signupDraft);
   const [showPassword, setShowPassword] = useState(false);
@@ -68,7 +70,7 @@ export function SignupScreenThree() {
   const onCreateAccount = handleSubmit((values) => {
     if (!draft.name || !draft.email || !draft.username) {
       setApiError('Please complete the previous signup steps first.');
-      replace('/signup');
+      guard(() => replace('/signup'));
       return;
     }
 

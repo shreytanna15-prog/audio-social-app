@@ -16,6 +16,7 @@ import {
 } from '@/shared/components/ui/sheet';
 import { Text } from '@/shared/components/ui/text';
 import { Textarea } from '@/shared/components/ui/textarea';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 type ProfileMessageSheetProps = {
   open: boolean;
@@ -33,6 +34,7 @@ export function ProfileMessageSheet({
   bottomOffset,
 }: ProfileMessageSheetProps) {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const createRequest = useCreateConversationRequest();
@@ -59,7 +61,7 @@ export function ProfileMessageSheet({
           setDraft('');
           handleClose(false);
           // Pending shows in Messages as “Pending”; open the thread to confirm send.
-          push(`/message/${result.conversation.id}` as Href);
+          guard(() => push(`/message/${result.conversation.id}` as Href));
         },
         onError: (err) => {
           setError(

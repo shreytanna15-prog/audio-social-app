@@ -5,11 +5,13 @@ import { Pressable, View } from 'react-native';
 
 import { isApiTrackId } from '@/features/saves';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { usePlayerStore } from '../store/player.store';
 
 export function MiniPlayer() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const track = usePlayerStore((s) => s.track);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progress = usePlayerStore((s) => s.progress);
@@ -24,7 +26,7 @@ export function MiniPlayer() {
 
   return (
     <Pressable
-      onPress={() => push('/player')}
+      onPress={() => guard(() => push('/player'))}
       accessibilityRole="button"
       accessibilityLabel={`Open now playing for ${track.title}`}
       className="mx-3 mb-2 overflow-hidden rounded-2xl border border-white/5 bg-surface-container">

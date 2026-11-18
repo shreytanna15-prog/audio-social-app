@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { usePlayerStore } from '@/features/player';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { FeedVibePage } from '../components/feed-vibe-page';
 import { FEED_VIBES } from '../data/feed-vibes.fixtures';
@@ -18,6 +19,7 @@ import type { FeedVibe } from '../types';
 
 export function FeedScreen() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const [screenFocused, setScreenFocused] = useState(true);
 
@@ -78,13 +80,13 @@ export function FeedScreen() {
       durationSec: vibe.durationSec,
       verified: vibe.verified,
     });
-    push('/player');
+    guard(() => push('/player'));
   };
 
   const openArtist = (vibe: FeedVibe) => {
     if (!vibe.artistId) return;
     playback.pause();
-    push(`/artist/${vibe.artistId}`);
+    guard(() => push(`/artist/${vibe.artistId}`));
   };
 
   return (

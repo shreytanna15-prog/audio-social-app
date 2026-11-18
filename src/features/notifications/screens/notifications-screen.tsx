@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { NotificationRow } from '../components/notification-row';
 import { NotificationsCaughtUpCard } from '../components/notifications-caught-up-card';
@@ -18,6 +19,7 @@ import { NOTIFICATIONS } from '../data/notifications.fixtures';
 export function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const { showError, dialog } = useFeedbackDialog();
 
   return (
@@ -40,7 +42,7 @@ export function NotificationsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Open profile"
               hitSlop={4}
-              onPress={() => push('/(tabs)/profile' as Href)}
+              onPress={() => guard(() => push('/(tabs)/profile' as Href))}
               className="h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-primary-container/30">
               <Text variant="label-sm" className="font-semibold text-on-surface">
                 U

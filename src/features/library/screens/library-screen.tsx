@@ -45,6 +45,7 @@ import { LibraryProjectsPanel } from '../components/library-projects-panel';
 import { LibrarySavedPanel } from '../components/library-saved-panel';
 import { LibrarySegmentTabs } from '../components/library-segment-tabs';
 import { PublishTrackSheet } from '../components/publish-track-sheet';
+import { TrackActionsDialog } from '../components/track-actions-dialog';
 import type {
   LibraryAlbumItem,
   LibraryAudioFilter,
@@ -72,6 +73,7 @@ export function LibraryScreen() {
   const [publishTrack, setPublishTrack] = useState<LibraryAudioItem | null>(
     null,
   );
+  const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
   const listBottomInset = Math.max(insets.bottom, 16) + 28;
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
@@ -132,6 +134,14 @@ export function LibraryScreen() {
   const audioItems = useMemo(
     () => (tracksQuery.data ?? []).map(mapTrackToLibraryItem),
     [tracksQuery.data],
+  );
+
+  const menuTrack = useMemo(
+    () =>
+      menuTrackId
+        ? (audioItems.find((item) => item.id === menuTrackId) ?? null)
+        : null,
+    [audioItems, menuTrackId],
   );
 
   const projectItems = useMemo(
@@ -455,18 +465,54 @@ export function LibraryScreen() {
     );
   };
 
-  const backupItem = (item: LibraryAudioItem) => {
+  const closeTrackMenu = () => setMenuTrackId(null);
+
+  const backupFromMenu = () => {
+    if (!menuTrack) return;
     void backupTrack
-      .mutateAsync({ trackId: item.id })
-      .then(() => {
-        showError('Backed up', 'This take is synced to the cloud.');
-      })
+      .mutateAsync({ trackId: menuTrack.id })
       .catch((error) => {
+        closeTrackMenu();
         showError(
           'Backup failed',
           getErrorMessage(error, 'Check your connection and try again.'),
         );
       });
+  };
+
+  const publishFromMenu = () => {
+    if (!menuTrack) return;
+    const item = menuTrack;
+    closeTrackMenu();
+    setPublishTrack(item);
+  };
+
+  const unpublishFromMenu = () => {
+    if (!menuTrack) return;
+    const item = menuTrack;
+    closeTrackMenu();
+    confirm(
+      'Unpublish track?',
+      'It will return to draft and leave the public feed.',
+      {
+        confirmLabel: 'Unpublish',
+        destructive: true,
+        onConfirm: () => {
+          void unpublishTrack.mutateAsync(item.id).catch((error) => {
+            showError('Could not unpublish', getErrorMessage(error, 'Try again.'));
+          });
+        },
+      },
+    );
+  };
+
+  const deleteFromMenu = () => {
+    if (!menuTrack) return;
+    const item = menuTrack;
+    closeTrackMenu();
+    void deleteTrack.mutateAsync(item.id).catch((error) => {
+      showError('Could not delete', getErrorMessage(error, 'Try again.'));
+    });
   };
 
   const openEditorForItem = (item: LibraryAudioItem) => {
@@ -485,7 +531,10 @@ export function LibraryScreen() {
 
       // Prefer on-disk title so renames survive reopen even if list cache lags.
       hydrateFromImport(loaded.project, loaded.title || item.title, item.id);
-      push('/studio/quick-record/edit' as Href);
+      push({
+        pathname: '/studio/quick-record/edit',
+        params: { storageState: item.storageState },
+      } as never);
     })();
   };
 
@@ -531,58 +580,7 @@ export function LibraryScreen() {
       return;
     }
 
-    const actions = [];
-
-    if (item.storageState === 'LOCAL_ONLY' && item.localUri) {
-      actions.push({
-        label: backupTrack.isPending ? 'Backing up…' : 'Back up to cloud',
-        onPress: () => backupItem(item),
-      });
-    }
-
-    if (item.status === 'DRAFT' && item.storageState === 'SYNCED') {
-      actions.push({
-        label: 'Publish…',
-        onPress: () => setPublishTrack(item),
-      });
-    }
-
-    if (item.status === 'PUBLISHED') {
-      actions.push({
-        label: 'Unpublish',
-        onPress: () => {
-          confirm(
-            'Unpublish track?',
-            'It will return to draft and leave the public feed.',
-            {
-              confirmLabel: 'Unpublish',
-              destructive: true,
-              onConfirm: () => {
-                void unpublishTrack.mutateAsync(item.id).catch((error) => {
-                  showError(
-                    'Could not unpublish',
-                    getErrorMessage(error, 'Try again.'),
-                  );
-                });
-              },
-            },
-          );
-        },
-      });
-    }
-
-    actions.push({
-      label: 'Delete',
-      variant: 'destructive' as const,
-      onPress: () => {
-        void deleteTrack.mutateAsync(item.id).catch((error) => {
-          showError('Could not delete', getErrorMessage(error, 'Try again.'));
-        });
-      },
-    });
-    actions.push({ label: 'Cancel', variant: 'ghost' as const });
-
-    show({ title: item.title, actions });
+    setMenuTrackId(item.id);
   };
 
   return (
@@ -690,6 +688,22 @@ export function LibraryScreen() {
           />
         ) : null}
       </View>
+
+      <TrackActionsDialog
+        open={menuTrack != null}
+        onOpenChange={(open) => {
+          if (!open) closeTrackMenu();
+        }}
+        title={menuTrack?.title ?? ''}
+        synced={menuTrack?.storageState === 'SYNCED'}
+        published={menuTrack?.status === 'PUBLISHED'}
+        canBackup={Boolean(menuTrack?.localUri)}
+        isBackingUp={backupTrack.isPending}
+        onBackup={backupFromMenu}
+        onPublish={publishFromMenu}
+        onUnpublish={unpublishFromMenu}
+        onDelete={deleteFromMenu}
+      />
 
       <PublishTrackSheet
         open={publishTrack != null}

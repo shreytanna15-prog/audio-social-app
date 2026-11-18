@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { GENRES, type Genre } from '../data/genres';
 import { GenreCard } from '../components/genre-card';
@@ -15,6 +16,7 @@ import { OnboardingProgress } from '../components/onboarding-progress';
 export function GenrePickerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { guard } = useNavigationGuard();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const count = selected.size;
 
@@ -30,7 +32,7 @@ export function GenrePickerScreen() {
     });
   };
 
-  const goToEntry = () => router.push('/entry');
+  const goToEntry = () => guard(() => router.push('/entry'));
 
   return (
     <View
@@ -42,7 +44,7 @@ export function GenrePickerScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View className="flex-row items-center justify-between py-1">
-          <OnboardingBackButton onPress={() => router.back()} />
+          <OnboardingBackButton onPress={() => guard(() => router.back())} />
           <OnboardingProgress step={2} />
           <Pressable onPress={goToEntry} hitSlop={8} className="px-2 py-1">
             <Text variant="label-md" className="text-on-surface-variant active:text-primary-tonal">

@@ -28,6 +28,8 @@ type QuickRecordTransportProps = {
   onToggleRecord: () => void;
   onToggleMonitor?: () => void;
   onStopRecordPressIn?: () => void;
+  onOpenPublish?: () => void;
+  publishDisabled?: boolean;
 };
 
 export function QuickRecordTransport({
@@ -43,6 +45,8 @@ export function QuickRecordTransport({
   onToggleRecord,
   onToggleMonitor,
   onStopRecordPressIn,
+  onOpenPublish,
+  publishDisabled = false,
 }: QuickRecordTransportProps) {
   const busy = isOptimizing || isSaving;
   const saveDisabled = busy || isRecording || !hasTake;
@@ -100,20 +104,6 @@ export function QuickRecordTransport({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          disabled={playDisabled}
-          onPress={onTogglePlayback}
-          style={({ pressed }) => [
-            styles.slot,
-            { opacity: playDisabled ? 0.35 : pressed ? 0.8 : 1 },
-          ]}>
-          <View style={styles.sideButton}>
-            <PlayIcon size={17} color="#E4E1EA" strokeWidth={2} />
-          </View>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
           accessibilityLabel={isRecording ? 'Stop' : 'Record'}
           disabled={recordDisabled}
           onPress={onToggleRecord}
@@ -138,9 +128,27 @@ export function QuickRecordTransport({
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+          disabled={playDisabled}
+          onPress={onTogglePlayback}
+          style={({ pressed }) => [
+            styles.slot,
+            { opacity: playDisabled ? 0.35 : pressed ? 0.8 : 1 },
+          ]}>
+          <View style={styles.sideButton}>
+            <PlayIcon size={17} color="#E4E1EA" strokeWidth={2} />
+          </View>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Publish"
-          disabled
-          style={[styles.slot, { opacity: 0.35 }]}>
+          disabled={publishDisabled}
+          onPress={onOpenPublish}
+          style={({ pressed }) => [
+            styles.slot,
+            { opacity: publishDisabled ? 0.35 : pressed ? 0.8 : 1 },
+          ]}>
           <View style={styles.sideButton}>
             <Upload size={17} color="#E4E1EA" strokeWidth={2} />
           </View>

@@ -4,10 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/features/auth';
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 export function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { completeOnboarding } = useAuthStore();
+  const { guard } = useNavigationGuard();
 
   return (
     <View
@@ -22,7 +24,7 @@ export function OnboardingScreen() {
         </Text>
       </View>
 
-      <Button onPress={completeOnboarding}>
+      <Button onPress={() => guard(() => completeOnboarding())}>
         <Text>Get started</Text>
       </Button>
     </View>

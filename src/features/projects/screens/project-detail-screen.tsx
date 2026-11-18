@@ -8,6 +8,7 @@ import { getErrorMessage } from '@/core/api/errors';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import {
   useAttachProjectTracks,
@@ -28,6 +29,7 @@ import { mapProjectDetail } from '../utils/map-project';
 export function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
   const { back, canGoBack, replace } = useRouter();
+  const { guard } = useNavigationGuard();
   const { id, title: titleParam } = useLocalSearchParams<{
     id?: string;
     title?: string;
@@ -52,10 +54,10 @@ export function ProjectDetailScreen() {
 
   const leave = () => {
     if (canGoBack()) {
-      back();
+      guard(() => back());
       return;
     }
-    replace('/projects/' as Href);
+    guard(() => replace('/projects/' as Href));
   };
 
   const openProjectMenu = () => {

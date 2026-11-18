@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/features/auth';
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { OnboardingBackButton } from '../components/onboarding-back-button';
 import { OnboardingBackground } from '../components/onboarding-background';
@@ -46,10 +47,11 @@ export function AuthEntryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
+  const { guard } = useNavigationGuard();
 
   const goTo = (href: '/login' | '/signup') => {
-    completeOnboarding();
-    router.push(href);
+    guard(() => completeOnboarding());
+    guard(() => router.push(href));
   };
 
   return (
@@ -58,7 +60,7 @@ export function AuthEntryScreen() {
       style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }}>
       <OnboardingBackground />
       <View className="flex-row items-center justify-between px-5 py-1">
-        <OnboardingBackButton onPress={() => router.back()} />
+        <OnboardingBackButton onPress={() => guard(() => router.back())} />
         <OnboardingProgress step={3} />
         <View className="h-10 w-10" />
       </View>

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getErrorMessage } from '@/core/api/errors';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { Button } from '@/shared/components/ui/button';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ import { mapProjectSummary } from '../utils/map-project';
 export function ProjectsScreen() {
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const { show, showError, dialog } = useFeedbackDialog();
   const projectsQuery = useProjects();
   const createProject = useCreateProject();
@@ -47,10 +49,10 @@ export function ProjectsScreen() {
     .map(mapProjectSummary);
 
   const openProject = (project: ProjectSummary) => {
-    push({
+    guard(() => push({
       pathname: '/projects/[id]',
       params: { id: project.id, title: project.title },
-    });
+    }));
   };
 
   const openProjectMenu = (project: ProjectSummary) => {
@@ -121,10 +123,10 @@ export function ProjectsScreen() {
       .then((created) => {
         setCreateOpen(false);
         setTitle('');
-        push({
+        guard(() => push({
           pathname: '/projects/[id]',
           params: { id: created.id, title: created.title },
-        });
+        }));
       })
       .catch((error) => {
         showError(

@@ -25,6 +25,7 @@ import { useSaveAlbum, useUnsaveAlbum } from '@/features/saves';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import {
   useAlbum,
@@ -39,6 +40,7 @@ import {
 export function AlbumDetailScreen() {
   const insets = useSafeAreaInsets();
   const { back, canGoBack, replace, push } = useRouter();
+  const { guard } = useNavigationGuard();
   const { id, title: titleParam } = useLocalSearchParams<{
     id?: string;
     title?: string;
@@ -74,17 +76,17 @@ export function AlbumDetailScreen() {
 
   const leave = () => {
     if (canGoBack()) {
-      back();
+      guard(() => back());
       return;
     }
-    replace('/(tabs)/library' as Href);
+    guard(() => replace('/(tabs)/library' as Href));
   };
 
   const playRow = (row: CollectionTrackRowItem) => {
     const track = album?.tracks.find((t) => t.id === row.id);
     if (!track?.available) return;
     play(mapCollectionTrackToPlayerTrack(track, coverUrl));
-    push('/player');
+    guard(() => push('/player'));
   };
 
   const toggleSaved = () => {

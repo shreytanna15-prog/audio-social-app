@@ -17,6 +17,7 @@ import {
 } from '@/shared/components/ui/sheet';
 import { Text } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 type ArtistMessageSheetProps = {
   open: boolean;
@@ -38,6 +39,7 @@ export function ArtistMessageSheet({
   bottomOffset,
 }: ArtistMessageSheetProps) {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const createRequest = useCreateConversationRequest();
@@ -67,7 +69,7 @@ export function ArtistMessageSheet({
         onSuccess: (result) => {
           setDraft('');
           handleClose(false);
-          push(`/message/${result.conversation.id}` as Href);
+          guard(() => push(`/message/${result.conversation.id}` as Href));
         },
         onError: (err) => {
           setError(

@@ -92,6 +92,7 @@ type QuickRecordStore = {
   captureFxSelection: EditChainSelection;
   setProject: (project: AudioProject) => void;
   setTitle: (title: string) => void;
+  setTrackId: (trackId: string | null) => void;
   setCaptureFxSelection: (selection: EditChainSelection) => void;
   hydrateCaptureFxFromPrefs: () => void;
   hydrateFromImport: (
@@ -126,6 +127,10 @@ export const useQuickRecordStore = create<QuickRecordStore>((set, get) => {
     setTitle: (title) =>
       set({
         title: title.trim() || DEFAULT_QUICK_RECORD_TITLE,
+      }),
+    setTrackId: (trackId) =>
+      set({
+        trackId: trackId?.trim() ? trackId.trim() : null,
       }),
     setCaptureFxSelection: (selection) => {
       rememberCaptureFxSelection(selection);

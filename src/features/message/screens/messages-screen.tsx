@@ -2,6 +2,7 @@ import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { useConversations, useMessageRequests } from '../api/hooks';
 import { mapConversationPreview } from '../api/mappers';
@@ -15,6 +16,7 @@ const ACCENT = '#D0BCFF';
 
 export function MessagesScreen() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const searchQuery = useMessageStore((s) => s.searchQuery);
   const setSearchQuery = useMessageStore((s) => s.setSearchQuery);
 
@@ -37,15 +39,15 @@ export function MessagesScreen() {
         });
 
   const openConversation = (id: string) => {
-    push(`/message/${id}` as Href);
+    guard(() => push(`/message/${id}` as Href));
   };
 
   const openRequests = () => {
-    push('/(tabs)/chat/requests' as Href);
+    guard(() => push('/(tabs)/chat/requests' as Href));
   };
 
   const openProfile = () => {
-    push('/(tabs)/profile' as Href);
+    guard(() => push('/(tabs)/profile' as Href));
   };
 
   return (

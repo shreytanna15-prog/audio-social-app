@@ -19,6 +19,7 @@ import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 're
 import { isApiTrackId } from '@/features/saves';
 import { AppHeader } from '@/shared/components/layout/app-header';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { PlayerComments } from '../components/player-comments';
 import { PlayerProgress } from '../components/player-progress';
@@ -30,6 +31,7 @@ const ICON_ACTIVE = '#D0BCFF';
 
 export function NowPlayingScreen() {
   const { back, canGoBack } = useRouter();
+  const { guard } = useNavigationGuard();
   const { width } = useWindowDimensions();
   const coverSize = Math.min(width - 48, 340);
 
@@ -52,7 +54,7 @@ export function NowPlayingScreen() {
           Nothing playing
         </Text>
         <Pressable
-          onPress={() => (canGoBack() ? back() : undefined)}
+          onPress={() => (canGoBack() ? guard(() => back()) : undefined)}
           className="mt-4 rounded-full bg-primary-tonal px-5 py-2.5">
           <Text variant="label-md" className="font-semibold text-on-primary">
             Close
@@ -86,7 +88,7 @@ export function NowPlayingScreen() {
 
       <View className="flex-row items-center justify-between px-3 pb-2">
         <Pressable
-          onPress={() => (canGoBack() ? back() : undefined)}
+          onPress={() => (canGoBack() ? guard(() => back()) : undefined)}
           accessibilityRole="button"
           accessibilityLabel="Close player"
           hitSlop={8}

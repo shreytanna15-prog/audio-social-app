@@ -14,6 +14,7 @@ import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { SignupLayout } from '../components/signup-layout';
 
@@ -21,6 +22,7 @@ const MAX_USERNAME_LENGTH = 20;
 
 export function SignupScreenTwo() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const setSignupDraft = useAuthStore((s) => s.setSignupDraft);
   const draft = useAuthStore((s) => s.signupDraft);
 
@@ -45,7 +47,7 @@ export function SignupScreenTwo() {
       email: values.email.trim().toLowerCase(),
       username: values.username,
     });
-    push('/signup-three');
+    guard(() => push('/signup-three'));
   });
 
   return (

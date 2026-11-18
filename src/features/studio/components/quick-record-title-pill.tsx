@@ -2,6 +2,7 @@ import { Pencil } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable } from 'react-native';
 
+import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/components/ui/button';
 import {
   Dialog,
@@ -70,7 +71,10 @@ export function QuickRecordTitlePill({
             maxLength={80}
             placeholder={DEFAULT_QUICK_RECORD_TITLE}
             onSubmitEditing={commit}
-            className={fieldClassName}
+            className={cn(
+              fieldClassName,
+              'border border-hairline bg-canvas rounded-2xl',
+            )}
           />
           <DialogFooter>
             <Button variant="ghost" size="sm" onPress={() => setOpen(false)}>

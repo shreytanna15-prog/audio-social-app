@@ -22,6 +22,7 @@ import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { useConfirmPasswordReset } from '../api/hooks';
 import { signupPasswordSchema, type SignupPasswordFormValues } from '../api/schemas';
@@ -36,6 +37,7 @@ export function ResetPasswordScreen() {
     typeof params.resetToken === 'string' ? params.resetToken : '';
 
   const confirmReset = useConfirmPasswordReset();
+  const { guard } = useNavigationGuard();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function ResetPasswordScreen() {
 
   useEffect(() => {
     if (!resetToken) {
-      replace('/(auth)/forgot-password' as Href);
+      guard(() => replace('/(auth)/forgot-password' as Href));
     }
   }, [resetToken, replace]);
 
@@ -64,7 +66,7 @@ export function ResetPasswordScreen() {
       { resetToken, password: values.password },
       {
         onSuccess: () => {
-          replace('/(auth)/login' as Href);
+          guard(() => replace('/(auth)/login' as Href));
         },
         onError: (err) => {
           setApiError(getErrorMessage(err, 'Could not update password.'));
@@ -88,7 +90,7 @@ export function ResetPasswordScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View className="w-full max-w-130 self-center">
-          <OnboardingBackButton onPress={back} />
+          <OnboardingBackButton onPress={() => guard(() => back())} />
 
           <View className="mt-5 items-center">
             <AppLogo

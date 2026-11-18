@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePlayerStore } from '@/features/player';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { ArtistAlbumGrid } from '../components/artist-album-grid';
 import { ArtistContentTabs } from '../components/artist-content-tabs';
@@ -25,6 +26,7 @@ const TAB_BAR_CLEARANCE = 12;
 export function ArtistProfileScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const insets = useSafeAreaInsets();
   const profile = getArtistProfileFixture(typeof id === 'string' ? id : undefined);
 
@@ -79,7 +81,7 @@ export function ArtistProfileScreen() {
 
   const openTrackAndPlay = (track: ArtistTrack) => {
     playTrack(track);
-    push('/player');
+    guard(() => push('/player'));
   };
 
   const onAlbumPress = (album: ArtistAlbum) => {

@@ -16,6 +16,7 @@ import {
 } from '@/features/users';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { ExploreFilterChips } from '../components/explore-filter-chips';
 import { SearchArtistRow } from '../components/search-artist-row';
@@ -35,6 +36,7 @@ const LIST_BOTTOM_PAD = 'pb-36';
 
 export function SearchScreen() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedChipId, setSelectedChipId] =
@@ -82,7 +84,7 @@ export function SearchScreen() {
       .catch(() => {
         // Navigation should still work if recent recording fails.
       });
-    push(`/artist/${targetUserId}`);
+    guard(() => push(`/artist/${targetUserId}`));
   };
 
   const onChangeQuery = (text: string) => {

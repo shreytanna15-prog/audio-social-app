@@ -14,6 +14,7 @@ import { OnboardingBackButton } from '@/features/onboarding/components/onboardin
 import { OnboardingProgress } from '@/features/onboarding/components/onboarding-progress';
 import { AppLogo } from '@/shared/components/brand/app-logo';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { AuthBackground } from './auth-background';
 
@@ -28,6 +29,7 @@ export function SignupLayout({ step, title, description, children }: SignupLayou
   const insets = useSafeAreaInsets();
   const { back, push } = useRouter();
   const { width } = useWindowDimensions();
+  const { guard } = useNavigationGuard();
 
   const contentWidth = Math.min(width - 32, 520);
   const logoWidth = Math.min(contentWidth, 150);
@@ -48,7 +50,7 @@ export function SignupLayout({ step, title, description, children }: SignupLayou
         showsVerticalScrollIndicator={false}>
         <View style={{ width: contentWidth, alignSelf: 'center' }}>
           <View className="flex-row items-center justify-between">
-            <OnboardingBackButton onPress={back} />
+            <OnboardingBackButton onPress={() => guard(() => back())} />
             <OnboardingProgress step={step} />
           </View>
 
@@ -75,7 +77,7 @@ export function SignupLayout({ step, title, description, children }: SignupLayou
               Already have an account?
             </Text>
             <Pressable
-              onPress={() => push('/login')}
+              onPress={() => guard(() => push('/login'))}
               accessibilityRole="link"
               hitSlop={8}
               className="ml-1 py-1">

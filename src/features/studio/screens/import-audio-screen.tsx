@@ -20,12 +20,14 @@ import { useStudioProjectContextStore } from '@/features/studio/store/studio-pro
 import { CreateOptionRow } from '@/shared/components/create/create-option-row';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 /**
  * Create → Import Audio chooser. Single → QR edit; Multi → Multitrack with layer 1.
  */
 export function ImportAudioScreen() {
   const { replace } = useRouter();
+  const { guard } = useNavigationGuard();
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
   const [importing, setImporting] = useState(false);
@@ -62,10 +64,10 @@ export function ImportAudioScreen() {
         });
         const projectId =
           useStudioProjectContextStore.getState().projectId ?? undefined;
-        replace({
+        guard(() => replace({
           pathname: '/studio/quick-record/edit',
           params: projectId ? { projectId } : undefined,
-        });
+        }));
         return;
       }
 
@@ -81,10 +83,10 @@ export function ImportAudioScreen() {
       {
         const projectId =
           useStudioProjectContextStore.getState().projectId ?? undefined;
-        replace({
+        guard(() => replace({
           pathname: '/studio/multitrack',
           params: projectId ? { projectId } : undefined,
-        });
+        }));
       }
     } catch (error) {
       showError(

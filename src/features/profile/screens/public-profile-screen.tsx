@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useConversations } from '@/features/message';
 import { useFollowUser, useUnfollowUser } from '@/features/users';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { ProfileMessageSheet } from '../components/profile-message-sheet';
 import { ProfilePublicActions } from '../components/profile-public-actions';
@@ -25,6 +26,7 @@ export function PublicProfileScreen() {
     usePublicProfile(profileId);
   const sheetBottomOffset = useProfileSheetBottomOffset();
   const conversationsQuery = useConversations();
+  const { guard } = useNavigationGuard();
 
   const follow = useFollowUser();
   const unfollow = useUnfollowUser();
@@ -40,7 +42,7 @@ export function PublicProfileScreen() {
 
     const cached = findThreadWithUser(apiProfile.id);
     if (cached) {
-      push(`/message/${cached.id}` as Href);
+      guard(() => push(`/message/${cached.id}` as Href));
       return;
     }
 
@@ -49,7 +51,7 @@ export function PublicProfileScreen() {
       (item) => item.participant.id === apiProfile.id,
     );
     if (existing) {
-      push(`/message/${existing.id}` as Href);
+      guard(() => push(`/message/${existing.id}` as Href));
       return;
     }
 

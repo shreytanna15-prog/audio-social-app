@@ -21,6 +21,7 @@ import { Button } from '@/shared/components/ui/button';
 import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import {
   useRequestPasswordReset,
@@ -48,6 +49,7 @@ export function VerifyResetOtpScreen() {
 
   const verifyOtp = useVerifyPasswordResetOtp();
   const requestReset = useRequestPasswordReset();
+  const { guard } = useNavigationGuard();
   const [apiError, setApiError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SEC);
   /** Remount TextInput when non-digits are typed so Android doesn't flicker. */
@@ -64,7 +66,7 @@ export function VerifyResetOtpScreen() {
 
   useEffect(() => {
     if (!email) {
-      replace('/(auth)/forgot-password' as Href);
+      guard(() => replace('/(auth)/forgot-password' as Href));
     }
   }, [email, replace]);
 
@@ -85,9 +87,9 @@ export function VerifyResetOtpScreen() {
       { email, otp: values.otp.trim() },
       {
         onSuccess: (data) => {
-          push(
+          guard(() => push(
             `/(auth)/reset-password?resetToken=${encodeURIComponent(data.resetToken)}` as Href,
-          );
+          ));
         },
         onError: (err) => {
           setApiError(getErrorMessage(err, 'Invalid code.'));
@@ -130,7 +132,7 @@ export function VerifyResetOtpScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View className="w-full max-w-130 self-center">
-          <OnboardingBackButton onPress={back} />
+          <OnboardingBackButton onPress={() => guard(() => back())} />
 
           <View className="mt-5 items-center">
             <AppLogo

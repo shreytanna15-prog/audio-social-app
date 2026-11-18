@@ -51,6 +51,11 @@ const buttonVariants = cva(
           'rounded-xl bg-primary/20 active:bg-primary/30 shadow-none',
           Platform.select({ web: 'hover:bg-primary/25' })
         ),
+        /** Text-style pill — transparent bg, subtle border, design-system border color. */
+        text: cn(
+          'bg-transparent border border-white/10 active:bg-white/5 shadow-none',
+          Platform.select({ web: 'hover:bg-white/5' })
+        ),
         link: '',
       },
       size: {
@@ -83,6 +88,7 @@ const buttonTextVariants = cva(
         surface: 'text-on-surface',
         ghost: 'text-on-surface-variant group-active:text-on-surface',
         soft: 'text-on-surface',
+        text: 'text-on-surface-variant group-active:text-on-surface',
         link: cn(
           'text-brand group-active:underline',
           Platform.select({ web: 'underline-offset-4 hover:underline group-hover:underline' })

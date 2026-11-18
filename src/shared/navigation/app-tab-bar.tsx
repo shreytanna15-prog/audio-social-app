@@ -9,6 +9,7 @@ import { MiniPlayer, usePlayerStore } from '@/features/player';
 import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import { CreateSheet, type CreateActionId } from '@/shared/components/create';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 const ACTIVE_COLOR = '#D0BCFF';
 const INACTIVE_COLOR = '#CBC3D7';
@@ -95,6 +96,7 @@ function CreateTabButton({
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const [createOpen, setCreateOpen] = useState(false);
   const bottomPad = Math.max(insets.bottom, 10);
   const [tabChromeHeight, setTabChromeHeight] = useState(
@@ -128,7 +130,7 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
     useStudioProjectContextStore.getState().clearProjectId();
     setCreateOpen(false);
     requestAnimationFrame(() => {
-      push(route as Parameters<typeof push>[0]);
+      guard(() => push(route as Parameters<typeof push>[0]));
     });
   };
 

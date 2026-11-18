@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 import { Text } from '@/shared/components/ui/text';
 
 type ScreenHeaderProps = {
@@ -38,6 +39,7 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const { back, canGoBack, replace } = useRouter();
+  const { guard } = useNavigationGuard();
 
   const handleBack = () => {
     if (onBack) {
@@ -45,10 +47,10 @@ export function ScreenHeader({
       return;
     }
     if (canGoBack()) {
-      back();
+      guard(() => back());
       return;
     }
-    replace('/(tabs)');
+    guard(() => replace('/(tabs)'));
   };
 
   const backControl = left ?? (

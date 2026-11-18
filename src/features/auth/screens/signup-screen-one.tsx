@@ -12,6 +12,7 @@ import { Button } from '@/shared/components/ui/button';
 import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { SignupLayout } from '../components/signup-layout';
 
@@ -19,6 +20,7 @@ const MAX_NAME_LENGTH = 30;
 
 export function SignupScreenOne() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const setSignupDraft = useAuthStore((s) => s.setSignupDraft);
   const draftName = useAuthStore((s) => s.signupDraft.name ?? '');
 
@@ -37,7 +39,7 @@ export function SignupScreenOne() {
 
   const onContinue = handleSubmit((values) => {
     setSignupDraft({ name: values.name.trim() });
-    push('/signup-two');
+    guard(() => push('/signup-two'));
   });
 
   return (

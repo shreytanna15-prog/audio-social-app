@@ -11,6 +11,7 @@ import {
   TrendingSection,
 } from '@/shared/components/music';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { ExploreFilterChips } from '../components/explore-filter-chips';
 import { ExploreSearchBar } from '../components/explore-search-bar';
@@ -22,6 +23,7 @@ import { RISING_CREATOR } from '../data/rising-creator';
 
 export function ExploreScreen() {
   const { push } = useRouter();
+  const { guard } = useNavigationGuard();
   const insets = useSafeAreaInsets();
   const play = usePlayerStore((s) => s.play);
   const [selectedFilterId, setSelectedFilterId] = useState(EXPLORE_FILTERS[0]?.id ?? 'all');
@@ -51,7 +53,7 @@ export function ExploreScreen() {
         contentContainerClassName="gap-5 pb-8"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <ExploreSearchBar onPress={() => push('/explore/search' as Href)} />
+        <ExploreSearchBar onPress={() => guard(() => push('/explore/search' as Href))} />
 
         <ExploreFilterChips
           selectedId={selectedFilterId}
@@ -85,9 +87,9 @@ export function ExploreScreen() {
 
         <RisingCreatorCard
           creator={RISING_CREATOR}
-          onPress={() => push(`/artist/${RISING_CREATOR.id}`)}
+          onPress={() => guard(() => push(`/artist/${RISING_CREATOR.id}`))}
           onSamplePress={playRisingSample}
-          onFollowPress={() => push(`/artist/${RISING_CREATOR.id}`)}
+          onFollowPress={() => guard(() => push(`/artist/${RISING_CREATOR.id}`))}
         />
 
         <TrendingSection
@@ -106,7 +108,7 @@ export function ExploreScreen() {
           title="Top Creators"
           subtitle="Trendsetters & Sound Designers"
           actionLabel="Explore All"
-          onArtistPress={(artist) => push(`/artist/${artist.id}`)}
+          onArtistPress={(artist) => guard(() => push(`/artist/${artist.id}`))}
         />
 
         <ChallengeCard

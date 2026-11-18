@@ -1,9 +1,10 @@
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { useAuthStore } from '@/features/auth';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { ProfileScreenShell } from '../components/profile-screen-shell';
 import { ProfileSelfActions } from '../components/profile-self-actions';
@@ -14,18 +15,16 @@ export function MyProfileScreen() {
   const { push } = useRouter();
   const { profile, isLoading, isError, refetch } = useMyProfile();
   const logout = useAuthStore((s) => s.logout);
-  const isNavigatingRef = useRef(false);
+  const { guard } = useNavigationGuard();
 
   useFocusEffect(
     useCallback(() => {
-      isNavigatingRef.current = false;
+      // no-op: guard resets automatically via its own timer
     }, []),
   );
 
   const goTo = (href: Href) => {
-    if (isNavigatingRef.current) return;
-    isNavigatingRef.current = true;
-    push(href);
+    guard(() => push(href));
   };
 
   if (isLoading && !profile) {

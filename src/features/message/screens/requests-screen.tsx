@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import {
   useAcceptConversation,
@@ -21,6 +22,7 @@ const ACCENT = '#D0BCFF';
 export function RequestsScreen() {
   const insets = useSafeAreaInsets();
   const { back, canGoBack, replace, push } = useRouter();
+  const { guard } = useNavigationGuard();
   const requestsQuery = useMessageRequests();
   const accept = useAcceptConversation();
   const decline = useDeclineConversation();
@@ -29,16 +31,16 @@ export function RequestsScreen() {
 
   const handleBack = () => {
     if (canGoBack()) {
-      back();
+      guard(() => back());
       return;
     }
-    replace('/(tabs)/chat/' as Href);
+    guard(() => replace('/(tabs)/chat/' as Href));
   };
 
   const handleAccept = (id: string) => {
     accept.mutate(id, {
       onSuccess: (conversation) => {
-        push(`/message/${conversation.id}` as Href);
+        guard(() => push(`/message/${conversation.id}` as Href));
       },
     });
   };
@@ -49,7 +51,7 @@ export function RequestsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <MessageBrandHeader onAvatarPress={() => push('/(tabs)/profile' as Href)} />
+      <MessageBrandHeader onAvatarPress={() => guard(() => push('/(tabs)/profile' as Href))} />
 
       <View className="flex-row items-center gap-2 px-3 pb-3 pt-2">
         <Pressable

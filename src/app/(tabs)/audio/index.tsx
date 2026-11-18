@@ -12,16 +12,18 @@ import {
 } from '@/features/audio/services/audio-import.service';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 export default function AudioScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { guard } = useNavigationGuard();
   const [isImporting, setIsImporting] = useState(false);
   const { showError, dialog } = useFeedbackDialog();
 
   const openQuickRecord = useCallback(() => {
-    router.push('/studio/quick-record');
-  }, [router]);
+    guard(() => router.push('/studio/quick-record'));
+  }, [router, guard]);
 
   const openImport = useCallback(async () => {
     if (isImporting) {
@@ -40,7 +42,7 @@ export default function AudioScreen() {
 
       const staged = await prepareImportedAudio(picked.uri);
 
-      router.push({
+      guard(() => router.push({
         pathname: '/audio/recording/[id]',
         params: {
           id: 'new',
@@ -49,7 +51,7 @@ export default function AudioScreen() {
           sourcePreGateUri: staged.sourcePreGateUri,
           kind: 'import',
         },
-      });
+      }));
     } catch (error) {
       showError(
         'Import failed',
@@ -60,7 +62,7 @@ export default function AudioScreen() {
     } finally {
       setIsImporting(false);
     }
-  }, [isImporting, router, showError]);
+  }, [isImporting, router, showError, guard]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/shared/components/ui/text';
 import { imeOverlapPx } from '@/shared/lib/ime-overlap';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import {
   useConversationMessages,
@@ -35,6 +36,7 @@ export function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const conversationId = Array.isArray(id) ? id[0] : id;
   const { back, canGoBack, replace } = useRouter();
+  const { guard } = useNavigationGuard();
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const insets = useSafeAreaInsets();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -94,10 +96,10 @@ export function ConversationScreen() {
 
   const handleBack = () => {
     if (canGoBack()) {
-      back();
+      guard(() => back());
       return;
     }
-    replace('/(tabs)/chat' as Href);
+    guard(() => replace('/(tabs)/chat' as Href));
   };
 
   if (!conversationId) {

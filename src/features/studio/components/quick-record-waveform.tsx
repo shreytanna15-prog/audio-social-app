@@ -37,7 +37,7 @@ export { LIVE_WINDOW_SECONDS };
 const DEFAULT_WAVE_HEIGHT = 140;
 const EMPTY_BAR_COUNT = 56;
 const BAR_WIDTH = 3;
-const RULER_HEIGHT = 28;
+export const RULER_HEIGHT = 28;
 /** Label row above ticks — playhead starts below this so numbers stay clear. */
 const RULER_LABEL_INSET = 16;
 

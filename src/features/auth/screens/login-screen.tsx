@@ -25,6 +25,7 @@ import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 import { cn } from '@/shared/lib/utils';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { AuthBackground } from '../components/auth-background';
 
@@ -34,6 +35,7 @@ export function LoginScreen() {
   const { width } = useWindowDimensions();
   const resetOnboarding = useAuthStore((state) => state.resetOnboarding);
   const loginMutation = useLogin();
+  const { guard } = useNavigationGuard();
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -60,7 +62,7 @@ export function LoginScreen() {
 
   const handleRestartOnboarding = () => {
     resetOnboarding();
-    push('/welcome');
+    guard(() => push('/welcome'));
   };
 
   const busy = loginMutation.isPending;
@@ -82,7 +84,7 @@ export function LoginScreen() {
         <View className="w-full max-w-130 self-center">
           {canGoBack() ? (
             <View className="flex-row items-center">
-              <OnboardingBackButton onPress={back} />
+              <OnboardingBackButton onPress={() => guard(() => back())} />
             </View>
           ) : null}
 
@@ -170,7 +172,7 @@ export function LoginScreen() {
                 <Text className="text-[13px] text-destructive">{errors.password.message}</Text>
               ) : null}
               <Pressable
-                onPress={() => push('../forgot-password')}
+                onPress={() => guard(() => push('../forgot-password'))}
                 accessibilityRole="link"
                 disabled={busy}
                 className="self-end py-1">
@@ -205,7 +207,7 @@ export function LoginScreen() {
               Don&apos;t have an account?
             </Text>
             <Pressable
-              onPress={() => push('/signup')}
+              onPress={() => guard(() => push('/signup'))}
               accessibilityRole="link"
               disabled={busy}
               hitSlop={8}

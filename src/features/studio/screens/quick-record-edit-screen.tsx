@@ -9,16 +9,26 @@ import { QuickRecordTimer } from '@/features/studio/components/quick-record-time
 import { QuickRecordTitlePill } from '@/features/studio/components/quick-record-title-pill';
 import { QuickRecordToolRow } from '@/features/studio/components/quick-record-tool-row';
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
-import { QuickRecordWaveform } from '@/features/studio/components/quick-record-waveform';
+import {
+  QuickRecordWaveform,
+  RULER_HEIGHT,
+} from '@/features/studio/components/quick-record-waveform';
 import { useQuickRecordEditSession } from '@/features/studio/hooks/use-quick-record-edit-session';
+import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
+
+const EDIT_WAVE_HEIGHT = 140;
+const EDIT_WAVE_PADDING = 16;
 
 export function QuickRecordEditScreen() {
   const insets = useSafeAreaInsets();
   // Recorder binding stays on the capture screen underneath the stack.
   const session = useQuickRecordEditSession();
   const monitor = useInputMonitor();
+  const { showError, dialog } = useFeedbackDialog();
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const displaySeconds = session.hasTake || session.isScrubbing
     ? session.currentTime
@@ -27,15 +37,16 @@ export function QuickRecordEditScreen() {
     session.durationSeconds > 0
       ? session.currentTime / session.durationSeconds
       : 0;
-  const overlayVisible =
-    session.isBusy || session.fxProcessing || session.isSaving;
-  const overlayTitle = session.isSaving
-    ? 'Saving…'
-    : session.fxProcessing
-      ? 'Applying FX…'
-      : session.isOptimizing
-        ? 'Finishing recording…'
-        : 'Cleaning take…';
+
+  const publishTrack = session.trackId
+    ? { id: session.trackId, title: session.title }
+    : null;
+  const publishDisabled =
+    !session.hasTake ||
+    session.isRecording ||
+    session.isBusy ||
+    session.isSaving ||
+    session.isSyncing;
 
   return (
     <View
@@ -61,28 +72,44 @@ export function QuickRecordEditScreen() {
 
       </View>
 
-      <View className="flex-1 px-4 pt-3 pb-4">
-        <QuickRecordWaveform
-          peaks={session.peaks}
-          isRecording={session.isRecording}
-          hasTake={session.hasTake}
-          isPlaying={session.isPlaying}
-          progress={progress}
-          durationSeconds={session.durationSeconds}
-          recordOriginSeconds={session.recordOriginSeconds}
-          windowStartSeconds={windowStartSeconds}
-          onWindowStartChange={setWindowStartSeconds}
-          onScrubStart={overlayVisible ? undefined : session.beginScrub}
-          onSeek={overlayVisible ? undefined : session.scrubTo}
-          onScrubEnd={
-            overlayVisible
-              ? undefined
-              : (seconds) => {
-                  void session.endScrub(seconds);
-                }
-          }
-        />
+      <View className="px-4">
+        <View
+          className="overflow-hidden rounded-3xl px-3.5"
+          style={{
+            height:
+              RULER_HEIGHT + EDIT_WAVE_HEIGHT + EDIT_WAVE_PADDING * 2,
+            paddingVertical: EDIT_WAVE_PADDING,
+            backgroundColor: 'rgba(31,31,37,0.96)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.07)',
+            borderCurve: 'continuous',
+            boxShadow: '0 10px 28px rgba(0,0,0,0.35)',
+          }}>
+          <QuickRecordWaveform
+            peaks={session.peaks}
+            isRecording={session.isRecording}
+            hasTake={session.hasTake}
+            isPlaying={session.isPlaying}
+            progress={progress}
+            durationSeconds={session.durationSeconds}
+            recordOriginSeconds={session.recordOriginSeconds}
+            windowStartSeconds={windowStartSeconds}
+            onWindowStartChange={setWindowStartSeconds}
+            waveHeight={EDIT_WAVE_HEIGHT}
+            onScrubStart={session.overlayVisible ? undefined : session.beginScrub}
+            onSeek={session.overlayVisible ? undefined : session.scrubTo}
+            onScrubEnd={
+              session.overlayVisible
+                ? undefined
+                : (seconds) => {
+                    void session.endScrub(seconds);
+                  }
+            }
+          />
+        </View>
       </View>
+
+      <View className="flex-1" />
 
       <View className="gap-6 px-4 pt-2 pb-5">
         <QuickRecordToolRow
@@ -110,13 +137,31 @@ export function QuickRecordEditScreen() {
           onToggleRecord={session.toggleRecord}
           onToggleMonitor={monitor.toggleMonitor}
           onStopRecordPressIn={() => recordingSessionService.requestStop()}
+          onOpenPublish={() => setPublishOpen(true)}
+          publishDisabled={publishDisabled}
         />
       </View>
 
       <QuickRecordProcessingOverlay
-        visible={overlayVisible}
-        title={overlayTitle}
+        visible={session.overlayVisible}
+        title={session.overlayTitle}
       />
+
+      <TrackPublishSheet
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        track={publishTrack}
+        initialTitle={session.title}
+        bottomOffset={insets.bottom}
+        onSaveToCloud={session.saveToCloud}
+        canPublish={session.isSynced}
+        synced={session.isSynced}
+        isSyncing={session.isSyncing}
+        onPublished={session.finishPublished}
+        onError={showError}
+      />
+
+      {dialog}
     </View>
   );
 }

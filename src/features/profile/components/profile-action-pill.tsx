@@ -1,21 +1,16 @@
-import { Pressable, type AccessibilityRole } from 'react-native';
-
+import { cn } from '@/shared/lib/utils';
+import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
 
-/** Locked hero action metrics — keep both pills visually matched. */
 export const PROFILE_PILL_HEIGHT = 40;
 export const PROFILE_PILL_GAP = 10;
-
-const LABEL =
-  'font-sans text-[13px] font-semibold leading-4 tracking-normal';
 
 type ProfileActionPillProps = {
   label: string;
   onPress: () => void;
   accessibilityLabel: string;
-  /** Primary = primary tint; secondary = dark glass. */
   tone: 'primary' | 'secondary';
-  accessibilityRole?: AccessibilityRole;
+  accessibilityRole?: 'button';
 };
 
 export function ProfileActionPill({
@@ -28,30 +23,31 @@ export function ProfileActionPill({
   const isPrimary = tone === 'primary';
 
   return (
-    <Pressable
+    <Button
       onPress={onPress}
-      accessibilityRole={accessibilityRole}
+      role={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
-      className="min-w-0 flex-1 items-center justify-center"
+      variant="text"
+      size="sm"
+      className={cn(
+        'min-w-0 flex-1 items-center justify-center rounded-full',
+        isPrimary ? 'shadow-sm shadow-primary/30' : '',
+      )}
       style={({ pressed }) => ({
         height: PROFILE_PILL_HEIGHT,
         borderRadius: PROFILE_PILL_HEIGHT / 2,
-        opacity: pressed ? 0.88 : 1,
-        // Primary container (#A078FF) at reduced opacity over the dark hero.
-        backgroundColor: isPrimary
-          ? 'rgba(160, 120, 255, 0.35)'
-          : 'rgba(27, 27, 33, 0.85)',
+        opacity: pressed ? 0.9 : 1,
         borderWidth: 1,
         borderColor: isPrimary
           ? 'rgba(160, 120, 255, 0.45)'
           : 'rgba(255, 255, 255, 0.12)',
       })}>
       <Text
-        className={LABEL}
+        className="font-sans text-[13px] font-semibold leading-4 tracking-normal"
         style={{ color: isPrimary ? '#D0BCFF' : '#E4E1EA' }}
         numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
+    </Button>
   );
 }

@@ -7,6 +7,7 @@ import { AppLogo } from '@/shared/components/brand/app-logo';
 import { Button } from '@/shared/components/ui/button';
 import { Text } from '@/shared/components/ui/text';
 import { SonicStage } from '@/shared/SVGs/sonic-stage';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { OnboardingBackground } from '../components/onboarding-background';
 import { OnboardingIcon } from '../components/onboarding-icon';
@@ -17,10 +18,11 @@ export function WelcomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
+  const { guard } = useNavigationGuard();
 
   const goToLogin = () => {
-    completeOnboarding();
-    router.push('/login');
+    guard(() => completeOnboarding());
+    guard(() => router.push('/login'));
   };
 
   const contentWidth = Math.min(width - 32, 380);
@@ -66,7 +68,7 @@ export function WelcomeScreen() {
         <Button
           variant="tonal"
           size="lg"
-          onPress={() => router.push('/genres')}
+          onPress={() => guard(() => router.push('/genres'))}
           className="h-14 w-full rounded-md">
           <Text>Get Started</Text>
         </Button>

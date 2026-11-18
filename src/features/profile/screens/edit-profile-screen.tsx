@@ -23,6 +23,7 @@ import {
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
 import { Textarea } from '@/shared/components/ui/textarea';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import {
   useDeleteAvatar,
@@ -65,6 +66,7 @@ function formatUnlockDate(iso: string | null): string {
 /** Edit Profile — text Save + independent media upload flows. */
 export function EditProfileScreen() {
   const { back } = useRouter();
+  const { guard } = useNavigationGuard();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const meQuery = useMe();
@@ -211,7 +213,7 @@ export function EditProfileScreen() {
 
     try {
       await patchMe.mutateAsync(body);
-      back();
+      guard(() => back());
     } catch (error) {
       const message = isApiError(error)
         ? error.message
@@ -298,7 +300,7 @@ export function EditProfileScreen() {
         className="flex-row items-center justify-between border-b border-white/5 px-2"
         style={{ paddingTop: insets.top, height: headerHeight }}>
         <Pressable
-          onPress={() => back()}
+          onPress={() => guard(() => back())}
           accessibilityRole="button"
           accessibilityLabel="Cancel"
           className="min-w-18 px-2 py-2">
