@@ -90,6 +90,7 @@ export function EditProfileScreen() {
   );
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const bioFocusedRef = useRef(false);
+  const pickInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!me || hydrated) return;
@@ -226,15 +227,19 @@ export function EditProfileScreen() {
     source: 'camera' | 'library',
     kind: 'avatar' | 'cover',
   ) => {
-    setMediaTarget(null);
-    const picked = await pickProfileImage({ source, kind });
-    if (!picked.ok) {
-      if (!picked.canceled) {
-        showError(picked.title, picked.message);
-      }
+    if (pickInFlightRef.current) {
       return;
     }
+    pickInFlightRef.current = true;
+    setMediaTarget(null);
     try {
+      const picked = await pickProfileImage({ source, kind });
+      if (!picked.ok) {
+        if (!picked.canceled) {
+          showError(picked.title, picked.message);
+        }
+        return;
+      }
       const payload = {
         localUri: picked.uri,
         contentType: picked.contentType,
@@ -249,6 +254,8 @@ export function EditProfileScreen() {
         'Upload failed',
         isApiError(error) ? error.message : getErrorMessage(error),
       );
+    } finally {
+      pickInFlightRef.current = false;
     }
   };
 

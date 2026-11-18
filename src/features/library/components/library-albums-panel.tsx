@@ -68,10 +68,9 @@ export function LibraryAlbumsPanel({
           gap: 20,
         }}
         ListHeaderComponent={
-          <View className="mb-1 pb-2">
+          <View className="mb-2 pb-1 pt-1">
             <LibrarySectionHeader
-              label="Published collections"
-              count={items.length}
+              label="Albums"
               trailing={
                 onCreatePress ? (
                   <LibraryNewCollectionButton

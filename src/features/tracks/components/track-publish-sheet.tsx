@@ -119,6 +119,7 @@ export function TrackPublishSheet({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const wasOpenRef = useRef(false);
+  const pickCoverInFlightRef = useRef(false);
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       setTitle(track?.title ?? initialTitle);
@@ -130,6 +131,7 @@ export function TrackPublishSheet({
       setGenres([]);
       setBusy(false);
       setSubmitError(null);
+      pickCoverInFlightRef.current = false;
     }
     wasOpenRef.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on open
@@ -155,20 +157,28 @@ export function TrackPublishSheet({
   };
 
   const pickCover = async () => {
-    const picked = await pickProfileImage({
-      source: 'library',
-      kind: 'cover',
-    });
-    if (!picked.ok) {
-      if (!picked.canceled) {
-        onError?.(picked.title, picked.message);
-      }
+    if (pickCoverInFlightRef.current || busy || isSyncing) {
       return;
     }
-    setCoverUri(picked.uri);
-    setCoverType(
-      picked.contentType === 'image/jpg' ? 'image/jpeg' : picked.contentType,
-    );
+    pickCoverInFlightRef.current = true;
+    try {
+      const picked = await pickProfileImage({
+        source: 'library',
+        kind: 'cover',
+      });
+      if (!picked.ok) {
+        if (!picked.canceled) {
+          onError?.(picked.title, picked.message);
+        }
+        return;
+      }
+      setCoverUri(picked.uri);
+      setCoverType(
+        picked.contentType === 'image/jpg' ? 'image/jpeg' : picked.contentType,
+      );
+    } finally {
+      pickCoverInFlightRef.current = false;
+    }
   };
 
   const handleSaveToCloud = async () => {

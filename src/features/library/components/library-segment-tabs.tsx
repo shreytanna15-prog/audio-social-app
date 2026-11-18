@@ -1,4 +1,4 @@
-import { Pressable, ScrollView } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
 
@@ -23,38 +23,39 @@ type LibrarySegmentTabsProps = {
 
 export function LibrarySegmentTabs({ activeTab, onChange }: LibrarySegmentTabsProps) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      className="grow-0"
-      contentContainerClassName="gap-2 px-4"
-      contentContainerStyle={{ alignItems: 'center' }}>
-      {TABS.map((tab) => {
-        const active = tab.id === activeTab;
-        return (
-          <Pressable
-            key={tab.id}
-            onPress={() => onChange(tab.id)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={tab.label}
-            className="h-9 items-center justify-center rounded-full px-3"
-            style={{
-              backgroundColor: active ? ACTIVE_BG : 'transparent',
-              borderCurve: 'continuous',
-            }}>
-            <Text
-              variant="label-md"
-              numberOfLines={1}
+    <View className="px-4 py-3">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="grow-0"
+        contentContainerStyle={{ alignItems: 'center', gap: 10 }}>
+        {TABS.map((tab) => {
+          const active = tab.id === activeTab;
+          return (
+            <Pressable
+              key={tab.id}
+              onPress={() => onChange(tab.id)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={tab.label}
+              className="h-9 min-w-9 items-center justify-center rounded-full px-3.5"
               style={{
-                color: active ? ACTIVE_TEXT : INACTIVE_TEXT,
-                fontWeight: active ? '600' : '500',
+                backgroundColor: active ? ACTIVE_BG : 'rgba(255,255,255,0.04)',
+                borderCurve: 'continuous',
               }}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+              <Text
+                variant="label-md"
+                numberOfLines={1}
+                style={{
+                  color: active ? ACTIVE_TEXT : INACTIVE_TEXT,
+                  fontWeight: active ? '600' : '500',
+                }}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }

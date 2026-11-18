@@ -10,7 +10,9 @@ type RadioGroupContextValue = {
   disabled?: boolean;
 };
 
-const RadioGroupContext = React.createContext<RadioGroupContextValue | null>(null);
+const RadioGroupContext = React.createContext<RadioGroupContextValue | null>(
+  null,
+);
 
 function useRadioGroupContext() {
   const ctx = React.useContext(RadioGroupContext);
@@ -56,6 +58,8 @@ type RadioProps = {
   label: string;
   description?: string;
   disabled?: boolean;
+  /** `compact` — denser rows for dialogs / tight forms. */
+  size?: 'default' | 'compact';
   className?: string;
 };
 
@@ -64,11 +68,13 @@ function Radio({
   label,
   description,
   disabled = false,
+  size = 'default',
   className,
 }: RadioProps) {
   const group = useRadioGroupContext();
   const selected = group.value === value;
   const isDisabled = disabled || Boolean(group.disabled);
+  const compact = size === 'compact';
 
   return (
     <Pressable
@@ -78,18 +84,37 @@ function Radio({
       disabled={isDisabled}
       onPress={() => group.onValueChange(value)}
       className={cn(
-        'min-h-12 flex-row items-center gap-3 rounded-2xl border px-3.5 py-3',
+        'flex-row items-center border',
+        compact
+          ? 'min-h-10 gap-2.5 rounded-xl px-3 py-2'
+          : 'min-h-12 gap-3 rounded-2xl px-3.5 py-3',
         selected
           ? 'border-primary/45 bg-primary/15'
           : 'border-white/10 bg-surface-container',
         isDisabled ? 'opacity-45' : 'active:opacity-85',
         className,
       )}>
+      <View
+        className={cn(
+          'items-center justify-center rounded-full border-2',
+          compact ? 'h-4 w-4' : 'h-5 w-5',
+          selected ? 'border-primary' : 'border-outline-variant',
+        )}>
+        {selected ? (
+          <View
+            className={cn(
+              'rounded-full bg-primary',
+              compact ? 'h-2 w-2' : 'h-2.5 w-2.5',
+            )}
+          />
+        ) : null}
+      </View>
+
       <View className="min-w-0 flex-1 gap-0.5">
         <Text
           variant="label-md"
           className={cn(
-            selected ? 'text-on-surface' : 'text-on-surface',
+            'text-on-surface',
             selected ? 'font-semibold' : undefined,
           )}>
           {label}
@@ -98,16 +123,6 @@ function Radio({
           <Text variant="caption" className="text-on-surface-variant">
             {description}
           </Text>
-        ) : null}
-      </View>
-
-      <View
-        className={cn(
-          'h-5 w-5 items-center justify-center rounded-full border-2',
-          selected ? 'border-primary' : 'border-outline-variant',
-        )}>
-        {selected ? (
-          <View className="h-2.5 w-2.5 rounded-full bg-primary" />
         ) : null}
       </View>
     </Pressable>

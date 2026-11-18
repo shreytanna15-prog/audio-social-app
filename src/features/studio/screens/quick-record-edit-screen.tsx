@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { BackHandler, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useInputMonitor } from '@/features/audio/hooks/use-input-monitor';
@@ -17,6 +18,7 @@ import { useQuickRecordEditSession } from '@/features/studio/hooks/use-quick-rec
 import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
+import { Text } from '@/shared/components/ui/text';
 
 const EDIT_WAVE_HEIGHT = 140;
 const EDIT_WAVE_PADDING = 16;
@@ -26,9 +28,71 @@ export function QuickRecordEditScreen() {
   // Recorder binding stays on the capture screen underneath the stack.
   const session = useQuickRecordEditSession();
   const monitor = useInputMonitor();
-  const { showError, dialog } = useFeedbackDialog();
+  const { showError, confirm, dialog } = useFeedbackDialog();
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
   const [publishOpen, setPublishOpen] = useState(false);
+
+  const {
+    fromImport,
+    isNew,
+    isDirty,
+    isBusy,
+    isRecording,
+    isSaving,
+    isSyncing,
+    fxProcessing,
+    discardTarget,
+    discardImported,
+  } = session;
+
+  const isLeaveBlocked =
+    isBusy || isRecording || isSaving || isSyncing || fxProcessing;
+
+  // Fresh import (isNew): always confirm — the import itself is unsaved work.
+  // Library reopen: confirm only when title / audio / FX changed (isDirty).
+  const requestDiscard = useCallback(() => {
+    if (isLeaveBlocked) {
+      return;
+    }
+    if (!isNew && !isDirty) {
+      discardImported();
+      return;
+    }
+    confirm(
+      isNew ? 'Discard imported audio?' : 'Discard changes?',
+      isNew
+        ? 'This imported take will be removed and nothing is saved.'
+        : discardTarget === 'library'
+          ? 'Unsaved changes to this take will be lost.'
+          : 'Unsaved changes will be lost and nothing is saved.',
+      {
+        confirmLabel: 'Discard',
+        destructive: true,
+        onConfirm: () => {
+          discardImported();
+        },
+      },
+    );
+  }, [
+    confirm,
+    discardImported,
+    discardTarget,
+    isDirty,
+    isLeaveBlocked,
+    isNew,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!fromImport) return;
+      const onHardwareBack = () => {
+        requestDiscard();
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+      return () => sub.remove();
+    }, [fromImport, requestDiscard]),
+  );
 
   const displaySeconds = session.hasTake || session.isScrubbing
     ? session.currentTime
@@ -48,11 +112,30 @@ export function QuickRecordEditScreen() {
     session.isSaving ||
     session.isSyncing;
 
+  const discardHeader = session.fromImport ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Discard"
+      hitSlop={8}
+      disabled={isLeaveBlocked}
+      onPress={requestDiscard}
+      className="h-10 min-w-10 justify-center px-0.5 active:opacity-70">
+      <Text variant="label-md" className="text-destructive">
+        Discard
+      </Text>
+    </Pressable>
+  ) : null;
+
   return (
     <View
       className="flex-1 bg-background"
       style={{ paddingBottom: Math.max(insets.bottom, 28) + 12 }}>
-      <ScreenHeader title="Edit take" onBack={session.goBackToCapture} />
+      <ScreenHeader
+        title="Edit take"
+        onBack={session.goBackToCapture}
+        left={discardHeader}
+        backDisabled={session.fromImport}
+      />
 
       <View className="px-4 pt-3">
         <View className="flex-row items-end justify-between pb-2">

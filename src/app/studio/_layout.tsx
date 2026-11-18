@@ -10,6 +10,7 @@ export default function StudioLayout() {
       <Stack.Screen name="quick-record" />
       <Stack.Screen name="multitrack" />
       <Stack.Screen name="import-audio" />
+      <Stack.Screen name="import-audio/edit" />
     </Stack>
   );
 }

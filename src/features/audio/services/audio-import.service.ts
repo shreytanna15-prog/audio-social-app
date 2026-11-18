@@ -6,6 +6,7 @@ import { stageAudioForPreview, type StageAudioResult } from '@/features/audio/da
 import { transcodeToMono48kWav } from '@/features/audio/services/ffmpeg.service';
 import { toFileUri } from '@/features/audio/utils/ffmpeg-path';
 import { durationSecondsFromMono48kWav } from '@/features/audio/utils/wav-duration';
+import { withPickerLock } from '@/shared/lib/with-picker-lock';
 
 const ACCEPTED_EXTENSIONS = ['.wav', '.m4a', '.mp3', '.aac', '.aiff', '.aif', '.caf', '.mp4'];
 
@@ -41,22 +42,24 @@ export type PickedAudio = {
  * show progress for the decode without flashing a spinner behind the picker.
  */
 export async function pickAudioFile(): Promise<PickedAudio | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'audio/*',
-    copyToCacheDirectory: true,
-    multiple: false,
-  });
+  return withPickerLock(async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'audio/*',
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
 
-  if (result.canceled || !result.assets?.[0]) {
-    return null;
-  }
+    if (result.canceled || !result.assets?.[0]) {
+      return null;
+    }
 
-  const asset = result.assets[0];
-  if (!isAcceptedAudio(asset.name ?? '', asset.mimeType)) {
-    throw new Error('Please choose a WAV, M4A, MP3, or AAC audio file.');
-  }
+    const asset = result.assets[0];
+    if (!isAcceptedAudio(asset.name ?? '', asset.mimeType)) {
+      throw new Error('Please choose a WAV, M4A, MP3, or AAC audio file.');
+    }
 
-  return { uri: asset.uri, name: asset.name ?? 'Audio' };
+    return { uri: asset.uri, name: asset.name ?? 'Audio' };
+  }, null);
 }
 
 /** Normalize a picked file to mono 48 kHz WAV, then soft-gate it into pending. */

@@ -5,7 +5,8 @@ import { Text } from '@/shared/components/ui/text';
 
 type LibrarySectionHeaderProps = {
   label: string;
-  count: number;
+  /** Omit to hide the count pill (e.g. Audio "Tracks"). */
+  count?: number;
   trailing?: ReactNode;
 };
 
@@ -15,19 +16,21 @@ export function LibrarySectionHeader({
   trailing,
 }: LibrarySectionHeaderProps) {
   return (
-    <View className="h-8 flex-row items-center justify-between gap-3 px-4">
+    <View className="min-h-10 flex-row items-center justify-between gap-3 px-4">
       <View className="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
-        <Text className="font-sans text-[11px] font-semibold uppercase leading-4 tracking-[0.08em] text-on-surface-variant">
+        <Text variant="title-md" className="text-on-surface">
           {label}
         </Text>
-        <View className="rounded-full bg-surface-container-highest px-2 py-0.5">
-          <Text className="font-sans text-[11px] font-semibold leading-4 text-on-surface-variant">
-            {count}
-          </Text>
-        </View>
+        {count != null ? (
+          <View className="rounded-full bg-surface-container-highest px-2 py-0.5">
+            <Text className="font-sans text-[11px] font-semibold leading-4 text-on-surface-variant">
+              {count}
+            </Text>
+          </View>
+        ) : null}
       </View>
       {trailing ? (
-        <View className="h-8 flex-row items-center gap-2">{trailing}</View>
+        <View className="h-9 flex-row items-center gap-2">{trailing}</View>
       ) : null}
     </View>
   );

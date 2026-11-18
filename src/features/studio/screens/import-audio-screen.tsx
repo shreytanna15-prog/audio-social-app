@@ -1,5 +1,5 @@
 import { AudioLines, Layers } from 'lucide-react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -23,18 +23,38 @@ import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 /**
- * Create → Import Audio chooser. Single → QR edit; Multi → Multitrack with layer 1.
+ * Create → Import Audio chooser.
+ * Single → shared single-edit screen (`/studio/import-audio/edit`).
+ * Multi → Multitrack with layer 1.
  */
 export function ImportAudioScreen() {
   const { replace } = useRouter();
   const { guard } = useNavigationGuard();
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
-  const [importing, setImporting] = useState(false);
+  // `busy` disables rows during picker + decode; overlay only during decode.
+  const [busy, setBusy] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const busyRef = useRef(false);
   const { showError, dialog } = useFeedbackDialog();
 
-  const runImport = async (mode: 'single' | 'multi') => {
-    if (importing) {
+  const beginBusy = () => {
+    if (busyRef.current) {
+      return false;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    return true;
+  };
+
+  const endBusy = () => {
+    busyRef.current = false;
+    setBusy(false);
+    setPreparing(false);
+  };
+
+  const runImportSingle = async () => {
+    if (!beginBusy()) {
       return;
     }
 
@@ -44,32 +64,56 @@ export function ImportAudioScreen() {
         return;
       }
 
-      setImporting(true);
+      setPreparing(true);
       const imported = await prepareImportedDeviceAudio(picked);
 
-      if (mode === 'single') {
-        const layer = createLayer({
-          kind: 'vocal',
-          name: imported.displayName,
-          stemUri: imported.uri,
-          baselineUri: imported.uri,
-          sourceUri: imported.uri,
-          durationSeconds: imported.durationSeconds,
-          peaks: imported.peaks,
-        });
-        hydrateFromImport({
-          version: PROJECT_VERSION,
-          layers: [layer],
-          selectedLayerId: layer.id,
-        });
-        const projectId =
-          useStudioProjectContextStore.getState().projectId ?? undefined;
-        guard(() => replace({
-          pathname: '/studio/quick-record/edit',
-          params: projectId ? { projectId } : undefined,
-        }));
+      const layer = createLayer({
+        kind: 'vocal',
+        name: imported.displayName,
+        stemUri: imported.uri,
+        baselineUri: imported.uri,
+        sourceUri: imported.uri,
+        durationSeconds: imported.durationSeconds,
+        peaks: imported.peaks,
+      });
+      hydrateFromImport({
+        version: PROJECT_VERSION,
+        layers: [layer],
+        selectedLayerId: layer.id,
+      });
+      const projectId =
+        useStudioProjectContextStore.getState().projectId ?? undefined;
+      guard(() =>
+        replace({
+          pathname: '/studio/import-audio/edit',
+          params: projectId
+            ? { projectId, discardTarget: 'home', isNew: '1' }
+            : { discardTarget: 'home', isNew: '1' },
+        }),
+      );
+    } catch (error) {
+      showError(
+        'Could not import audio',
+        error instanceof Error ? error.message : 'Please try another file.',
+      );
+    } finally {
+      endBusy();
+    }
+  };
+
+  const runImportMulti = async () => {
+    if (!beginBusy()) {
+      return;
+    }
+
+    try {
+      const picked = await pickBeatFile();
+      if (!picked) {
         return;
       }
+
+      setPreparing(true);
+      const imported = await prepareImportedDeviceAudio(picked);
 
       setPendingProject(
         createImportLayerProject({
@@ -80,27 +124,27 @@ export function ImportAudioScreen() {
           name: imported.displayName,
         }),
       );
-      {
-        const projectId =
-          useStudioProjectContextStore.getState().projectId ?? undefined;
-        guard(() => replace({
+      const projectId =
+        useStudioProjectContextStore.getState().projectId ?? undefined;
+      guard(() =>
+        replace({
           pathname: '/studio/multitrack',
           params: projectId ? { projectId } : undefined,
-        }));
-      }
+        }),
+      );
     } catch (error) {
       showError(
         'Could not import audio',
         error instanceof Error ? error.message : 'Please try another file.',
       );
     } finally {
-      setImporting(false);
+      endBusy();
     }
   };
 
   return (
     <View className="flex-1 bg-background">
-      <ScreenHeader title="Import Audio" backDisabled={importing} />
+      <ScreenHeader title="Import Audio" backDisabled={busy} />
 
       <View className="gap-3 px-4 pt-6">
         <CreateOptionRow
@@ -108,8 +152,9 @@ export function ImportAudioScreen() {
           description="Import and edit a single audio file."
           Icon={AudioLines}
           iconColor={StudioColors.primaryTonal}
+          disabled={busy}
           onPress={() => {
-            void runImport('single');
+            void runImportSingle();
           }}
         />
         <CreateOptionRow
@@ -117,14 +162,15 @@ export function ImportAudioScreen() {
           description="Combine up to five audio layers."
           Icon={Layers}
           iconColor={StudioColors.primaryTonal}
+          disabled={busy}
           onPress={() => {
-            void runImport('multi');
+            void runImportMulti();
           }}
         />
       </View>
 
       <QuickRecordProcessingOverlay
-        visible={importing}
+        visible={preparing}
         title="Importing…"
         detail="Preparing your audio file."
       />

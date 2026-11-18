@@ -25,7 +25,6 @@ import {
 } from '@/features/saves';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
-import { useStudioProjectContextStore } from '@/features/studio/store/studio-project-context.store';
 import {
   useBackupTrack,
   useDeleteTrack,
@@ -36,7 +35,6 @@ import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
-import { LibraryAddButton } from '../components/library-add-button';
 import { LibraryAlbumsPanel } from '../components/library-albums-panel';
 import { LibraryAudioPanel } from '../components/library-audio-panel';
 import { LibraryCreateCollectionDialog } from '../components/library-create-collection-dialog';
@@ -101,7 +99,6 @@ export function LibraryScreen() {
   const play = usePlayerStore((s) => s.play);
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
-  const clearProjectId = useStudioProjectContextStore((s) => s.clearProjectId);
 
   const refetchTracks = tracksQuery.refetch;
   const refetchProjects = projectsQuery.refetch;
@@ -421,31 +418,6 @@ export function LibraryScreen() {
     });
   };
 
-  const openCreate = () => {
-    clearProjectId();
-    show({
-      title: 'Add to library',
-      actions: [
-        { label: 'Cancel', variant: 'ghost' },
-        {
-          label: 'Quick Record',
-          variant: 'soft',
-          onPress: () => push('/studio/quick-record' as Href),
-        },
-        {
-          label: 'Multitrack',
-          variant: 'soft',
-          onPress: () => push('/studio/multitrack' as Href),
-        },
-        {
-          label: 'New project',
-          variant: 'soft',
-          onPress: () => push('/projects/' as Href),
-        },
-      ],
-    });
-  };
-
   const removeUnavailable = (item: LibraryAudioItem) => {
     confirm(
       'Remove from library?',
@@ -533,7 +505,7 @@ export function LibraryScreen() {
       hydrateFromImport(loaded.project, loaded.title || item.title, item.id);
       push({
         pathname: '/studio/quick-record/edit',
-        params: { storageState: item.storageState },
+        params: { storageState: item.storageState, discardTarget: 'library' },
       } as never);
     })();
   };
@@ -588,12 +560,9 @@ export function LibraryScreen() {
       <ScreenHeader
         title="Library"
         onBack={() => replace('/(tabs)/profile' as Href)}
-        right={<LibraryAddButton onPress={openCreate} />}
       />
 
-      <View className="pb-3">
-        <LibrarySegmentTabs activeTab={activeTab} onChange={setActiveTab} />
-      </View>
+      <LibrarySegmentTabs activeTab={activeTab} onChange={setActiveTab} />
 
       <View className="min-h-0 flex-1">
         {activeTab === 'audio' ? (

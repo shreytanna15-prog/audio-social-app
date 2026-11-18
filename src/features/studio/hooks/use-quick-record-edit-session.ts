@@ -30,9 +30,14 @@ export function useQuickRecordEditSession() {
   const {
     projectId: projectIdParam,
     storageState: storageStateParam,
+    discardTarget,
+    isNew: isNewParam,
   } = useLocalSearchParams<{
     projectId?: string;
     storageState?: string;
+    discardTarget?: 'home' | 'library';
+    /** Fresh import / new take — Discard should confirm even when fingerprint is clean. */
+    isNew?: string;
   }>();
   const session = useQuickRecordSession();
   const resetStore = useQuickRecordStore((state) => state.reset);
@@ -53,6 +58,12 @@ export function useQuickRecordEditSession() {
       : null,
   );
   const mountedRef = useRef(true);
+  // Prevents the empty-take guard from racing discard/save exit navigation.
+  const isLeavingRef = useRef(false);
+  // Import / library reopen: Discard chrome, no capture parent under this edit screen.
+  const fromImport = !!discardTarget;
+  const isNew =
+    isNewParam === '1' || isNewParam === 'true' || isNewParam === 'yes';
 
   useEffect(
     () => () => {
@@ -62,10 +73,15 @@ export function useQuickRecordEditSession() {
   );
 
   useEffect(() => {
-    if (!session.hasTake) {
-      replace('/studio/quick-record');
+    if (isLeavingRef.current || session.hasTake) {
+      return;
     }
-  }, [replace, session.hasTake]);
+    // Capture flow only — import/library edit must never bounce to Quick Record.
+    if (fromImport) {
+      return;
+    }
+    replace('/studio/quick-record');
+  }, [fromImport, replace, session.hasTake]);
 
   const goBackToCapture = useCallback(() => {
     if (
@@ -92,6 +108,18 @@ export function useQuickRecordEditSession() {
     session.isRecording,
     syncState,
   ]);
+
+  const discardImported = useCallback(() => {
+    isLeavingRef.current = true;
+    const target = discardTarget === 'library' ? '/(tabs)/library' : '/(tabs)';
+    resetStore();
+    useStudioProjectContextStore.getState().clearProjectId();
+    try {
+      dismissTo(target as Href);
+    } catch {
+      replace(target as Href);
+    }
+  }, [dismissTo, replace, resetStore, discardTarget]);
 
   /** Persist the take locally + create/update the draft track. Returns its id. */
   const persistDraft = useCallback(
@@ -146,6 +174,7 @@ export function useQuickRecordEditSession() {
     setIsSaving(true);
     try {
       await persistDraft();
+      isLeavingRef.current = true;
       resetStore();
       leaveStudioSession(
         { back, canGoBack, dismissTo, replace },
@@ -211,6 +240,7 @@ export function useQuickRecordEditSession() {
   );
 
   const finishPublished = useCallback(() => {
+    isLeavingRef.current = true;
     resetStore();
     useStudioProjectContextStore.getState().clearProjectId();
     try {
@@ -254,5 +284,11 @@ export function useQuickRecordEditSession() {
     saveToCloud,
     finishPublished,
     goBackToCapture,
+    fromImport,
+    isNew,
+    discardTarget: discardTarget === 'library' || discardTarget === 'home'
+      ? discardTarget
+      : undefined,
+    discardImported,
   };
 }

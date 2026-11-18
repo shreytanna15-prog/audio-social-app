@@ -1,6 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
 
+import { withPickerLock } from '@/shared/lib/with-picker-lock';
+
 import type { ProfileImageContentType } from '../api/types';
+
+const PICK_CANCELED = { ok: false, canceled: true } as const;
 
 export type PickedProfileImage = {
   uri: string;
@@ -74,42 +78,44 @@ export async function pickProfileImage(params: {
   source: 'camera' | 'library';
   kind: 'avatar' | 'cover';
 }): Promise<PickProfileImageResult> {
-  const aspect: [number, number] =
-    params.kind === 'avatar' ? [1, 1] : [16, 9];
+  return withPickerLock(async () => {
+    const aspect: [number, number] =
+      params.kind === 'avatar' ? [1, 1] : [16, 9];
 
-  if (params.source === 'camera') {
-    const ok = await ensureCameraPermission();
+    if (params.source === 'camera') {
+      const ok = await ensureCameraPermission();
+      if (!ok) {
+        return {
+          ok: false,
+          canceled: false,
+          title: 'Permission needed',
+          message: 'Camera access is required to take a photo.',
+        };
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect,
+        quality: 0.9,
+      });
+      return fromResult(result);
+    }
+
+    const ok = await ensureLibraryPermission();
     if (!ok) {
       return {
         ok: false,
         canceled: false,
         title: 'Permission needed',
-        message: 'Camera access is required to take a photo.',
+        message: 'Photo library access is required to choose an image.',
       };
     }
-    const result = await ImagePicker.launchCameraAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect,
       quality: 0.9,
     });
     return fromResult(result);
-  }
-
-  const ok = await ensureLibraryPermission();
-  if (!ok) {
-    return {
-      ok: false,
-      canceled: false,
-      title: 'Permission needed',
-      message: 'Photo library access is required to choose an image.',
-    };
-  }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect,
-    quality: 0.9,
-  });
-  return fromResult(result);
+  }, PICK_CANCELED);
 }

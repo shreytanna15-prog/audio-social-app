@@ -8,6 +8,7 @@ type LibraryNewCollectionButtonProps = {
   onPress: () => void;
 };
 
+/** Matches Filter / eye header controls: h-9, rounded-xl, shared surface. */
 export function LibraryNewCollectionButton({
   label,
   onPress,
@@ -17,10 +18,10 @@ export function LibraryNewCollectionButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={6}
-      className="flex-row items-center gap-1 rounded-full border border-white/10 px-2.5 py-1">
-      <Plus size={12} color="#D0BCFF" strokeWidth={2.4} />
-      <Text variant="caption" className="font-semibold text-primary">
+      className="h-9 flex-row items-center gap-1.5 rounded-xl border border-white/10 bg-surface-container-highest px-3 active:opacity-80"
+      style={{ borderCurve: 'continuous' }}>
+      <Plus size={16} color="#D0BCFF" strokeWidth={2.25} />
+      <Text variant="label-md" className="text-on-surface">
         New
       </Text>
     </Pressable>

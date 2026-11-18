@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,9 @@ export default function AudioScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { guard } = useNavigationGuard();
-  const [isImporting, setIsImporting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const busyRef = useRef(false);
   const { showError, dialog } = useFeedbackDialog();
 
   const openQuickRecord = useCallback(() => {
@@ -26,9 +28,11 @@ export default function AudioScreen() {
   }, [router, guard]);
 
   const openImport = useCallback(async () => {
-    if (isImporting) {
+    if (busyRef.current) {
       return;
     }
+    busyRef.current = true;
+    setBusy(true);
 
     try {
       const picked = await pickAudioFile();
@@ -36,22 +40,23 @@ export default function AudioScreen() {
         return;
       }
 
-      // Decoding and cleaning a full song takes seconds — show it before starting.
-      setIsImporting(true);
+      setPreparing(true);
       await afterNextPaint();
 
       const staged = await prepareImportedAudio(picked.uri);
 
-      guard(() => router.push({
-        pathname: '/audio/recording/[id]',
-        params: {
-          id: 'new',
-          uri: staged.pendingUri,
-          duration: String(staged.durationSeconds),
-          sourcePreGateUri: staged.sourcePreGateUri,
-          kind: 'import',
-        },
-      }));
+      guard(() =>
+        router.push({
+          pathname: '/audio/recording/[id]',
+          params: {
+            id: 'new',
+            uri: staged.pendingUri,
+            duration: String(staged.durationSeconds),
+            sourcePreGateUri: staged.sourcePreGateUri,
+            kind: 'import',
+          },
+        }),
+      );
     } catch (error) {
       showError(
         'Import failed',
@@ -60,9 +65,11 @@ export default function AudioScreen() {
           : 'Could not import that audio file.',
       );
     } finally {
-      setIsImporting(false);
+      busyRef.current = false;
+      setBusy(false);
+      setPreparing(false);
     }
-  }, [isImporting, router, showError, guard]);
+  }, [router, showError, guard]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -74,14 +81,14 @@ export default function AudioScreen() {
           </Text>
         </View>
         <StudioEntryToolbar
-          disabled={isImporting}
+          disabled={busy}
           onQuickRecord={openQuickRecord}
           onImportAudio={() => void openImport()}
         />
         <RecordingsList />
       </ScrollView>
       <RecordingOptimizeOverlay
-        visible={isImporting}
+        visible={preparing}
         title="Importing audio…"
         detail="Decoding and cleaning the track. Long songs take a few seconds."
       />

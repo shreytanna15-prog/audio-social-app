@@ -119,11 +119,8 @@ export function LibrarySavedPanel({
               paddingBottom: contentBottomInset,
             }}
             ListHeaderComponent={
-              <View className="mb-1 pb-2">
-                <LibrarySectionHeader
-                  label="Liked Songs"
-                  count={likedTracks.length}
-                />
+              <View className="mb-2 pb-1 pt-1">
+                <LibrarySectionHeader label="Liked Songs" />
               </View>
             }
             renderItem={({ item }) => (
@@ -149,7 +146,7 @@ export function LibrarySavedPanel({
         )
       ) : segment === 'playlists' ? (
         <LibrarySavedCollectionList
-          label="Saved playlists"
+          label="Playlists"
           items={savedPlaylists}
           state={playlistsState}
           emptyTitle="No saved playlists"
@@ -161,7 +158,7 @@ export function LibrarySavedPanel({
         />
       ) : (
         <LibrarySavedCollectionList
-          label="Saved albums"
+          label="Albums"
           items={savedAlbums}
           state={albumsState}
           emptyTitle="No saved albums"

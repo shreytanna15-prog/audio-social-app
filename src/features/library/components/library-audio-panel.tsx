@@ -95,10 +95,9 @@ export function LibraryAudioPanel({
         paddingBottom: contentBottomInset,
       }}
       ListHeaderComponent={
-        <View className="mb-1 pb-2">
+        <View className="mb-2 pb-1 pt-1">
           <LibrarySectionHeader
-            label="Tracks & sessions"
-            count={visible.length}
+            label="Tracks"
             trailing={
               <>
                 <LibraryAudioFilterControl

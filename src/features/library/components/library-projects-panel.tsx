@@ -65,8 +65,8 @@ export function LibraryProjectsPanel({
         paddingBottom: contentBottomInset,
       }}
       ListHeaderComponent={
-        <View className="mb-1 pb-2">
-          <LibrarySectionHeader label="All projects" count={projects.length} />
+        <View className="mb-2 pb-1 pt-1">
+          <LibrarySectionHeader label="Projects" />
         </View>
       }
       renderItem={({ item }) => (

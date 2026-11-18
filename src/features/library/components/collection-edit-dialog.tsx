@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Switch, View } from 'react-native';
 
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -14,11 +14,6 @@ import { Text } from '@/shared/components/ui/text';
 import { Textarea } from '@/shared/components/ui/textarea';
 
 import type { LibraryPlaylistVisibility } from '../types';
-
-const VISIBILITY_OPTIONS: { id: LibraryPlaylistVisibility; label: string }[] = [
-  { id: 'private', label: 'Private' },
-  { id: 'public', label: 'Public' },
-];
 
 export type CollectionEditValues = {
   title: string;
@@ -49,6 +44,7 @@ export function CollectionEditDialog({
   const [visibility, setVisibility] = useState<LibraryPlaylistVisibility>(
     initial.visibility ?? 'private',
   );
+  const isPublic = visibility === 'public';
 
   const submit = () => {
     onSubmit({
@@ -82,33 +78,30 @@ export function CollectionEditDialog({
           editable={!isPending}
         />
         {kind === 'playlist' ? (
-          <View className="flex-row items-center gap-2">
-            {VISIBILITY_OPTIONS.map((option) => {
-              const active = option.id === visibility;
-              return (
-                <Pressable
-                  key={option.id}
-                  onPress={() => setVisibility(option.id)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={option.label}
-                  className="rounded-full border border-white/10 px-3.5 py-1.5"
-                  style={{
-                    borderCurve: 'continuous',
-                    backgroundColor: active
-                      ? 'rgba(160, 120, 255, 0.24)'
-                      : 'transparent',
-                  }}>
-                  <Text
-                    variant="label-md"
-                    className={
-                      active ? 'text-on-surface' : 'text-on-surface-variant'
-                    }>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View className="flex-row items-center gap-3 py-0.5">
+            <View className="min-w-0 flex-1 gap-0.5">
+              <Text variant="label-md" className="text-on-surface">
+                Public playlist
+              </Text>
+              <Text variant="caption" className="text-on-surface-variant">
+                {isPublic
+                  ? 'Anyone can find and play it.'
+                  : 'Only you can see this playlist.'}
+              </Text>
+            </View>
+            <Switch
+              value={isPublic}
+              disabled={isPending}
+              onValueChange={(next) =>
+                setVisibility(next ? 'public' : 'private')
+              }
+              trackColor={{
+                false: 'rgba(255,255,255,0.12)',
+                true: 'rgba(160,120,255,0.55)',
+              }}
+              thumbColor="#FFFFFF"
+              accessibilityLabel="Public playlist"
+            />
           </View>
         ) : null}
         <DialogFooter>

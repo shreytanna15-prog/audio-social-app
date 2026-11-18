@@ -398,14 +398,14 @@ export function useMultitrackSession({
       return;
     }
 
+    // Claim UI before the native picker so rapid taps cannot reopen it.
+    setIsImportingBeat(true);
     try {
       const picked = await pickBeatFile();
       if (!picked) {
         return;
       }
 
-      // Decoding a full song takes seconds, so claim the slot in the stack now.
-      setIsImportingBeat(true);
       await afterNextPaint();
 
       const beat = await prepareBeatFile(picked.uri);

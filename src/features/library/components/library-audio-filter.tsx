@@ -47,17 +47,12 @@ export function LibraryAudioFilterControl({
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={`Filter: ${activeLabel}`}
-        className="flex-row items-center gap-1 rounded-full border border-white/10 px-2.5 py-1.5"
+        className="h-9 flex-row items-center gap-1.5 rounded-xl border border-white/10 bg-surface-container-highest px-3"
         style={{ borderCurve: 'continuous' }}>
-        <View className="flex-row items-center">
-          <Text variant="caption" className="text-on-surface-variant">
-            Filter:{' '}
-          </Text>
-          <Text variant="caption" className="font-semibold text-on-surface">
-            {activeLabel}
-          </Text>
-        </View>
-        <ChevronDown size={14} color="#958EA0" strokeWidth={2} />
+        <Text variant="label-md" className="text-on-surface">
+          {activeLabel}
+        </Text>
+        <ChevronDown size={16} color="#958EA0" strokeWidth={2} />
       </Pressable>
 
       <Sheet open={open} onOpenChange={setOpen}>
