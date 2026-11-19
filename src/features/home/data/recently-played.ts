@@ -5,6 +5,10 @@ export type RecentlyPlayedTrack = {
   coverUrl: string;
 };
 
+<<<<<<< Updated upstream
+=======
+/** Design/demo fixtures — Home screen renders API data; keep these in repo. */
+>>>>>>> Stashed changes
 export const RECENTLY_PLAYED: RecentlyPlayedTrack[] = [
   {
     id: '1',
@@ -12,6 +16,11 @@ export const RECENTLY_PLAYED: RecentlyPlayedTrack[] = [
     artist: 'Nova Drift',
     coverUrl:
       'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&h=200&fit=crop',
+<<<<<<< Updated upstream
+=======
+    likeCount: 420,
+    isLiked: false,
+>>>>>>> Stashed changes
   },
   {
     id: '2',
@@ -19,6 +28,11 @@ export const RECENTLY_PLAYED: RecentlyPlayedTrack[] = [
     artist: 'SOMA Waves',
     coverUrl:
       'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&h=200&fit=crop',
+<<<<<<< Updated upstream
+=======
+    likeCount: 890,
+    isLiked: true,
+>>>>>>> Stashed changes
   },
   {
     id: '3',
@@ -26,6 +40,11 @@ export const RECENTLY_PLAYED: RecentlyPlayedTrack[] = [
     artist: 'Céline',
     coverUrl:
       'https://images.unsplash.com/photo-1516280440612-4805766bf1d4?w=200&h=200&fit=crop',
+<<<<<<< Updated upstream
+=======
+    likeCount: 310,
+    isLiked: false,
+>>>>>>> Stashed changes
   },
   {
     id: '4',
@@ -33,5 +52,10 @@ export const RECENTLY_PLAYED: RecentlyPlayedTrack[] = [
     artist: 'Maya (You)',
     coverUrl:
       'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200&h=200&fit=crop',
+<<<<<<< Updated upstream
+=======
+    likeCount: 150,
+    isLiked: false,
+>>>>>>> Stashed changes
   },
 ];

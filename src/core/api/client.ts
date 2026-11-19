@@ -9,10 +9,28 @@ import {
 import type { ApiEnvelope, ApiErrorBody, ApiRequestOptions, ApiSuccess } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:3015';
+const DEFAULT_FETCH_TIMEOUT_MS = 12_000;
 
 function getBaseUrl(): string {
   const url = process.env.EXPO_PUBLIC_API_URL?.trim();
   return url && url.length > 0 ? url.replace(/\/$/, '') : DEFAULT_BASE_URL;
+}
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 let refreshPromise: Promise<void> | null = null;
@@ -63,13 +81,22 @@ async function refreshSession(): Promise<void> {
         });
       }
 
-      const response = await fetch(`${getBaseUrl()}/api/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'x-refresh-token': refreshToken,
-        },
-      });
+      let response: Response;
+      try {
+        response = await fetchWithTimeout(`${getBaseUrl()}/api/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'x-refresh-token': refreshToken,
+          },
+        });
+      } catch {
+        throw new ApiError({
+          message: 'Network error. Check your connection and API URL.',
+          status: 0,
+          code: 'NETWORK_ERROR',
+        });
+      }
 
       const payload = await parseJson(response);
 
@@ -139,7 +166,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchWithTimeout(url, {
       method,
       headers: await buildHeaders(options),
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,

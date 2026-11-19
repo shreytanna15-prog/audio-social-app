@@ -11,13 +11,29 @@ type RecentlyPlayedSectionProps = {
   onTrackPress?: (track: RecentlyPlayedTrack) => void;
 };
 
+function chunkPairs<T>(items: T[]): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push(items.slice(i, i + 2));
+  }
+  return rows;
+}
+
 export function RecentlyPlayedSection({
   tracks = RECENTLY_PLAYED,
   onHistoryPress,
   onTrackPress,
 }: RecentlyPlayedSectionProps) {
+<<<<<<< Updated upstream
   const topRow = tracks.slice(0, 2);
   const bottomRow = tracks.slice(2, 4);
+=======
+  if (tracks.length === 0) {
+    return null;
+  }
+
+  const rows = chunkPairs(tracks);
+>>>>>>> Stashed changes
 
   return (
     <View className="gap-4 px-4">
@@ -25,14 +41,17 @@ export function RecentlyPlayedSection({
         <Text variant="title-lg" className="flex-1 text-on-surface" numberOfLines={1}>
           Recently Played
         </Text>
-        <Pressable onPress={onHistoryPress} accessibilityRole="link" hitSlop={8}>
-          <Text variant="label-md" className="text-on-surface-variant">
-            History
-          </Text>
-        </Pressable>
+        {onHistoryPress ? (
+          <Pressable onPress={onHistoryPress} accessibilityRole="link" hitSlop={8}>
+            <Text variant="label-md" className="text-on-surface-variant">
+              History
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View className="gap-2.5">
+<<<<<<< Updated upstream
         <View className="flex-row gap-2.5">
           {topRow.map((track) => (
             <RecentlyPlayedTile
@@ -51,6 +70,20 @@ export function RecentlyPlayedSection({
             />
           ))}
         </View>
+=======
+        {rows.map((row) => (
+          <View key={row.map((track) => track.id).join('-')} className="flex-row gap-2.5">
+            {row.map((track) => (
+              <RecentlyPlayedTile
+                key={track.id}
+                track={track}
+                onPress={onTrackPress ? () => onTrackPress(track) : undefined}
+              />
+            ))}
+            {row.length === 1 ? <View className="min-w-0 flex-1" /> : null}
+          </View>
+        ))}
+>>>>>>> Stashed changes
       </View>
     </View>
   );

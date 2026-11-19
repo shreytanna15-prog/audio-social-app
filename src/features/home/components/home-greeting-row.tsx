@@ -10,7 +10,7 @@ type HomeGreetingRowProps = {
   onFilterPress?: () => void;
 };
 
-export function HomeGreetingRow({ name = 'Maya', onFilterPress }: HomeGreetingRowProps) {
+export function HomeGreetingRow({ name = 'there', onFilterPress }: HomeGreetingRowProps) {
   return (
     <View className="flex-row items-center justify-between gap-3 px-4">
       <Text

@@ -73,6 +73,13 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="listening-history"
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
                     name="message"
                     options={{
                       headerShown: false,
