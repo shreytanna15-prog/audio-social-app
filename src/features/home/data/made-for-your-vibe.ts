@@ -5,13 +5,17 @@ export type VibeTrack = {
   title: string;
   artist: string;
   coverUrl: string;
-  bpm: number;
-  key: string;
+  likeCount: number;
+  isLiked: boolean;
   primaryTag: string;
   secondaryTag?: string;
   primaryTagTone?: VibeTrackTagTone;
+  mixUrl?: string | null;
+  bpm?: number;
+  key?: string;
 };
 
+/** Design/demo fixtures — Home screen renders API data; keep these in repo. */
 export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
   {
     id: '1',
@@ -19,6 +23,8 @@ export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
     artist: 'Kaelen Voss ft. Arcaic',
     coverUrl:
       'https://images.unsplash.com/photo-1614149162883-504ce4d13909?w=600&h=600&fit=crop',
+    likeCount: 1280,
+    isLiked: false,
     bpm: 118,
     key: 'F# Min',
     primaryTag: 'Deep Groove',
@@ -31,6 +37,8 @@ export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
     artist: 'SOMA Waves',
     coverUrl:
       'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=600&fit=crop',
+    likeCount: 940,
+    isLiked: true,
     bpm: 94,
     key: 'A Min',
     primaryTag: 'Remixable',
@@ -43,6 +51,8 @@ export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
     artist: 'Nova Blake',
     coverUrl:
       'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=600&h=600&fit=crop',
+    likeCount: 1560,
+    isLiked: false,
     bpm: 126,
     key: 'D Maj',
     primaryTag: 'Late Night',
@@ -55,6 +65,8 @@ export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
     artist: 'Luna Reed',
     coverUrl:
       'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=600&fit=crop',
+    likeCount: 720,
+    isLiked: false,
     bpm: 102,
     key: 'Bb Min',
     primaryTag: 'Alt-R&B',
@@ -67,6 +79,8 @@ export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
     artist: 'Jax Orion',
     coverUrl:
       'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=600&h=600&fit=crop',
+    likeCount: 2100,
+    isLiked: true,
     bpm: 140,
     key: 'E Min',
     primaryTag: 'Trap Soul',
@@ -79,6 +93,8 @@ export const MADE_FOR_YOUR_VIBE: VibeTrack[] = [
     artist: 'Echo Park',
     coverUrl:
       'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=600&h=600&fit=crop',
+    likeCount: 880,
+    isLiked: false,
     bpm: 88,
     key: 'C Min',
     primaryTag: 'Lo-Fi',

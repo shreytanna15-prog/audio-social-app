@@ -3,20 +3,26 @@ import { ScrollView, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
 
-import { MADE_FOR_YOUR_VIBE, type VibeTrack } from '../data/made-for-your-vibe';
+import type { VibeTrack } from '../data/made-for-your-vibe';
 import { VibeTrackCard } from './vibe-track-card';
 
+export type { VibeTrack, VibeTrackTagTone } from '../data/made-for-your-vibe';
+
 type MadeForYourVibeSectionProps = {
-  tracks?: VibeTrack[];
+  tracks: VibeTrack[];
   onTrackPress?: (track: VibeTrack) => void;
   onPlayPress?: (track: VibeTrack) => void;
 };
 
 export function MadeForYourVibeSection({
-  tracks = MADE_FOR_YOUR_VIBE,
+  tracks,
   onTrackPress,
   onPlayPress,
 }: MadeForYourVibeSectionProps) {
+  if (tracks.length === 0) {
+    return null;
+  }
+
   return (
     <View className="gap-4">
       <View className="flex-row items-start justify-between gap-3 px-4">
@@ -25,7 +31,7 @@ export function MadeForYourVibeSection({
             Made For Your Vibe
           </Text>
           <Text variant="body-md" className="text-on-surface-variant">
-            Based on your late-night session stems.
+            Picked from your taste and recent listens.
           </Text>
         </View>
         <View className="mt-0.5 h-9 w-9 items-center justify-center">

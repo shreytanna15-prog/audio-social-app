@@ -2,11 +2,11 @@ import { Pressable, View } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
 
-import { RECENTLY_PLAYED, type RecentlyPlayedTrack } from '../data/recently-played';
+import type { RecentlyPlayedTrack } from '../data/recently-played';
 import { RecentlyPlayedTile } from './recently-played-tile';
 
 type RecentlyPlayedSectionProps = {
-  tracks?: RecentlyPlayedTrack[];
+  tracks: RecentlyPlayedTrack[];
   onHistoryPress?: () => void;
   onTrackPress?: (track: RecentlyPlayedTrack) => void;
 };
@@ -20,20 +20,15 @@ function chunkPairs<T>(items: T[]): T[][] {
 }
 
 export function RecentlyPlayedSection({
-  tracks = RECENTLY_PLAYED,
+  tracks,
   onHistoryPress,
   onTrackPress,
 }: RecentlyPlayedSectionProps) {
-<<<<<<< Updated upstream
-  const topRow = tracks.slice(0, 2);
-  const bottomRow = tracks.slice(2, 4);
-=======
   if (tracks.length === 0) {
     return null;
   }
 
   const rows = chunkPairs(tracks);
->>>>>>> Stashed changes
 
   return (
     <View className="gap-4 px-4">
@@ -51,26 +46,6 @@ export function RecentlyPlayedSection({
       </View>
 
       <View className="gap-2.5">
-<<<<<<< Updated upstream
-        <View className="flex-row gap-2.5">
-          {topRow.map((track) => (
-            <RecentlyPlayedTile
-              key={track.id}
-              track={track}
-              onPress={onTrackPress ? () => onTrackPress(track) : undefined}
-            />
-          ))}
-        </View>
-        <View className="flex-row gap-2.5">
-          {bottomRow.map((track) => (
-            <RecentlyPlayedTile
-              key={track.id}
-              track={track}
-              onPress={onTrackPress ? () => onTrackPress(track) : undefined}
-            />
-          ))}
-        </View>
-=======
         {rows.map((row) => (
           <View key={row.map((track) => track.id).join('-')} className="flex-row gap-2.5">
             {row.map((track) => (
@@ -83,7 +58,6 @@ export function RecentlyPlayedSection({
             {row.length === 1 ? <View className="min-w-0 flex-1" /> : null}
           </View>
         ))}
->>>>>>> Stashed changes
       </View>
     </View>
   );

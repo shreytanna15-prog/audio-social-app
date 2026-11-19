@@ -1,7 +1,12 @@
 import { type Href, useRouter } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
-import { usePlayerStore } from '@/features/player';
+import {
+  useFeaturedArtists,
+  useMadeForYouTracks,
+  useTrendingTracks,
+} from '@/features/discover';
+import { usePlayerStore, type PlayerTrack } from '@/features/player';
 import { useMe } from '@/features/profile/api/hooks';
 import { AppHeader } from '@/shared/components/layout/app-header';
 import {
@@ -10,18 +15,15 @@ import {
   FeaturedArtistsSection,
   TrendingSection,
 } from '@/shared/components/music';
-<<<<<<< Updated upstream
-import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
-=======
 import { Text } from '@/shared/components/ui/text';
->>>>>>> Stashed changes
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
+import {
+  useHomePlaylists,
+  useLatestProject,
+  useRecentlyPlayed,
+} from '../api/hooks';
 import { HomeGreetingRow } from '../components/home-greeting-row';
-<<<<<<< Updated upstream
-import { MadeForYourVibeSection } from '../components/made-for-your-vibe-section';
-import { ProjectCard } from '../components/project-card';
-import { RecentlyPlayedSection } from '../components/recently-played-section';
-=======
 import { HomeSectionStatus } from '../components/home-section-status';
 import {
   MadeForYourVibeSection,
@@ -61,16 +63,13 @@ function toPlayerTrack(input: {
     isLiked: input.isLiked,
   };
 }
->>>>>>> Stashed changes
 
 export function HomeScreen() {
   const { push } = useRouter();
   const { guard } = useNavigationGuard();
-  const play = usePlayerStore((s) => s.play);
+  const playQueue = usePlayerStore((s) => s.playQueue);
   const { data: me } = useMe();
   const greetingName = me?.name?.trim() || me?.username;
-<<<<<<< Updated upstream
-=======
   const hasUnreadNotifications = (me?.unreadNotificationCount ?? 0) > 0;
 
   const latestProjectQuery = useLatestProject();
@@ -127,7 +126,6 @@ export function HomeScreen() {
   const isOfflineFailure =
     sectionErrors.length > 0 && sectionErrors.every(isHomeNetworkError);
 
-  // One global empty/error card — avoid repeating offline Retry under every section.
   const showGlobalEmptyState = !anySectionLoading && !hasContent;
 
   const isRefreshing =
@@ -173,13 +171,14 @@ export function HomeScreen() {
     const startIndex = queue.findIndex((item) => item.id === track.id);
     playQueue(queue, startIndex < 0 ? 0 : startIndex);
   };
->>>>>>> Stashed changes
 
   return (
     <View className="flex-1 bg-background">
       <AppHeader
-        showNotificationBadge
-        onNotificationsPress={() => guard(() => push('/notifications' as Href))}
+        showNotificationBadge={hasUnreadNotifications}
+        onNotificationsPress={() =>
+          guard(() => push('/notifications' as Href))
+        }
         onChatPress={() => guard(() => push('/(tabs)/chat' as Href))}
         onAvatarPress={() => guard(() => push('/(tabs)/profile' as Href))}
       />
@@ -195,52 +194,6 @@ export function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}>
         <HomeGreetingRow name={greetingName} />
-<<<<<<< Updated upstream
-        <ProjectCard onOpenPress={() => guard(() => push('/projects/' as Href))} />
-        <FeaturedArtistsSection
-          onArtistPress={(artist) => guard(() => push(`/artist/${artist.id}`))}
-        />
-        <MadeForYourVibeSection
-          onTrackPress={(track) =>
-            play({
-              id: `vibe-${track.id}`,
-              title: track.title,
-              artist: track.artist,
-              coverUrl: track.coverUrl,
-            })
-          }
-          onPlayPress={(track) =>
-            play({
-              id: `vibe-${track.id}`,
-              title: track.title,
-              artist: track.artist,
-              coverUrl: track.coverUrl,
-            })
-          }
-        />
-        <TrendingSection
-          onTrackPress={(track) =>
-            play({
-              id: `trending-${track.id}`,
-              title: track.title,
-              artist: track.artist,
-              coverUrl: track.coverUrl,
-            })
-          }
-        />
-        <CuratedPlaylistsSection actionLabel="Explore" />
-        <ChallengeCard />
-        <RecentlyPlayedSection
-          onTrackPress={(track) =>
-            play({
-              id: `recent-${track.id}`,
-              title: track.title,
-              artist: track.artist,
-              coverUrl: track.coverUrl,
-            })
-          }
-        />
-=======
 
         {showGlobalEmptyState ? (
           <View className="mx-4 gap-3 rounded-2xl border border-white/5 bg-surface-container px-4 py-8">
@@ -284,7 +237,9 @@ export function HomeScreen() {
                 }
                 status="Open"
                 onOpenPress={() =>
-                  push(`/projects/${latestProject.id}` as Href)
+                  guard(() =>
+                    push(`/projects/${latestProject.id}` as Href),
+                  )
                 }
               />
             ) : (
@@ -305,7 +260,7 @@ export function HomeScreen() {
               <FeaturedArtistsSection
                 artists={featuredArtists}
                 onArtistPress={(artist) =>
-                  push(`/artist/${artist.id}` as Href)
+                  guard(() => push(`/artist/${artist.id}` as Href))
                 }
               />
             ) : (
@@ -373,9 +328,11 @@ export function HomeScreen() {
                 subtitle="Created and saved by you"
                 actionLabel="Library"
                 playlists={homePlaylists}
-                onActionPress={() => push('/(tabs)/library' as Href)}
+                onActionPress={() =>
+                  guard(() => push('/(tabs)/library' as Href))
+                }
                 onPlaylistPress={(playlist) =>
-                  push(`/playlists/${playlist.id}` as Href)
+                  guard(() => push(`/playlists/${playlist.id}` as Href))
                 }
               />
             ) : (
@@ -397,7 +354,9 @@ export function HomeScreen() {
             {recentlyPlayed.length > 0 ? (
               <RecentlyPlayedSection
                 tracks={recentlyPlayed}
-                onHistoryPress={() => push('/listening-history' as Href)}
+                onHistoryPress={() =>
+                  guard(() => push('/listening-history' as Href))
+                }
                 onTrackPress={(track) =>
                   playSectionQueue(track, recentlyPlayed)
                 }
@@ -417,7 +376,6 @@ export function HomeScreen() {
             )}
           </>
         )}
->>>>>>> Stashed changes
       </ScrollView>
     </View>
   );

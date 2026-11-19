@@ -39,11 +39,13 @@ export function VibeTrackCard({ track, onPress, onPlayPress }: VibeTrackCardProp
 
           <View className="absolute inset-x-0 bottom-0 h-20 bg-black/35" />
 
-          <View className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2.5 py-1">
-            <Text variant="caption" className="font-medium text-on-surface">
-              {track.bpm} BPM • {track.key}
-            </Text>
-          </View>
+          {track.bpm != null && track.key ? (
+            <View className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2.5 py-1">
+              <Text variant="caption" className="font-medium text-on-surface">
+                {track.bpm} BPM • {track.key}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View className="gap-2 px-3.5 pb-3.5 pt-7">
