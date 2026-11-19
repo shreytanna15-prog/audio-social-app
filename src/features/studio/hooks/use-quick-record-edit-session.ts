@@ -153,8 +153,11 @@ export function useQuickRecordEditSession() {
       });
 
       useQuickRecordStore.getState().setTrackId(recording.id);
-      // Keep the in-memory title in sync without re-hitting the API.
-      useQuickRecordStore.setState({ title });
+      // Local draft is now committed — clear dirty (title + audio fingerprint).
+      useQuickRecordStore.setState({
+        title,
+        initialFingerprint: fingerprintQuickRecordProject(latest, title),
+      });
       return { id: recording.id, title };
     },
     [projectIdParam, saveDraft, session],

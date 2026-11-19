@@ -4,10 +4,14 @@ import {
   saveProject,
   updateProject,
 } from '@/features/audio/data/project-repository';
-import { projectDurationSeconds } from '@/features/audio/domain/project';
+import {
+  hasMixableContent,
+  mixDurationSeconds,
+} from '@/features/audio/domain/project';
 import type { AudioProject } from '@/features/audio/types/project';
 import type { AudioRecording } from '@/features/audio/types/audio';
 
+import { encodeLayerFxMeta } from '../utils/layer-fx-meta';
 import { createTrack, updateTrack } from './service';
 import type {
   CreateTrackLayerRequest,
@@ -27,6 +31,7 @@ export type SaveTrackDraftInput = {
 };
 
 function toLayerRequests(project: AudioProject): CreateTrackLayerRequest[] {
+  // Keep muted layers in metadata (reopen / unmute); empty slots stay local-only.
   return project.layers
     .filter((layer) => Boolean(layer.stemUri))
     .map((layer, index) => ({
@@ -37,7 +42,10 @@ function toLayerRequests(project: AudioProject): CreateTrackLayerRequest[] {
       offsetMs: layer.offsetMs,
       muted: layer.muted,
       sortIndex: index,
-      appliedEffects: [],
+      appliedEffects: encodeLayerFxMeta({
+        editChain: layer.editChain,
+        captureFx: layer.captureFx,
+      }),
       peaks: layer.peaks.length > 0 ? layer.peaks : undefined,
     }));
 }
@@ -49,7 +57,7 @@ function toCreateBody(
 ): CreateTrackRequest {
   const durationMs = Math.max(
     0,
-    Math.round(projectDurationSeconds(input.project) * 1000),
+    Math.round(mixDurationSeconds(input.project) * 1000),
   );
 
   return {
@@ -83,6 +91,12 @@ function toCreateBody(
 export async function saveTrackDraft(
   input: SaveTrackDraftInput,
 ): Promise<AudioRecording> {
+  if (!hasMixableContent(input.project)) {
+    throw new Error(
+      'Nothing to save. Add or unmute at least one audio layer first.',
+    );
+  }
+
   const isUpdate = Boolean(input.trackId);
   const trackId = input.trackId ?? Crypto.randomUUID();
 

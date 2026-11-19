@@ -11,6 +11,7 @@ import type {
   CreateTrackResponse,
   PublishedTrackItem,
   PublishTrackRequest,
+  TrackDetail,
   TrackListItem,
   TrackStatus,
   UnpublishTrackResponse,
@@ -46,6 +47,13 @@ export async function listTracks(
   const query = status ? `?status=${status}` : '';
   return apiRequest<TrackListItem[]>({
     path: `/api/tracks${query}`,
+    method: 'GET',
+  });
+}
+
+export async function getTrack(id: string): Promise<TrackDetail> {
+  return apiRequest<TrackDetail>({
+    path: `/api/tracks/${id}`,
     method: 'GET',
   });
 }

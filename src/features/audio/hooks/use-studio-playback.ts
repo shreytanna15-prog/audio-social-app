@@ -130,6 +130,7 @@ export function useStudioPlayback(
     const entries = entriesRef.current;
     const desired = enabledRef.current ? tracksRef.current : [];
     const wanted = new Set(desired.map((track) => track.id));
+    let removed = false;
 
     for (const [id, entry] of [...entries.entries()]) {
       if (wanted.has(id)) {
@@ -139,6 +140,7 @@ export function useStudioPlayback(
       entry.player.pause();
       entry.player.remove();
       entries.delete(id);
+      removed = true;
     }
 
     for (const track of desired) {
@@ -196,8 +198,43 @@ export function useStudioPlayback(
         positionRef.current = 0;
         setCurrentTime(0);
       }
+      return;
     }
-  }, [trackKey]);
+
+    // Mute/unmute changes the player set — resync survivors so the playhead
+    // does not stall or restart from a stale multi-player state.
+    if (removed && isPlayingRef.current) {
+      playheadOriginRef.current = positionRef.current;
+      startedAtRef.current = Date.now();
+      syncAll(positionRef.current, true, true);
+    }
+  }, [syncAll, trackKey]);
+
+  // Mix length can shrink under the playhead when the longest unmuted layer is muted.
+  useEffect(() => {
+    const total = durationRef.current;
+    if (total <= 0) {
+      return;
+    }
+
+    if (positionRef.current > total + 0.01) {
+      if (isPlayingRef.current) {
+        stop(true);
+      } else {
+        positionRef.current = 0;
+        playheadOriginRef.current = 0;
+        setCurrentTime(0);
+        syncAll(0, false, true);
+      }
+      return;
+    }
+
+    if (isPlayingRef.current) {
+      playheadOriginRef.current = positionRef.current;
+      startedAtRef.current = Date.now();
+      syncAll(positionRef.current, true, true);
+    }
+  }, [duration, stop, syncAll]);
 
   // Wall-clock playhead so delayed clips do not freeze or end the mix early.
   useEffect(() => {

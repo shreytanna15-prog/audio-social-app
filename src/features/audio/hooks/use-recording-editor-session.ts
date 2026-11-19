@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
 import { deleteProcessedRecording } from '@/features/audio/data/processed-recording.repository';
 import {
@@ -30,6 +29,12 @@ import {
 
 type PresetSheetKind = 'fx' | 'compressor' | 'eq' | 'echo' | 'reverb';
 
+type ConfirmEffectApply = (
+  title: string,
+  message: string,
+  onConfirm: () => void,
+) => void;
+
 type UseRecordingEditorSessionOptions = {
   pristineUri: string;
   playbackUri: string;
@@ -43,6 +48,8 @@ type UseRecordingEditorSessionOptions = {
    */
   autoPlayAfterProcessing?: boolean;
   onEffectError?: (error: EffectErrorPresentation) => void;
+  /** Shared FeedbackDialog for Clean Voice / first FX confirm. */
+  confirmEffectApply?: ConfirmEffectApply;
 };
 
 export function useRecordingEditorSession({
@@ -54,6 +61,7 @@ export function useRecordingEditorSession({
   isSaving = false,
   autoPlayAfterProcessing = true,
   onEffectError,
+  confirmEffectApply,
 }: UseRecordingEditorSessionOptions) {
   const baselineUri = pristineUri;
   const [workingUri, setWorkingUri] = useState(playbackUri);
@@ -180,23 +188,24 @@ export function useRecordingEditorSession({
       return;
     }
 
-    Alert.alert(
-      'Clean Voice',
-      'Clean Voice is made for speech and singing — not instruments. On guitar, piano, or other instruments it can make the sound worse or remove musical detail.\n\nProcessing can take a little while. Please wait until it finishes.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => {
-            void rebuildChain({
-              ...selection,
-              cleanVoice: true,
-            });
-          },
-        },
-      ],
-    );
-  }, [isProcessing, isSaving, rebuildChain, selection]);
+    const apply = () => {
+      void rebuildChain({
+        ...selection,
+        cleanVoice: true,
+      });
+    };
+
+    if (confirmEffectApply) {
+      confirmEffectApply(
+        'Clean Voice',
+        'Clean Voice is made for speech and singing — not instruments. On guitar, piano, or other instruments it can make the sound worse or remove musical detail.\n\nProcessing can take a little while. Please wait until it finishes.',
+        apply,
+      );
+      return;
+    }
+
+    apply();
+  }, [confirmEffectApply, isProcessing, isSaving, rebuildChain, selection]);
 
   const openPresetSheet = useCallback(
     (kind: PresetSheetKind) => {
@@ -237,19 +246,18 @@ export function useRecordingEditorSession({
         return;
       }
 
-      Alert.alert(
-        'FX',
-        'FX is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse.\n\nProcessing can take a little while. Please wait until it finishes.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Continue',
-            onPress: apply,
-          },
-        ],
-      );
+      if (confirmEffectApply) {
+        confirmEffectApply(
+          'FX',
+          'FX is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse.\n\nProcessing can take a little while. Please wait until it finishes.',
+          apply,
+        );
+        return;
+      }
+
+      apply();
     },
-    [isProcessing, isSaving, rebuildChain, selection],
+    [confirmEffectApply, isProcessing, isSaving, rebuildChain, selection],
   );
 
   const selectCompressor = useCallback(

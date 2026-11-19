@@ -1,5 +1,6 @@
 import { fileExists } from '@/features/audio/data/file-persist';
 import {
+  getLayerSourceFileUri,
   getLayerStemFileUri,
   getRecordingMixdownFileUri,
 } from '@/features/audio/utils/recording-paths';
@@ -12,7 +13,8 @@ import {
 import type { BackupCompleteResponse } from './types';
 
 /**
- * Upload local mix (+ stems when present) to Supabase and mark track SYNCED.
+ * Upload local mix (+ stems/sources when present) to Supabase and mark track SYNCED.
+ * Muted layers are included so another device can reopen and unmute them.
  */
 export async function backupTrack(
   trackId: string,
@@ -32,6 +34,13 @@ export async function backupTrack(
       await uploadToSignedUrl(stem.upload.signedUrl, stemUri);
     } else if (layerIds.includes(stem.layerId)) {
       // Stem missing: completeBackup will fall back to mix path for that layer.
+    }
+  }
+
+  for (const source of urls.uploads.sources ?? []) {
+    const sourceUri = getLayerSourceFileUri(trackId, source.layerId);
+    if (fileExists(sourceUri)) {
+      await uploadToSignedUrl(source.upload.signedUrl, sourceUri);
     }
   }
 

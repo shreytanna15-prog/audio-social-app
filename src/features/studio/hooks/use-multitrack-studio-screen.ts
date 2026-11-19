@@ -1,22 +1,22 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { getErrorMessage } from '@/core/api/errors';
 import {
   createLayer,
+  hasMixableContent,
   nextLayerName,
 } from '@/features/audio/domain/project';
 import { useRecordingEditorUnsavedGuard } from '@/features/audio/hooks/use-recording-editor-unsaved-guard';
 import { useStudioPlayback } from '@/features/audio/hooks/use-studio-playback';
-import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { PROJECT_VERSION, type AudioProject } from '@/features/audio/types/project';
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { leaveStudioSession } from '@/features/studio/utils/leave-studio-session';
 import { resolveStudioProjectId } from '@/features/studio/utils/resolve-studio-project-id';
-import { getErrorMessage } from '@/core/api/errors';
-import { useSaveTrackDraft } from '@/features/tracks';
+import { useBackupTrack, useSaveTrackDraft } from '@/features/tracks';
 
 function createPendingMultitrackProject(): AudioProject {
   const layer = createLayer({
@@ -30,11 +30,38 @@ function createPendingMultitrackProject(): AudioProject {
   };
 }
 
+/** Audio-only fingerprint — title/selection changes must not force re-backup. */
+function audioFingerprint(project: AudioProject): string {
+  return JSON.stringify({
+    layers: project.layers.map((layer) => ({
+      id: layer.id,
+      kind: layer.kind,
+      stemUri: layer.stemUri,
+      sourceUri: layer.sourceUri ?? null,
+      baselineUri: layer.baselineUri ?? null,
+      muted: layer.muted,
+      editChain: layer.editChain ?? null,
+      captureFx: layer.captureFx ?? null,
+      durationSeconds: layer.durationSeconds,
+      offsetMs: layer.offsetMs,
+    })),
+  });
+}
+
+type SyncState = 'local' | 'syncing' | 'synced';
+
+type UseMultitrackStudioScreenOptions = {
+  confirmRemoveLayer?: (layerName: string, onConfirm: () => void) => void;
+  confirmDiscardSession?: (onConfirm: () => void) => void;
+};
+
 /**
- * Composes existing multitrack session + mix playback for the Noir Multitrack screen.
- * No attach / soft-clean / punch logic lives here — that stays in the session.
+ * Composes multitrack session + mix playback + Save / cloud / Publish like SINGLE.
  */
-export function useMultitrackStudioScreen() {
+export function useMultitrackStudioScreen(
+  options: UseMultitrackStudioScreenOptions = {},
+) {
+  const { confirmRemoveLayer, confirmDiscardSession } = options;
   const { replace, dismissTo, back, canGoBack } = useRouter();
   const { projectId: projectIdParam } = useLocalSearchParams<{
     projectId?: string;
@@ -43,12 +70,51 @@ export function useMultitrackStudioScreen() {
     ? projectIdParam[0]
     : projectIdParam;
   const saveDraft = useSaveTrackDraft();
-  const isSaving = saveDraft.isPending;
+  const backup = useBackupTrack();
 
-  const initialProject = useMemo(() => {
-    const pending = useMultitrackEntryStore.getState().consumePendingProject();
-    return pending ?? createPendingMultitrackProject();
+  const boot = useMemo(() => {
+    const pending = useMultitrackEntryStore.getState().consumePendingEntry();
+    if (pending) {
+      return {
+        project: pending.project,
+        trackId: pending.trackId?.trim() || null,
+        title: pending.title?.trim() || 'Untitled Session',
+        storageState: pending.storageState ?? null,
+      };
+    }
+    return {
+      project: createPendingMultitrackProject(),
+      trackId: null as string | null,
+      title: 'Untitled Session',
+      storageState: null as string | null,
+    };
   }, []);
+
+  const [trackId, setTrackId] = useState<string | null>(boot.trackId);
+  const [title, setTitle] = useState(boot.title);
+  const titleRef = useRef(title);
+  titleRef.current = title;
+  const bootTitleRef = useRef(boot.title);
+  const trackIdRef = useRef(trackId);
+  trackIdRef.current = trackId;
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [fxProcessing, setFxProcessing] = useState(false);
+  const [syncState, setSyncState] = useState<SyncState>(
+    boot.storageState === 'SYNCED' ? 'synced' : 'local',
+  );
+  const [syncedFingerprint, setSyncedFingerprint] = useState<string | null>(
+    boot.storageState === 'SYNCED' ? audioFingerprint(boot.project) : null,
+  );
+  const mountedRef = useRef(true);
+  const isLeavingRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const leaveToHome = useCallback(() => {
     leaveStudioSession(
@@ -57,19 +123,53 @@ export function useMultitrackStudioScreen() {
     );
   }, [back, canGoBack, dismissTo, replace, resolvedProjectId]);
 
+  const leaveToLibrary = useCallback(() => {
+    try {
+      dismissTo('/(tabs)/library' as Href);
+    } catch {
+      replace('/(tabs)/library' as Href);
+    }
+  }, [dismissTo, replace]);
+
+  const persistDraft = useCallback(
+    async (project: AudioProject, titleOverride?: string) => {
+      if (!hasMixableContent(project)) {
+        throw new Error(
+          'Nothing to save. Add or unmute at least one audio layer first.',
+        );
+      }
+
+      const nextTitle =
+        (titleOverride ?? titleRef.current).trim() || 'Untitled Session';
+      const recording = await saveDraft.mutateAsync({
+        project,
+        kind: 'MULTI',
+        title: nextTitle,
+        projectId: resolveStudioProjectId(projectIdParam),
+        trackId: trackIdRef.current ?? undefined,
+      });
+
+      setTrackId(recording.id);
+      trackIdRef.current = recording.id;
+      setTitle(nextTitle);
+      titleRef.current = nextTitle;
+      bootTitleRef.current = nextTitle;
+      return { id: recording.id, title: nextTitle };
+    },
+    [projectIdParam, saveDraft],
+  );
+
   const handleSave = useCallback(
     async (payload: StudioSavePayload): Promise<boolean> => {
-      if (saveDraft.isPending) {
+      if (saveDraft.isPending || isSaving) {
         return false;
       }
+      setIsSaving(true);
       try {
-        await saveDraft.mutateAsync({
-          project: payload.project,
-          mixdownUri: payload.mixdownUri,
-          kind: 'MULTI',
-          title: payload.title?.trim() || 'Untitled session',
-          projectId: resolveStudioProjectId(projectIdParam),
-        });
+        await persistDraft(
+          payload.project,
+          payload.title?.trim() || titleRef.current,
+        );
         return true;
       } catch (error) {
         Alert.alert(
@@ -80,49 +180,96 @@ export function useMultitrackStudioScreen() {
           ),
         );
         return false;
+      } finally {
+        if (mountedRef.current) {
+          setIsSaving(false);
+        }
       }
     },
-    [projectIdParam, saveDraft],
+    [isSaving, persistDraft, saveDraft.isPending],
   );
 
   const studio = useMultitrackSession({
-    initialProject,
+    initialProject: boot.project,
     isPending: true,
-    isSaving,
+    isSaving: isSaving || saveDraft.isPending,
     onSave: handleSave,
     onClose: leaveToHome,
     onDiscard: leaveToHome,
+    confirmRemoveLayer,
   });
 
   const playback = useStudioPlayback(
     studio.playbackTracks,
-    studio.durationSeconds,
+    studio.mixDuration,
     !studio.isRecording,
   );
 
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
-  const [fxProcessing, setFxProcessing] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const wasPlayingRef = useRef(false);
+  const wasCleaningRef = useRef(false);
+
+  const discard = useCallback(() => {
+    // Covers title-dirty too — session isLeaving only gates audio dirty.
+    isLeavingRef.current = true;
+    void studio.handleDiscard();
+  }, [studio]);
+
+  const titleDirty =
+    title.trim() !== (bootTitleRef.current.trim() || 'Untitled Session');
+  const shouldPromptBeforeLeaving = useCallback(
+    () =>
+      !isLeavingRef.current &&
+      (studio.shouldPromptBeforeLeaving() || titleDirty),
+    [studio, titleDirty],
+  );
 
   useRecordingEditorUnsavedGuard({
     enabled: true,
-    shouldPrompt: studio.shouldPromptBeforeLeaving,
+    shouldPrompt: shouldPromptBeforeLeaving,
     onSave: studio.persistPendingWork,
+    title: 'Discard changes?',
+    message: 'Unsaved changes to this session will be lost.',
+    onPromptLeave: confirmDiscardSession
+      ? () => {
+          confirmDiscardSession(() => {
+            void discard();
+          });
+        }
+      : undefined,
   });
 
-  const duration = Math.max(studio.durationSeconds, playback.duration);
+  // Transport / ruler end = unmuted mix only. Lane layout may still be longer
+  // so muted clips remain visible past the audible end.
+  const duration = studio.mixDuration;
+  const layoutDuration = Math.max(studio.durationSeconds, studio.mixDuration);
   const selected = studio.current;
   const busy =
     isSaving ||
+    saveDraft.isPending ||
     studio.isFinalizing ||
     studio.isOptimizing ||
     studio.isImportingBeat ||
     studio.persistStatus === 'saving' ||
-    fxProcessing;
+    fxProcessing ||
+    syncState === 'syncing';
   const canEditLayers = !busy && !studio.isRecording;
   const isCleaningSelected =
     selected != null && studio.cleaningLayerIds.includes(selected.id);
+
+  const cleaningCount = studio.cleaningLayerIds.length;
+  const isFinalizing = studio.isFinalizing;
+  const consumePendingSeek = studio.consumePendingSeek;
+  useEffect(() => {
+    const cleaning = cleaningCount > 0 || isFinalizing;
+    if (wasCleaningRef.current && !cleaning) {
+      const seekTo = consumePendingSeek() ?? 0;
+      playback.seekTo(seekTo);
+    }
+    wasCleaningRef.current = cleaning;
+  }, [cleaningCount, consumePendingSeek, isFinalizing, playback]);
+
   const beginScrub = useCallback(() => {
     wasPlayingRef.current = playback.isPlaying;
     if (playback.isPlaying) {
@@ -168,30 +315,110 @@ export function useMultitrackStudioScreen() {
   }, [playback, studio]);
 
   const save = useCallback(async () => {
+    if (busy || studio.isRecording) {
+      return;
+    }
     await studio.handleDone();
-  }, [studio]);
+  }, [busy, studio]);
 
-  const discard = useCallback(() => {
-    void studio.handleDiscard();
-  }, [studio]);
+  const saveToCloud = useCallback(
+    async (nextTitle: string) => {
+      if (studio.isRecording || busy) {
+        throw new Error('Finish editing before backing up.');
+      }
+
+      const trimmed = nextTitle.trim() || titleRef.current || 'Untitled Session';
+      setTitle(trimmed);
+      titleRef.current = trimmed;
+
+      setSyncState('syncing');
+      try {
+        const ok = await studio.persistPendingWork();
+        if (!ok) {
+          throw new Error(
+            'Nothing to save. Add or unmute at least one audio layer first.',
+          );
+        }
+        const id = trackIdRef.current;
+        if (!id) {
+          throw new Error('Save failed before backup.');
+        }
+        const layerIds = studio.project.layers
+          .filter((layer) => Boolean(layer.stemUri))
+          .map((layer) => layer.id);
+        await backup.mutateAsync({ trackId: id, layerIds });
+        if (mountedRef.current) {
+          setSyncedFingerprint(audioFingerprint(studio.project));
+          setSyncState('synced');
+        }
+      } catch (error) {
+        if (mountedRef.current) {
+          setSyncState('local');
+        }
+        throw error;
+      }
+    },
+    [backup, busy, studio],
+  );
+
+  const finishPublished = useCallback(() => {
+    isLeavingRef.current = true;
+    leaveToLibrary();
+  }, [leaveToLibrary]);
+
+  const requestLeave = useCallback(() => {
+    if (!shouldPromptBeforeLeaving()) {
+      isLeavingRef.current = true;
+      leaveToHome();
+      return;
+    }
+    if (confirmDiscardSession) {
+      confirmDiscardSession(() => {
+        void discard();
+      });
+      return;
+    }
+    Alert.alert('Discard changes?', 'Unsaved changes to this session will be lost.', [
+      { text: 'Keep editing', style: 'cancel' },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => {
+          void discard();
+        },
+      },
+    ]);
+  }, [confirmDiscardSession, discard, leaveToHome, shouldPromptBeforeLeaving]);
+
+  const currentFingerprint = audioFingerprint(studio.project);
+  const audioChangedSinceSync =
+    syncState === 'synced' &&
+    syncedFingerprint !== null &&
+    syncedFingerprint !== currentFingerprint;
+  const isSynced = syncState === 'synced' && !audioChangedSinceSync;
 
   const overlayVisible =
     busy || isCleaningSelected || studio.cleaningLayerIds.length > 0;
   const overlayTitle =
-    isSaving || studio.persistStatus === 'saving'
+    isSaving || saveDraft.isPending || studio.persistStatus === 'saving'
       ? 'Saving…'
-      : fxProcessing
-        ? 'Applying FX…'
-        : studio.isImportingBeat
-          ? 'Importing beat…'
-          : 'Cleaning take…';
+      : syncState === 'syncing'
+        ? 'Uploading…'
+        : fxProcessing
+          ? 'Applying FX…'
+          : studio.isImportingBeat
+            ? 'Importing beat…'
+            : 'Cleaning take…';
 
-  const hasTake = studio.playbackTracks.length > 0 || studio.project.layers.some((l) => l.stemUri);
+  const hasTake =
+    studio.playbackTracks.length > 0 ||
+    studio.project.layers.some((layer) => layer.stemUri);
 
   return {
     studio,
     playback,
     duration,
+    layoutDuration,
     selected,
     busy,
     canEditLayers,
@@ -205,11 +432,20 @@ export function useMultitrackStudioScreen() {
     togglePlayback,
     toggleRecord,
     save,
+    saveToCloud,
+    finishPublished,
     discard,
+    requestLeave,
     leave: leaveToHome,
     setFxProcessing,
     overlayVisible,
     overlayTitle,
     hasTake,
+    title,
+    setTitle,
+    trackId,
+    isSynced,
+    isSyncing: syncState === 'syncing',
+    isSaving: isSaving || saveDraft.isPending,
   };
 }

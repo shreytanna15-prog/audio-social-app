@@ -1,8 +1,8 @@
-import { MoreVertical, Pencil } from 'lucide-react-native';
-import { useCallback, useRef } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAudioRecorderBinding } from '@/features/audio/hooks/use-audio-recorder-binding';
 import { useInputMonitor } from '@/features/audio/hooks/use-input-monitor';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { StudioBackingPlayers } from '@/features/studio/components/multitrack/studio-backing-players';
@@ -12,9 +12,14 @@ import { QuickRecordTimer } from '@/features/studio/components/quick-record-time
 import { QuickRecordToolRow } from '@/features/studio/components/quick-record-tool-row';
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
 import { QuickRecordTimeline } from '@/features/studio/components/quick-record-waveform';
+import { StudioSessionTitle } from '@/features/studio/components/studio-session-title';
 import { useMultitrackStudioScreen } from '@/features/studio/hooks/use-multitrack-studio-screen';
+import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
+
+const DEFAULT_SESSION_TITLE = 'Untitled Session';
 
 /**
  * Multitrack Studio — Studio Noir shell wired to the shared project session.
@@ -22,12 +27,41 @@ import { Text } from '@/shared/components/ui/text';
  */
 export function MultitrackStudioScreen() {
   const insets = useSafeAreaInsets();
-  const session = useMultitrackStudioScreen();
+  useAudioRecorderBinding();
+  const { confirm, showError, dialog } = useFeedbackDialog();
+  const [publishOpen, setPublishOpen] = useState(false);
+  const confirmRemoveLayer = useCallback(
+    (layerName: string, onConfirm: () => void) => {
+      confirm('Remove layer?', `Remove ${layerName} from this recording?`, {
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Remove',
+        destructive: true,
+        onConfirm,
+      });
+    },
+    [confirm],
+  );
+  const confirmDiscardSession = useCallback(
+    (onConfirm: () => void) => {
+      confirm('Discard changes?', 'Unsaved changes to this session will be lost.', {
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard',
+        destructive: true,
+        onConfirm,
+      });
+    },
+    [confirm],
+  );
+  const session = useMultitrackStudioScreen({
+    confirmRemoveLayer,
+    confirmDiscardSession,
+  });
   const monitor = useInputMonitor();
   const {
     studio,
     playback,
     duration,
+    layoutDuration,
     selected,
     busy,
     canEditLayers,
@@ -39,13 +73,24 @@ export function MultitrackStudioScreen() {
     togglePlayback,
     toggleRecord,
     save,
-    discard,
-    leave,
+    saveToCloud,
+    finishPublished,
+    requestLeave,
     setFxProcessing,
     overlayVisible,
     overlayTitle,
     hasTake,
+    title,
+    setTitle,
+    trackId,
+    isSynced,
+    isSyncing,
+    isSaving,
   } = session;
+
+  const publishTrack = trackId ? { id: trackId, title } : null;
+  const publishDisabled =
+    !hasTake || studio.isRecording || busy || isSaving || isSyncing;
 
   const playbackRef = useRef(playback);
   playbackRef.current = playback;
@@ -85,60 +130,35 @@ export function MultitrackStudioScreen() {
     [setFxProcessing],
   );
 
-  const onBack = () => {
-    if (!studio.shouldPromptBeforeLeaving()) {
-      leave();
-      return;
-    }
-    Alert.alert('Discard session?', 'Leave without saving this multitrack session?', [
-      { text: 'Keep editing', style: 'cancel' },
-      {
-        text: 'Discard',
-        style: 'destructive',
-        onPress: () => {
-          void discard();
-        },
-      },
-    ]);
-  };
+  const leaveBlocked = busy || studio.isRecording || isSaving || isSyncing;
 
   return (
     <View
       className="flex-1 bg-background"
       style={{ paddingBottom: Math.max(insets.bottom, 28) + 12 }}>
       <ScreenHeader
-        onBack={onBack}
-        title={
+        left={
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Rename session"
-            className="max-w-[60%] flex-row items-center gap-1.5 active:opacity-80">
-            <Text variant="title-md" className="text-on-surface" numberOfLines={1}>
-              Untitled Session
+            accessibilityLabel="Discard"
+            hitSlop={8}
+            disabled={leaveBlocked}
+            onPress={requestLeave}
+            className="h-10 min-w-10 justify-center px-0.5 active:opacity-70"
+            style={{ opacity: leaveBlocked ? 0.4 : 1 }}>
+            <Text variant="label-md" className="text-destructive">
+              Discard
             </Text>
-            <Pencil size={14} color="#CBC3D7" strokeWidth={2} />
           </Pressable>
         }
-        right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="More options"
-            hitSlop={8}
-            onPress={() => {
-              Alert.alert('Session', undefined, [
-                {
-                  text: 'Discard',
-                  style: 'destructive',
-                  onPress: () => {
-                    void discard();
-                  },
-                },
-                { text: 'Cancel', style: 'cancel' },
-              ]);
-            }}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
-            <MoreVertical size={20} color="#E4E1EA" strokeWidth={2} />
-          </Pressable>
+        title={
+          <StudioSessionTitle
+            title={title}
+            onChangeTitle={setTitle}
+            disabled={busy || studio.isRecording}
+            dialogTitle="Rename session"
+            placeholder={DEFAULT_SESSION_TITLE}
+          />
         }
       />
 
@@ -154,15 +174,20 @@ export function MultitrackStudioScreen() {
       <View className="flex-1 px-4 pt-1 pb-3">
         <QuickRecordTimeline
           isRecording={studio.isRecording}
+          durationSeconds={duration}
           recordOriginSeconds={studio.recordOriginSeconds}
           windowStartSeconds={windowStartSeconds}
+          onWindowStartChange={setWindowStartSeconds}
           playheadSeconds={playback.currentTime}
+          onScrubStart={overlayVisible ? undefined : beginScrub}
+          onSeek={overlayVisible ? undefined : scrubTo}
+          onScrubEnd={overlayVisible ? undefined : endScrub}
         />
         <View className="flex-1 pt-2">
           <MultitrackLayerStack
             layers={studio.project.layers}
             selectedLayerId={studio.project.selectedLayerId}
-            durationSeconds={duration}
+            durationSeconds={layoutDuration}
             playheadSeconds={playback.currentTime}
             windowStartSeconds={windowStartSeconds}
             isRecording={studio.isRecording}
@@ -195,7 +220,7 @@ export function MultitrackStudioScreen() {
           baselineUri={selected?.baselineUri ?? selected?.stemUri ?? null}
           stemUri={selected?.stemUri ?? null}
           sourceUri={selected?.sourceUri ?? selected?.stemUri ?? null}
-          initialEditChain={selected?.editChain}
+          initialEditChain={selected?.editChain ?? selected?.captureFx}
           durationSeconds={selected?.durationSeconds ?? 0}
           isSaving={busy || session.isCleaningSelected}
           disabled={studio.isRecording || !selected?.stemUri}
@@ -220,6 +245,8 @@ export function MultitrackStudioScreen() {
             studio.beginPostRecordBusy();
             recordingSessionService.requestStop();
           }}
+          onOpenPublish={() => setPublishOpen(true)}
+          publishDisabled={publishDisabled}
         />
       </View>
 
@@ -231,6 +258,22 @@ export function MultitrackStudioScreen() {
       />
 
       <QuickRecordProcessingOverlay visible={overlayVisible} title={overlayTitle} />
+
+      <TrackPublishSheet
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        track={publishTrack}
+        initialTitle={title}
+        bottomOffset={insets.bottom}
+        onSaveToCloud={saveToCloud}
+        canPublish={isSynced}
+        synced={isSynced}
+        isSyncing={isSyncing}
+        onPublished={finishPublished}
+        onError={showError}
+      />
+
+      {dialog}
     </View>
   );
 }

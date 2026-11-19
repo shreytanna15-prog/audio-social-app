@@ -1,10 +1,16 @@
 import { File } from 'expo-file-system';
 
-export async function readFileBytes(sourceUri: string): Promise<Uint8Array> {
-  const source = new File(sourceUri);
+function isRemoteUri(uri: string): boolean {
+  return /^https?:\/\//i.test(uri);
+}
 
-  if (source.exists) {
-    return source.bytes();
+export async function readFileBytes(sourceUri: string): Promise<Uint8Array> {
+  // expo-file-system File only accepts file:// — remote URLs must use fetch.
+  if (!isRemoteUri(sourceUri)) {
+    const source = new File(sourceUri);
+    if (source.exists) {
+      return source.bytes();
+    }
   }
 
   const response = await fetch(sourceUri);
@@ -32,5 +38,13 @@ export async function persistFile(
 }
 
 export function fileExists(uri: string): boolean {
-  return new File(uri).exists;
+  if (!uri || isRemoteUri(uri)) {
+    return false;
+  }
+
+  try {
+    return new File(uri).exists;
+  } catch {
+    return false;
+  }
 }

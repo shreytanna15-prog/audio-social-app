@@ -358,6 +358,7 @@ export function MultitrackLayerStack({
             onChangeText={setRenameDraft}
             autoFocus
             selectTextOnFocus
+            maxLength={80}
             placeholder="Layer name"
             onSubmitEditing={() => {
               if (!renameTarget) {
@@ -366,7 +367,10 @@ export function MultitrackLayerStack({
               onRenameLayer(renameTarget.id, renameDraft);
               setRenameTarget(null);
             }}
-            className={fieldClassName}
+            className={cn(
+              fieldClassName,
+              'rounded-2xl border border-hairline bg-canvas',
+            )}
           />
           <DialogFooter>
             <Button variant="ghost" size="sm" onPress={() => setRenameTarget(null)}>

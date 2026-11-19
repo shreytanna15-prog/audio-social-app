@@ -42,6 +42,8 @@ export async function mergeVocalPunchIn(input: {
   const originSeconds = Math.max(0, input.originSeconds);
   const oldUri = resolveExistingOldUri(input.layer);
 
+  // Empty layer / replace-all: clip length is the take. Multitrack places it on
+  // the shared timeline via offset (replace-all forces offset 0).
   if (input.replaceAll || !oldUri) {
     return {
       uri: input.newUri,

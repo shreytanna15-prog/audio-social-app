@@ -27,6 +27,10 @@ export async function attachVocalTake(
   input: AttachVocalTakeInput,
 ): Promise<AttachVocalTakeResult> {
   const layer = input.project.layers.find((item) => item.id === input.layerId);
+  if (!layer) {
+    throw new Error(`Cannot attach take: layer ${input.layerId} is not in the project.`);
+  }
+
   const { originSeconds, replaceAll } = input;
 
   let stemUri = input.stemUri;
@@ -34,30 +38,32 @@ export async function attachVocalTake(
   let offsetMs = Math.round(originSeconds * 1000);
   let merged = false;
 
-  if (layer) {
-    try {
-      const mergedTake = await mergeVocalPunchIn({
-        layer,
-        newUri: input.stemUri,
-        takeDurationSeconds: input.durationSeconds,
-        originSeconds,
-        replaceAll,
-      });
-      stemUri = mergedTake.uri;
-      durationSeconds = mergedTake.durationSeconds;
-      offsetMs = mergedTake.offsetMs;
-      merged = mergedTake.merged;
-    } catch (error) {
-      console.warn('[Studio] punch-in merge failed; keeping offset take.', error);
-      stemUri = input.stemUri;
-      durationSeconds = input.durationSeconds;
-      offsetMs = Math.round(originSeconds * 1000);
-      merged = false;
-    }
+  try {
+    const mergedTake = await mergeVocalPunchIn({
+      layer,
+      newUri: input.stemUri,
+      takeDurationSeconds: input.durationSeconds,
+      originSeconds,
+      replaceAll,
+    });
+    stemUri = mergedTake.uri;
+    durationSeconds = mergedTake.durationSeconds;
+    offsetMs = mergedTake.offsetMs;
+    merged = mergedTake.merged;
+  } catch (error) {
+    console.warn('[Studio] punch-in merge failed; keeping offset take.', error);
+    stemUri = input.stemUri;
+    durationSeconds = input.durationSeconds;
+    offsetMs = Math.round(originSeconds * 1000);
+    merged = false;
   }
 
-  const sourceUri = stemUri;
-  const previousStemUri = layer?.stemUri ?? null;
+  // Pre-gate raw for re-clean. After punch-in merge the composite stem is the
+  // new ground truth — keep pointing source at it so we never reference a
+  // discarded punch fragment.
+  const sourceUri = merged ? stemUri : (input.sourceUri ?? input.stemUri);
+  const previousStemUri = layer.stemUri ?? null;
+  const keepUris = new Set([stemUri, sourceUri]);
 
   const nextLayers = input.project.layers.map((item) => {
     if (item.id !== input.layerId) {
@@ -82,11 +88,18 @@ export async function attachVocalTake(
     selectedLayerId: input.layerId,
   };
 
-  if ((merged || replaceAll) && previousStemUri && previousStemUri !== stemUri) {
+  if ((merged || replaceAll) && previousStemUri && !keepUris.has(previousStemUri)) {
     void discardPreviewRecording(previousStemUri);
   }
-  if (merged && input.stemUri !== stemUri) {
-    void discardPreviewRecording(input.stemUri, input.sourceUri);
+  if (merged && input.stemUri && !keepUris.has(input.stemUri)) {
+    void discardPreviewRecording(input.stemUri);
+  }
+  if (
+    merged &&
+    input.sourceUri &&
+    !keepUris.has(input.sourceUri)
+  ) {
+    void discardPreviewRecording('', input.sourceUri);
   }
 
   const peaks = await extractPeaksFromWav(

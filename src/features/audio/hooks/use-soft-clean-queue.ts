@@ -5,6 +5,7 @@ import { peakBarCountForDuration } from '@/features/audio/domain/timeline';
 import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.service';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import type { AudioProject } from '@/features/audio/types/project';
+import { durationSecondsFromMono48kWav } from '@/features/audio/utils/wav-duration';
 
 type UseSoftCleanQueueOptions = {
   getProject: () => AudioProject;
@@ -40,7 +41,11 @@ export function useSoftCleanQueue({
   }, []);
 
   const enqueueSoftClean = useCallback(
-    (layerId: string, rawUri: string) => {
+    (
+      layerId: string,
+      rawUri: string,
+      recovery?: { offsetMs?: number; durationSeconds?: number },
+    ) => {
       const generation = (cleanGenerationRef.current.get(layerId) ?? 0) + 1;
       cleanGenerationRef.current.set(layerId, generation);
 
@@ -98,8 +103,12 @@ export function useSoftCleanQueue({
 
           // Accept swap if the layer still points at the URI we cleaned as stem
           // OR as source (stem may already be an older cleaned file / missing).
+          // Empty stem+source means attach never landed — recover onto this layer.
+          const attachMissing = layer.stemUri == null && layer.sourceUri == null;
           const canSwap =
-            layer.stemUri === rawUri || layer.sourceUri === rawUri;
+            attachMissing ||
+            layer.stemUri === rawUri ||
+            layer.sourceUri === rawUri;
 
           if (!canSwap) {
             console.warn('[Optimize] soft clean stale; discarding cleaned file.', {
@@ -111,6 +120,27 @@ export function useSoftCleanQueue({
             await discardPreviewRecording(cleanedUri);
             return;
           }
+
+          if (attachMissing) {
+            console.warn('[Optimize] soft clean recovering take onto empty layer.', {
+              layerId,
+              rawUri,
+              offsetMs: recovery?.offsetMs,
+              durationSeconds: recovery?.durationSeconds,
+            });
+          }
+
+          const wavDuration = attachMissing
+            ? durationSecondsFromMono48kWav(cleanedUri)
+            : 0;
+          const recoveredDuration =
+            recovery?.durationSeconds && recovery.durationSeconds > 0
+              ? recovery.durationSeconds
+              : wavDuration;
+          const recoveredOffsetMs =
+            attachMissing && recovery?.offsetMs != null && recovery.offsetMs >= 0
+              ? Math.round(recovery.offsetMs)
+              : null;
 
           // Swap stem first so playback can remount; peaks follow.
           // Keep sourceUri as the pre-gate raw (rawUri) for punch-in / re-clean.
@@ -124,14 +154,25 @@ export function useSoftCleanQueue({
                     stemUri: cleanedUri,
                     baselineUri: cleanedUri,
                     sourceUri: item.sourceUri ?? rawUri,
+                    durationSeconds:
+                      item.durationSeconds > 0
+                        ? item.durationSeconds
+                        : recoveredDuration > 0
+                          ? recoveredDuration
+                          : item.durationSeconds,
+                    offsetMs:
+                      recoveredOffsetMs != null ? recoveredOffsetMs : item.offsetMs,
                   }
                 : item,
             ),
           });
 
+          const peakDuration =
+            getProject().layers.find((item) => item.id === layerId)?.durationSeconds ??
+            layer.durationSeconds;
           const peaks = await extractPeaksFromWav(
             cleanedUri,
-            peakBarCountForDuration(layer.durationSeconds),
+            peakBarCountForDuration(peakDuration),
           );
 
           if (!mountedRef.current) {

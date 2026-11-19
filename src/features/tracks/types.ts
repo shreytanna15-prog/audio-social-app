@@ -177,6 +177,7 @@ export type BackupUploadUrlsResponse = {
   uploads: {
     mix: SignedUpload;
     stems: Array<{ layerId: string; upload: SignedUpload }>;
+    sources?: Array<{ layerId: string; upload: SignedUpload }>;
   };
 };
 

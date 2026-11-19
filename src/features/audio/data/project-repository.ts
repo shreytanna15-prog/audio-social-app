@@ -3,7 +3,7 @@ import { File } from 'expo-file-system';
 import { deleteAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 import { documentDirectory } from 'expo-file-system/legacy';
 
-import { persistFile } from '@/features/audio/data/file-persist';
+import { fileExists, persistFile } from '@/features/audio/data/file-persist';
 import {
   ensureRecordingsRoot,
   readIndex,
@@ -135,20 +135,31 @@ async function persistLayerFiles(
   const baselineUri = getLayerBaselineFileUri(recordingId, layer.id);
   const sourceUri = getLayerSourceFileUri(recordingId, layer.id);
 
+  // Stem is required. Missing pending source/baseline (e.g. punch-in cleanup)
+  // must not fail Save — fall back to the live stem.
+  const stemSource = fileExists(layer.stemUri) ? layer.stemUri : null;
+  if (!stemSource) {
+    throw new Error(`Layer stem is not accessible: ${layer.stemUri}`);
+  }
+
   if (layer.stemUri !== stemUri) {
-    await persistFile(layer.stemUri, stemUri);
+    await persistFile(stemSource, stemUri);
   }
 
-  if (layer.baselineUri && layer.baselineUri !== baselineUri) {
-    await persistFile(layer.baselineUri, baselineUri);
-  } else if (!layer.baselineUri) {
-    await persistFile(layer.stemUri, baselineUri);
+  const baselineSource =
+    layer.baselineUri && fileExists(layer.baselineUri)
+      ? layer.baselineUri
+      : stemSource;
+  if (baselineSource !== baselineUri) {
+    await persistFile(baselineSource, baselineUri);
   }
 
-  if (layer.sourceUri && layer.sourceUri !== sourceUri) {
-    await persistFile(layer.sourceUri, sourceUri);
-  } else if (!layer.sourceUri) {
-    await persistFile(layer.stemUri, sourceUri);
+  const sourceSource =
+    layer.sourceUri && fileExists(layer.sourceUri)
+      ? layer.sourceUri
+      : stemSource;
+  if (sourceSource !== sourceUri) {
+    await persistFile(sourceSource, sourceUri);
   }
 
   return {

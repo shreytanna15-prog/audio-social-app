@@ -12,9 +12,22 @@ import { useRecordingEditorUnsavedGuard } from '@/features/audio/hooks/use-recor
 import { useStudioPlayback } from '@/features/audio/hooks/use-studio-playback';
 import { useMultitrackSession } from '@/features/studio/hooks/use-multitrack-session';
 import type { StudioEditorProps } from '@/features/audio/types/studio';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 export function StudioEditor(props: StudioEditorProps) {
-  const studio = useMultitrackSession(props);
+  const { confirm, dialog } = useFeedbackDialog();
+  const confirmRemoveLayer = useCallback(
+    (layerName: string, onConfirm: () => void) => {
+      confirm('Remove layer?', `Remove ${layerName} from this recording?`, {
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Remove',
+        destructive: true,
+        onConfirm,
+      });
+    },
+    [confirm],
+  );
+  const studio = useMultitrackSession({ ...props, confirmRemoveLayer });
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
@@ -22,16 +35,29 @@ export function StudioEditor(props: StudioEditorProps) {
     enabled: props.isPending,
     shouldPrompt: studio.shouldPromptBeforeLeaving,
     onSave: studio.persistPendingWork,
+    title: 'Discard session?',
+    message: 'Leave without saving this multitrack session?',
+    onPromptLeave: () => {
+      confirm('Discard changes?', 'Unsaved changes to this session will be lost.', {
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard',
+        destructive: true,
+        onConfirm: () => {
+          void studio.handleDiscard();
+        },
+      });
+    },
   });
 
   const playback = useStudioPlayback(
     studio.playbackTracks,
-    studio.durationSeconds,
+    studio.mixDuration,
     !studio.isRecording,
   );
 
   const { isPending, isSaving } = props;
-  const duration = Math.max(studio.durationSeconds, playback.duration);
+  const duration = studio.mixDuration;
+  const layoutDuration = Math.max(studio.durationSeconds, studio.mixDuration);
   const selected = studio.current;
   const busy =
     isSaving ||
@@ -120,12 +146,13 @@ export function StudioEditor(props: StudioEditorProps) {
 
   return (
     <View style={styles.screen}>
+      {dialog}
       <View style={styles.stage}>
         <StudioTrackStack
           layers={studio.project.layers}
           selectedLayerId={selected?.id ?? null}
           currentTime={playback.currentTime}
-          durationSeconds={duration}
+          durationSeconds={layoutDuration}
           liveLayerId={studio.recordingLayerId}
           liveOffsetMs={Math.round(studio.recordOriginSeconds * 1000)}
           recordOriginSeconds={studio.recordOriginSeconds}

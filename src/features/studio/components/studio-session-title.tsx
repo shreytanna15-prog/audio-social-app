@@ -2,7 +2,6 @@ import { Pencil } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable } from 'react-native';
 
-import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/components/ui/button';
 import {
   Dialog,
@@ -14,21 +13,27 @@ import {
 import { fieldClassName } from '@/shared/components/ui/field-styles';
 import { Input } from '@/shared/components/ui/input';
 import { Text } from '@/shared/components/ui/text';
+import { cn } from '@/shared/lib/utils';
 
-import { DEFAULT_QUICK_RECORD_TITLE } from '@/features/studio/store/quick-record.store';
-
-type QuickRecordTitlePillProps = {
+type StudioSessionTitleProps = {
   title: string;
+  /** Local draft only — caller persists on studio Save. */
   onChangeTitle: (title: string) => void;
   disabled?: boolean;
+  dialogTitle?: string;
+  placeholder?: string;
 };
 
-/** Tappable take title + rename dialog (capture and edit). */
-export function QuickRecordTitlePill({
+/**
+ * Centered header title + rename dialog. Confirm only updates local draft.
+ */
+export function StudioSessionTitle({
   title,
   onChangeTitle,
   disabled = false,
-}: QuickRecordTitlePillProps) {
+  dialogTitle = 'Rename',
+  placeholder = 'Untitled',
+}: StudioSessionTitleProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(title);
 
@@ -39,7 +44,7 @@ export function QuickRecordTitlePill({
   }, [open, title]);
 
   const commit = () => {
-    onChangeTitle(draft.trim() || DEFAULT_QUICK_RECORD_TITLE);
+    onChangeTitle(draft.trim() || placeholder);
     setOpen(false);
   };
 
@@ -47,21 +52,24 @@ export function QuickRecordTitlePill({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Rename take, current title ${title}`}
+        accessibilityLabel={`Rename, current title ${title}`}
         disabled={disabled}
         onPress={() => setOpen(true)}
-        className="max-w-[55%] flex-row items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1.5 active:opacity-80"
+        className="max-w-full flex-row items-center justify-center gap-1.5 active:opacity-80"
         style={{ opacity: disabled ? 0.5 : 1 }}>
-        <Text variant="label-sm" className="shrink text-on-surface" numberOfLines={1}>
+        <Text
+          variant="title-md"
+          className="shrink text-on-surface"
+          numberOfLines={1}>
           {title}
         </Text>
-        <Pencil size={10} color="#CBC3D7" strokeWidth={2} />
+        <Pencil size={11} color="#CBC3D7" strokeWidth={2} />
       </Pressable>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename take</DialogTitle>
+            <DialogTitle>{dialogTitle}</DialogTitle>
           </DialogHeader>
           <Input
             value={draft}
@@ -69,11 +77,11 @@ export function QuickRecordTitlePill({
             autoFocus
             selectTextOnFocus
             maxLength={80}
-            placeholder={DEFAULT_QUICK_RECORD_TITLE}
+            placeholder={placeholder}
             onSubmitEditing={commit}
             className={cn(
               fieldClassName,
-              'border border-hairline bg-canvas rounded-2xl',
+              'rounded-2xl border border-hairline bg-canvas',
             )}
           />
           <DialogFooter>
@@ -81,7 +89,7 @@ export function QuickRecordTitlePill({
               <Text>Cancel</Text>
             </Button>
             <Button variant="soft" size="sm" onPress={commit}>
-              <Text>Save</Text>
+              <Text>Confirm</Text>
             </Button>
           </DialogFooter>
         </DialogContent>

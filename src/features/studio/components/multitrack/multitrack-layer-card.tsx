@@ -169,34 +169,28 @@ export function MultitrackLayerCard({
         )
       : 0;
 
-  const hasMetaTags =
-    muted ||
-    (!empty &&
-      (layer.kind === 'beat' ||
-        layer.kind === 'import' ||
-        layer.durationSeconds > 0));
-
   // Inset ring keeps layout width equal to the ruler (no border box shrink).
   // Empty layers keep a dashed border so they read as slots.
   const ring = selected
-    ? 'inset 0 0 0 1.5px rgba(160, 120, 255, 0.45)'
+    ? 'inset 0 0 0 2px rgba(208, 188, 255, 0.85)'
     : 'inset 0 0 0 1px rgba(255, 255, 255, 0.1)';
 
   return (
     <View
       className={cn(
-        'mb-2.5 overflow-hidden rounded-2xl bg-primary/10',
+        'mb-2.5 overflow-hidden rounded-2xl',
+        selected ? 'bg-primary/22' : 'bg-primary/10',
         empty
           ? selected
-            ? 'border border-dashed border-primary/45'
+            ? 'border border-dashed border-primary'
             : 'border border-dashed border-white/20'
           : null,
         muted ? 'opacity-90' : null,
       )}
       style={empty ? undefined : { boxShadow: ring }}>
       <View className="flex-row items-center gap-2 px-3 pt-2.5 pb-2">
-        <View className="min-w-0 flex-1 gap-1">
-          <View className="flex-row items-center gap-1">
+        <View className="min-w-0 flex-1">
+          <View className="flex-row items-center gap-1.5">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Select ${layer.name}`}
@@ -206,7 +200,7 @@ export function MultitrackLayerCard({
                 variant="label-md"
                 className={cn(
                   muted ? 'text-on-surface-variant' : 'text-on-surface',
-                  selected ? 'font-semibold' : undefined,
+                  selected ? 'font-semibold text-primary-tonal' : undefined,
                 )}
                 numberOfLines={1}>
                 {layer.name}
@@ -219,37 +213,28 @@ export function MultitrackLayerCard({
               disabled={!canEdit}
               onPress={onEditName}
               className={cn(
-                'h-6 w-6 items-center justify-center rounded-md active:bg-white/10',
+                'h-5 w-5 items-center justify-center rounded-md active:bg-white/10',
                 !canEdit ? 'opacity-40' : null,
               )}>
-              <Pencil size={12} color="#CBC3D7" strokeWidth={2} />
+              <Pencil size={10} color="#CBC3D7" strokeWidth={2} />
             </Pressable>
+            {!empty && layer.durationSeconds > 0 ? (
+              <Text
+                variant="caption"
+                className="shrink-0 text-on-surface-variant"
+                numberOfLines={1}>
+                {formatDuration(layer.durationSeconds)}
+              </Text>
+            ) : null}
+            {muted ? (
+              <Text
+                variant="caption"
+                className="shrink-0 text-secondary-tonal"
+                numberOfLines={1}>
+                MUTED
+              </Text>
+            ) : null}
           </View>
-          {hasMetaTags ? (
-            <View className="flex-row flex-wrap items-center gap-1.5">
-              {!empty && (layer.kind === 'beat' || layer.kind === 'import') ? (
-                <View className="rounded-md border border-white/10 bg-surface-container-highest px-2 py-0.5">
-                  <Text variant="caption" className="text-on-surface-variant">
-                    WAV
-                  </Text>
-                </View>
-              ) : null}
-              {!empty && layer.durationSeconds > 0 ? (
-                <View className="rounded-md border border-white/10 bg-surface-container-highest px-2 py-0.5">
-                  <Text variant="caption" className="text-on-surface-variant">
-                    {formatDuration(layer.durationSeconds)}
-                  </Text>
-                </View>
-              ) : null}
-              {muted ? (
-                <View className="rounded-md bg-secondary-container/40 px-2 py-0.5">
-                  <Text variant="caption" className="text-secondary-tonal">
-                    MUTED
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
         </View>
 
         <View className="flex-row items-center gap-1">

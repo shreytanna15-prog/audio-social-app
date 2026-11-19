@@ -18,8 +18,9 @@ import {
   getRecordingProjectFileUri,
 } from '@/features/audio/utils/recording-paths';
 
+import { decodeLayerFxMeta } from '../utils/layer-fx-meta';
 import { getTrack } from './service';
-import type { AppliedEffect, TrackDetail, TrackLayerDetail } from './types';
+import type { TrackDetail, TrackLayerDetail } from './types';
 
 function isProjectLayerKind(value: string): value is ProjectLayerKind {
   return value === 'vocal' || value === 'beat' || value === 'import';
@@ -50,6 +51,7 @@ function toStoredLayer(
   hasStem: boolean,
   hasSource: boolean,
 ): StoredProjectLayer {
+  const fx = decodeLayerFxMeta(layer.appliedEffects);
   return {
     id: layer.id,
     sortIndex: layer.sortIndex,
@@ -59,12 +61,20 @@ function toStoredLayer(
     sourcePath: hasSource
       ? getLayerSourceRelativePath(trackId, layer.id)
       : null,
+    // No separate baseline in cloud — prefer source so FX re-edit isn't stacked on stem.
+    baselinePath: hasSource
+      ? getLayerSourceRelativePath(trackId, layer.id)
+      : hasStem
+        ? getLayerStemRelativePath(trackId, layer.id)
+        : null,
     offsetMs: layer.offsetMs,
     durationMs: layer.durationMs,
     muted: layer.muted,
     appliedEffects: Array.isArray(layer.appliedEffects)
-      ? (layer.appliedEffects as AppliedEffect[])
+      ? layer.appliedEffects
       : [],
+    editChain: fx.editChain,
+    captureFx: fx.captureFx,
     peaks: Array.isArray(layer.peaks) ? layer.peaks : null,
     createdAt: layer.createdAt,
     updatedAt: layer.updatedAt,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  GestureResponderEvent,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -19,11 +20,13 @@ import {
   LIVE_WINDOW_SECONDS,
   buildLiveWindowRulerMarks,
   clampLiveWindowStart,
+  edgeEnsureLiveWindowStart,
   followLiveWindowStart,
   formatLiveWindowTick,
   liveWindowPxPerSecond,
   maxLiveWindowStart,
   playheadLeftInLiveWindow,
+  secondsFromLiveWindowX,
 } from '@/features/audio/domain/live-window';
 import { normalizeMetering } from '@/features/audio/domain/recorder-session.helpers';
 import { liveClipWidthPx, slotBarCount } from '@/features/audio/domain/timeline';
@@ -47,21 +50,37 @@ type QuickRecordTimelineProps = {
   recordOriginSeconds?: number;
   /** Controlled 30s window start (shared with the waveform). */
   windowStartSeconds?: number;
+  onWindowStartChange?: (windowStartSeconds: number) => void;
   /** Playhead time while idle / scrubbing / playing. */
   playheadSeconds?: number;
+  /** When set, tap/drag anywhere on the ruler seeks the playhead. */
+  onScrubStart?: () => void;
+  onSeek?: (seconds: number) => void;
+  onScrubEnd?: (seconds: number) => void;
 };
 
 /**
  * Ruler for the shared ~30s window — does not drive scroll itself.
  * While recording, follow is local (not parent state) so we never 10Hz-setState.
+ * Optional scrub handlers make the ruler a seek surface (Multitrack).
  */
 export function QuickRecordTimeline({
   isRecording,
+  durationSeconds = 0,
   recordOriginSeconds = 0,
   windowStartSeconds = 0,
+  onWindowStartChange,
   playheadSeconds = 0,
+  onScrubStart,
+  onSeek,
+  onScrubEnd,
 }: QuickRecordTimelineProps) {
   const elapsed = useCaptureElapsed(isRecording);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const scrubbingRef = useRef(false);
+  const windowStartRef = useRef(windowStartSeconds);
+  windowStartRef.current = windowStartSeconds;
+
   const timelineSeconds = isRecording
     ? Math.max(0, recordOriginSeconds) + elapsed
     : Math.max(0, playheadSeconds);
@@ -79,9 +98,77 @@ export function QuickRecordTimeline({
     Math.max(0, (caretSeconds - windowStart) / LIVE_WINDOW_SECONDS),
   );
 
+  const scrubEnabled =
+    Boolean(onSeek || onScrubEnd) &&
+    !isRecording &&
+    durationSeconds > 0 &&
+    viewportWidth > 0;
+
+  const secondsFromEvent = (event: GestureResponderEvent) => {
+    return secondsFromLiveWindowX(
+      event.nativeEvent.locationX,
+      windowStartRef.current,
+      viewportWidth,
+      durationSeconds,
+    );
+  };
+
+  const beginScrub = (event: GestureResponderEvent) => {
+    if (!scrubEnabled) {
+      return;
+    }
+    scrubbingRef.current = true;
+    const seconds = secondsFromEvent(event);
+    onScrubStart?.();
+    onSeek?.(seconds);
+    const nextWindow = edgeEnsureLiveWindowStart(
+      seconds,
+      windowStartRef.current,
+      durationSeconds,
+    );
+    if (Math.abs(nextWindow - windowStartRef.current) >= 0.001) {
+      onWindowStartChange?.(nextWindow);
+    }
+  };
+
+  const moveScrub = (event: GestureResponderEvent) => {
+    if (!scrubbingRef.current || !scrubEnabled) {
+      return;
+    }
+    const seconds = secondsFromEvent(event);
+    onSeek?.(seconds);
+    const nextWindow = edgeEnsureLiveWindowStart(
+      seconds,
+      windowStartRef.current,
+      durationSeconds,
+    );
+    if (Math.abs(nextWindow - windowStartRef.current) >= 0.001) {
+      onWindowStartChange?.(nextWindow);
+    }
+  };
+
+  const endScrub = (event: GestureResponderEvent) => {
+    if (!scrubbingRef.current) {
+      return;
+    }
+    scrubbingRef.current = false;
+    onScrubEnd?.(secondsFromEvent(event));
+  };
+
   return (
-    <View style={styles.ruler}>
-      <View style={styles.rulerLabels}>
+    <View
+      style={styles.ruler}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.width;
+        setViewportWidth((prev) => (prev === next ? prev : next));
+      }}
+      onStartShouldSetResponder={() => scrubEnabled}
+      onMoveShouldSetResponder={() => scrubEnabled}
+      onResponderGrant={beginScrub}
+      onResponderMove={moveScrub}
+      onResponderRelease={endScrub}
+      onResponderTerminate={endScrub}>
+      <View style={styles.rulerLabels} pointerEvents="none">
         {marks
           .filter((mark) => mark.major)
           .map((mark) => (
@@ -104,7 +191,7 @@ export function QuickRecordTimeline({
             </Text>
           ))}
       </View>
-      <View style={styles.rulerTrack}>
+      <View style={styles.rulerTrack} pointerEvents="none">
         <View style={styles.rulerBaseline} />
         {marks.map((mark) => (
           <View
@@ -774,8 +861,9 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   ruler: {
-    paddingTop: 2,
-    paddingBottom: 2,
+    // Extra vertical padding so Multitrack ruler scrub is easy to hit.
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   rulerLabels: {
     height: 14,

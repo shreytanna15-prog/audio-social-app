@@ -30,6 +30,7 @@ export {
   uploadToSignedUrl,
 } from './api/service';
 export { backupTrack } from './api/backup-track';
+export { restoreTrack } from './api/restore-track';
 export { saveTrackDraft } from './api/save-track-draft';
 export type { SaveTrackDraftInput } from './api/save-track-draft';
 export type {

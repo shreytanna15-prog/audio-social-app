@@ -2,6 +2,12 @@ import { useNavigation } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 
+export type LeavePromptHandlers = {
+  keepEditing: () => void;
+  leaveWithoutSaving: () => void;
+  saveAndLeave: () => void;
+};
+
 type UseRecordingEditorUnsavedGuardOptions = {
   enabled: boolean;
   /**
@@ -11,6 +17,13 @@ type UseRecordingEditorUnsavedGuardOptions = {
   shouldPrompt: () => boolean;
   /** Must persist without navigating — this hook releases the pending action. */
   onSave: () => Promise<boolean>;
+  /**
+   * Shared FeedbackDialog (or equivalent). When omitted, falls back to native
+   * Alert for callers that have not been migrated yet.
+   */
+  onPromptLeave?: (handlers: LeavePromptHandlers) => void;
+  title?: string;
+  message?: string;
 };
 
 /**
@@ -22,15 +35,24 @@ export function useRecordingEditorUnsavedGuard({
   enabled,
   shouldPrompt,
   onSave,
+  onPromptLeave,
+  title = 'Save effects?',
+  message = 'Your effects are not saved yet. Save before leaving?',
 }: UseRecordingEditorUnsavedGuardOptions): void {
   const navigation = useNavigation();
   const shouldPromptRef = useRef(shouldPrompt);
   const onSaveRef = useRef(onSave);
+  const onPromptLeaveRef = useRef(onPromptLeave);
+  const titleRef = useRef(title);
+  const messageRef = useRef(message);
 
   useEffect(() => {
     shouldPromptRef.current = shouldPrompt;
     onSaveRef.current = onSave;
-  }, [onSave, shouldPrompt]);
+    onPromptLeaveRef.current = onPromptLeave;
+    titleRef.current = title;
+    messageRef.current = message;
+  }, [message, onPromptLeave, onSave, shouldPrompt, title]);
 
   useEffect(() => {
     if (!enabled) {
@@ -53,28 +75,35 @@ export function useRecordingEditorUnsavedGuard({
         navigation.dispatch(event.data.action);
       };
 
-      Alert.alert(
-        'Save effects?',
-        'Your effects are not saved yet. Save before leaving?',
-        [
-          { text: 'Keep editing', style: 'cancel' },
-          {
-            text: 'Leave without saving',
-            style: 'destructive',
-            onPress: release,
-          },
-          {
-            text: 'Save',
-            onPress: () => {
-              void (async () => {
-                if (await onSaveRef.current()) {
-                  release();
-                }
-              })();
-            },
-          },
-        ],
-      );
+      const handlers: LeavePromptHandlers = {
+        keepEditing: () => undefined,
+        leaveWithoutSaving: release,
+        saveAndLeave: () => {
+          void (async () => {
+            if (await onSaveRef.current()) {
+              release();
+            }
+          })();
+        },
+      };
+
+      if (onPromptLeaveRef.current) {
+        onPromptLeaveRef.current(handlers);
+        return;
+      }
+
+      Alert.alert(titleRef.current, messageRef.current, [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: handlers.leaveWithoutSaving,
+        },
+        {
+          text: 'Save',
+          onPress: handlers.saveAndLeave,
+        },
+      ]);
     });
   }, [enabled, navigation]);
 }

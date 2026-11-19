@@ -43,7 +43,7 @@ export function VocalLayerFx({
   onStemChange,
   onProcessingChange,
 }: VocalLayerFxProps) {
-  const { showError, dialog } = useFeedbackDialog();
+  const { showError, confirm, dialog } = useFeedbackDialog();
   const session = useRecordingEditorSession({
     pristineUri: baselineUri,
     playbackUri: stemUri,
@@ -54,6 +54,13 @@ export function VocalLayerFx({
     autoPlayAfterProcessing: false,
     onEffectError: ({ title, message }) => {
       showError(title, message);
+    },
+    confirmEffectApply: (title, message, onConfirm) => {
+      confirm(title, message, {
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Continue',
+        onConfirm,
+      });
     },
   });
 

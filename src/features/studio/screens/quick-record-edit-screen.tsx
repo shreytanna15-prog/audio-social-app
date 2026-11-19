@@ -7,14 +7,15 @@ import { useInputMonitor } from '@/features/audio/hooks/use-input-monitor';
 import { recordingSessionService } from '@/features/audio/services/recording-session.service';
 import { QuickRecordProcessingOverlay } from '@/features/studio/components/quick-record-processing-overlay';
 import { QuickRecordTimer } from '@/features/studio/components/quick-record-timer';
-import { QuickRecordTitlePill } from '@/features/studio/components/quick-record-title-pill';
 import { QuickRecordToolRow } from '@/features/studio/components/quick-record-tool-row';
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
 import {
   QuickRecordWaveform,
   RULER_HEIGHT,
 } from '@/features/studio/components/quick-record-waveform';
+import { StudioSessionTitle } from '@/features/studio/components/studio-session-title';
 import { useQuickRecordEditSession } from '@/features/studio/hooks/use-quick-record-edit-session';
+import { DEFAULT_QUICK_RECORD_TITLE } from '@/features/studio/store/quick-record.store';
 import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
@@ -66,6 +67,7 @@ export function QuickRecordEditScreen() {
           ? 'Unsaved changes to this take will be lost.'
           : 'Unsaved changes will be lost and nothing is saved.',
       {
+        cancelLabel: 'Keep editing',
         confirmLabel: 'Discard',
         destructive: true,
         onConfirm: () => {
@@ -112,6 +114,9 @@ export function QuickRecordEditScreen() {
     session.isSaving ||
     session.isSyncing;
 
+  const titleDisabled =
+    session.isBusy || session.isSaving || session.fxProcessing || session.isRecording;
+
   const discardHeader = session.fromImport ? (
     <Pressable
       accessibilityRole="button"
@@ -119,7 +124,8 @@ export function QuickRecordEditScreen() {
       hitSlop={8}
       disabled={isLeaveBlocked}
       onPress={requestDiscard}
-      className="h-10 min-w-10 justify-center px-0.5 active:opacity-70">
+      className="h-10 min-w-10 justify-center px-0.5 active:opacity-70"
+      style={{ opacity: isLeaveBlocked ? 0.4 : 1 }}>
       <Text variant="label-md" className="text-destructive">
         Discard
       </Text>
@@ -131,28 +137,27 @@ export function QuickRecordEditScreen() {
       className="flex-1 bg-background"
       style={{ paddingBottom: Math.max(insets.bottom, 28) + 12 }}>
       <ScreenHeader
-        title="Edit take"
+        title={
+          <StudioSessionTitle
+            title={session.title}
+            onChangeTitle={session.setTitle}
+            disabled={titleDisabled}
+            dialogTitle="Rename take"
+            placeholder={DEFAULT_QUICK_RECORD_TITLE}
+          />
+        }
         onBack={session.goBackToCapture}
         left={discardHeader}
         backDisabled={session.fromImport}
       />
 
-      <View className="px-4 pt-3">
-        <View className="flex-row items-end justify-between pb-2">
-          <QuickRecordTimer
-            isRecording={session.isRecording}
-            displaySeconds={displaySeconds}
-            totalSeconds={session.durationSeconds}
-            recordOriginSeconds={session.recordOriginSeconds}
-          />
-
-          <QuickRecordTitlePill
-            title={session.title}
-            onChangeTitle={session.setTitle}
-            disabled={session.isBusy || session.isSaving || session.fxProcessing}
-          />
-        </View>
-
+      <View className="px-4 pt-3 pb-2">
+        <QuickRecordTimer
+          isRecording={session.isRecording}
+          displaySeconds={displaySeconds}
+          totalSeconds={session.durationSeconds}
+          recordOriginSeconds={session.recordOriginSeconds}
+        />
       </View>
 
       <View className="px-4">

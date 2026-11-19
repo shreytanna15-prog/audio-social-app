@@ -93,6 +93,11 @@ export const useAudioSessionStore = create<AudioSessionStore>((set, get) => ({
   startRecording: async () => {
     const { previewUri, sourcePreGateUri } = get();
 
+    const granted = await recordingSessionService.initializeRecorder();
+    if (!granted) {
+      return;
+    }
+
     set({
       ...START_RECORDING_STATE,
     });

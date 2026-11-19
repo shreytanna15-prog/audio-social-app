@@ -26,6 +26,7 @@ import {
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
 import {
+  restoreTrack,
   useBackupTrack,
   useDeleteTrack,
   useTracks,
@@ -98,7 +99,6 @@ export function LibraryScreen() {
   );
   const play = usePlayerStore((s) => s.play);
   const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
-  const setPendingProject = useMultitrackEntryStore((s) => s.setPendingProject);
 
   const refetchTracks = tracksQuery.refetch;
   const refetchProjects = projectsQuery.refetch;
@@ -424,14 +424,18 @@ export function LibraryScreen() {
       'Audio files are missing on this device and were never backed up. This removes the library entry.',
       {
         confirmLabel: 'Remove',
+        pendingLabel: 'Removing…',
         destructive: true,
-        onConfirm: () => {
-          void deleteTrack.mutateAsync(item.id).catch((error) => {
+        onConfirm: async () => {
+          try {
+            await deleteTrack.mutateAsync(item.id);
+          } catch (error) {
             showError(
               'Could not remove',
               getErrorMessage(error, 'Try again.'),
             );
-          });
+            throw error;
+          }
         },
       },
     );
@@ -468,11 +472,18 @@ export function LibraryScreen() {
       'It will return to draft and leave the public feed.',
       {
         confirmLabel: 'Unpublish',
+        pendingLabel: 'Unpublishing…',
         destructive: true,
-        onConfirm: () => {
-          void unpublishTrack.mutateAsync(item.id).catch((error) => {
-            showError('Could not unpublish', getErrorMessage(error, 'Try again.'));
-          });
+        onConfirm: async () => {
+          try {
+            await unpublishTrack.mutateAsync(item.id);
+          } catch (error) {
+            showError(
+              'Could not unpublish',
+              getErrorMessage(error, 'Try again.'),
+            );
+            throw error;
+          }
         },
       },
     );
@@ -487,27 +498,47 @@ export function LibraryScreen() {
     });
   };
 
-  const openEditorForItem = (item: LibraryAudioItem) => {
-    void (async () => {
-      const loaded = await loadProjectBundle(item.id);
-      if (!loaded) {
-        showError(item.title, 'Could not load this take locally.');
-        return;
-      }
+  const canRestoreFromCloud = (item: LibraryAudioItem) =>
+    Boolean(item.mixUrl) ||
+    item.storageState === 'SYNCED' ||
+    item.storageState === 'CLOUD_ONLY';
 
-      if (item.kind === 'MULTI') {
-        setPendingProject(loaded.project);
-        push('/studio/multitrack' as Href);
-        return;
-      }
+  const openEditorForItem = async (item: LibraryAudioItem): Promise<boolean> => {
+    let storageState = item.storageState;
 
-      // Prefer on-disk title so renames survive reopen even if list cache lags.
-      hydrateFromImport(loaded.project, loaded.title || item.title, item.id);
-      push({
-        pathname: '/studio/quick-record/edit',
-        params: { storageState: item.storageState, discardTarget: 'library' },
-      } as never);
-    })();
+    if (!hasLocalProject(item.id)) {
+      if (!canRestoreFromCloud(item)) {
+        showError(item.title, 'This take is not available on this device.');
+        return false;
+      }
+      await restoreTrack(item.id);
+      storageState = 'SYNCED';
+    }
+
+    const loaded = await loadProjectBundle(item.id);
+    if (!loaded) {
+      showError(item.title, 'Could not load this take locally.');
+      return false;
+    }
+
+    if (item.kind === 'MULTI') {
+      useMultitrackEntryStore.getState().setPendingEntry({
+        project: loaded.project,
+        trackId: item.id,
+        title: loaded.title || item.title,
+        storageState,
+      });
+      push('/studio/multitrack' as Href);
+      return true;
+    }
+
+    // Prefer on-disk title so renames survive reopen even if list cache lags.
+    hydrateFromImport(loaded.project, loaded.title || item.title, item.id);
+    push({
+      pathname: '/studio/quick-record/edit',
+      params: { storageState, discardTarget: 'library' },
+    } as never);
+    return true;
   };
 
   const openAudioItem = (item: LibraryAudioItem) => {
@@ -516,34 +547,89 @@ export function LibraryScreen() {
       return;
     }
 
-    if (!hasLocalProject(item.id) && !item.localUri) {
-      showError(item.title, 'Opening this take is not available yet.');
-      return;
-    }
+    const needsRestore = !hasLocalProject(item.id);
 
     if (item.status === 'PUBLISHED') {
       confirm(
         'Unpublish to edit?',
-        'Published tracks are frozen. Unpublish first to open the editor.',
+        needsRestore
+          ? 'Published tracks are frozen. Unpublish, then download from the cloud to edit.'
+          : 'Published tracks are frozen. Unpublish first to open the editor.',
         {
           confirmLabel: 'Unpublish',
-          onConfirm: () => {
-            void unpublishTrack
-              .mutateAsync(item.id)
-              .then(() => openEditorForItem(item))
-              .catch((error) => {
-                showError(
-                  'Could not unpublish',
-                  getErrorMessage(error, 'Try again.'),
-                );
-              });
+          pendingLabel: needsRestore ? 'Opening…' : 'Unpublishing…',
+          onConfirm: async () => {
+            try {
+              await unpublishTrack.mutateAsync(item.id);
+            } catch (error) {
+              showError(
+                'Could not unpublish',
+                getErrorMessage(error, 'Try again.'),
+              );
+              throw error;
+            }
+            try {
+              const opened = await openEditorForItem(item);
+              if (!opened) {
+                throw new Error('Could not open editor');
+              }
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                error.message === 'Could not open editor'
+              ) {
+                throw error;
+              }
+              showError(
+                'Could not download',
+                getErrorMessage(error, 'Try again.'),
+              );
+              throw error;
+            }
           },
         },
       );
       return;
     }
 
-    openEditorForItem(item);
+    if (needsRestore) {
+      if (!canRestoreFromCloud(item)) {
+        showError(item.title, 'This take is not available on this device.');
+        return;
+      }
+
+      confirm(
+        'Download to edit?',
+        'This take is not on this device. Download it from the cloud to open the editor.',
+        {
+          confirmLabel: 'Download',
+          pendingLabel: 'Downloading…',
+          onConfirm: async () => {
+            try {
+              const opened = await openEditorForItem(item);
+              if (!opened) {
+                throw new Error('Could not open editor');
+              }
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                error.message === 'Could not open editor'
+              ) {
+                throw error;
+              }
+              showError(
+                'Could not download',
+                getErrorMessage(error, 'Try again.'),
+              );
+              throw error;
+            }
+          },
+        },
+      );
+      return;
+    }
+
+    void openEditorForItem(item);
   };
 
   const onMorePress = (item: LibraryAudioItem) => {
@@ -668,6 +754,7 @@ export function LibraryScreen() {
         published={menuTrack?.status === 'PUBLISHED'}
         canBackup={Boolean(menuTrack?.localUri)}
         isBackingUp={backupTrack.isPending}
+        isUnpublishing={unpublishTrack.isPending}
         onBackup={backupFromMenu}
         onPublish={publishFromMenu}
         onUnpublish={unpublishFromMenu}

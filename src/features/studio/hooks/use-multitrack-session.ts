@@ -5,7 +5,9 @@ import { discardPreviewRecording } from '@/features/audio/data/recording-reposit
 import {
   canAddLayer,
   createLayer,
+  hasMixableContent,
   hasRecordableContent,
+  mixDurationSeconds,
   nextLayerName,
   projectDurationSeconds,
   selectedLayer,
@@ -31,6 +33,9 @@ import {
 import type { StudioSavePayload } from '@/features/audio/types/studio';
 import { afterNextPaint } from '@/features/audio/utils/next-paint';
 
+/** Same hard stop as Quick Record — keeps take length honest. */
+export const MULTITRACK_MAX_SECONDS = 180;
+
 type UseMultitrackSessionOptions = {
   initialProject: AudioProject;
   isPending: boolean;
@@ -39,6 +44,8 @@ type UseMultitrackSessionOptions = {
   onPersist?: (payload: StudioSavePayload) => Promise<boolean>;
   onClose: () => void;
   onDiscard: () => void;
+  /** App-styled confirm for removing a layer that already has a take. */
+  confirmRemoveLayer?: (layerName: string, onConfirm: () => void) => void;
 };
 
 type PersistJob = {
@@ -69,6 +76,7 @@ export function useMultitrackSession({
   onPersist,
   onClose,
   onDiscard,
+  confirmRemoveLayer,
 }: UseMultitrackSessionOptions) {
   const [project, setProject] = useState<AudioProject>(initialProject);
   const [recordingLayerId, setRecordingLayerId] = useState<string | null>(null);
@@ -101,9 +109,11 @@ export function useMultitrackSession({
   const capturingLayerIdRef = useRef<string | null>(null);
   const recordOriginSecondsRef = useRef(0);
   const recordReplaceAllRef = useRef(false);
+  /** Seek after soft-clean (same as Quick Record — avoid recording at prior end). */
+  const pendingSeekRef = useRef<number | null>(null);
   const peakAttemptsRef = useRef(new Set<string>());
+  // Ref is updated only by applyProject / ref-based updaters — never from render.
   const projectRef = useRef(project);
-  projectRef.current = project;
   const mountedRef = useRef(true);
 
   useEffect(
@@ -113,9 +123,26 @@ export function useMultitrackSession({
     [],
   );
 
+  const applyProject = useCallback((nextProject: AudioProject) => {
+    projectRef.current = nextProject;
+    setProject(nextProject);
+  }, []);
+
+  /** Patch from projectRef so async peak work cannot clobber a newer attach. */
+  const patchProjectFromRef = useCallback(
+    (recipe: (current: AudioProject) => AudioProject) => {
+      const next = recipe(projectRef.current);
+      applyProject(next);
+    },
+    [applyProject],
+  );
+
   const current = selectedLayer(project);
   const isRecording = hasActiveSession;
+  /** Full timeline (includes muted) for lane layout. */
   const durationSeconds = projectDurationSeconds(project);
+  /** Audible / saved mix length (unmuted stems only). */
+  const mixDuration = mixDurationSeconds(project);
   const isOptimizing = status === 'optimizing';
   const canAdd = canAddLayer(project.layers);
 
@@ -156,29 +183,25 @@ export function useMultitrackSession({
         return;
       }
 
-      setProject((currentProject) => {
-        const next = {
-          ...currentProject,
-          layers: currentProject.layers.map((layer) => {
-            const peaks = peakMap.get(layer.id);
-            if (!peaks) {
-              return layer;
-            }
+      patchProjectFromRef((currentProject) => ({
+        ...currentProject,
+        layers: currentProject.layers.map((layer) => {
+          const peaks = peakMap.get(layer.id);
+          if (!peaks) {
+            return layer;
+          }
 
-            const expected = peakBarCountForDuration(layer.durationSeconds);
-            const tooCoarse = layer.peaks.length < expected * 0.5;
-            return layer.peaks.length === 0 || tooCoarse ? { ...layer, peaks } : layer;
-          }),
-        };
-        projectRef.current = next;
-        return next;
-      });
+          const expected = peakBarCountForDuration(layer.durationSeconds);
+          const tooCoarse = layer.peaks.length < expected * 0.5;
+          return layer.peaks.length === 0 || tooCoarse ? { ...layer, peaks } : layer;
+        }),
+      }));
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isRecording, project.layers]);
+  }, [isRecording, patchProjectFromRef, project.layers]);
 
   const enqueuePersist = useCallback(
     (job: PersistJob) => {
@@ -214,8 +237,7 @@ export function useMultitrackSession({
 
   const commitProject = useCallback(
     (nextProject: AudioProject, options?: { persist?: boolean }) => {
-      projectRef.current = nextProject;
-      setProject(nextProject);
+      applyProject(nextProject);
 
       // Never let an emptied project overwrite a saved one in the background.
       if (options?.persist === false || !onPersist || !hasRecordableContent(nextProject)) {
@@ -228,7 +250,7 @@ export function useMultitrackSession({
         payload,
       });
     },
-    [enqueuePersist, onPersist],
+    [applyProject, enqueuePersist, onPersist],
   );
 
   const getProject = useCallback(() => projectRef.current, []);
@@ -263,7 +285,25 @@ export function useMultitrackSession({
         return result.stemUri;
       }
 
-      commitProject(result.project);
+      const attached = result.project.layers.find((layer) => layer.id === input.layerId);
+      if (!attached?.stemUri) {
+        throw new Error(`Attach completed without a stem on layer ${input.layerId}.`);
+      }
+
+      // Rebase onto the latest project in case layers changed during peak extract.
+      const latest = projectRef.current;
+      const hasLayer = latest.layers.some((layer) => layer.id === input.layerId);
+      const nextProject: AudioProject = {
+        ...latest,
+        layers: hasLayer
+          ? latest.layers.map((layer) =>
+              layer.id === input.layerId ? attached : layer,
+            )
+          : [...latest.layers, attached],
+        selectedLayerId: input.layerId,
+      };
+      commitProject(nextProject);
+      pendingSeekRef.current = 0;
       return result.stemUri;
     },
     [commitProject],
@@ -271,14 +311,21 @@ export function useMultitrackSession({
 
   const handleTakeAttached = useCallback(
     (layerId: string, attachedUri: string) => {
+      const layer = projectRef.current.layers.find((item) => item.id === layerId);
+      const uriToClean = layer?.sourceUri ?? layer?.stemUri ?? attachedUri;
       softCleanEnqueuedRef.current = true;
-      enqueueSoftClean(layerId, attachedUri);
+      enqueueSoftClean(layerId, uriToClean, {
+        offsetMs: layer?.offsetMs ?? Math.round(recordOriginSecondsRef.current * 1000),
+        durationSeconds: layer?.durationSeconds ?? 0,
+      });
     },
     [enqueueSoftClean],
   );
 
   const handleCaptureSettled = useCallback(() => {
     setRecordingLayerId(null);
+    setRecordOriginSeconds(0);
+    recordOriginSecondsRef.current = 0;
     if (!softCleanEnqueuedRef.current) {
       setIsFinalizing(false);
     }
@@ -336,10 +383,9 @@ export function useMultitrackSession({
       layers: [...currentProject.layers, layer],
       selectedLayerId: layer.id,
     };
-    projectRef.current = nextProject;
-    setProject(nextProject);
+    applyProject(nextProject);
     return layer;
-  }, []);
+  }, [applyProject]);
 
   const beginPostRecordBusy = useCallback(() => {
     softCleanEnqueuedRef.current = false;
@@ -350,6 +396,7 @@ export function useMultitrackSession({
     beginPostRecordBusy();
     recordingSessionService.requestStop();
     void handleMainAction();
+    setRecordOriginSeconds(0);
   }, [beginPostRecordBusy, handleMainAction]);
 
   const handleRecordPress = useCallback(
@@ -363,15 +410,39 @@ export function useMultitrackSession({
         return;
       }
 
-      const originSeconds = origin === 'start' ? 0 : Math.max(0, playheadSeconds);
-      recordOriginSecondsRef.current = originSeconds;
-      recordReplaceAllRef.current = origin === 'start';
-      setRecordOriginSeconds(originSeconds);
+      const existingStem = Boolean(vocal.stemUri);
+      const playhead = Math.max(0, playheadSeconds);
+      // Empty layer → new clip at playhead offset. Existing stem → punch-in.
+      // origin === 'start' → replace that layer from 0.
+      if (origin === 'start') {
+        recordOriginSecondsRef.current = 0;
+        recordReplaceAllRef.current = true;
+      } else if (!existingStem) {
+        recordOriginSecondsRef.current = playhead;
+        recordReplaceAllRef.current = false;
+      } else {
+        recordOriginSecondsRef.current = playhead;
+        recordReplaceAllRef.current = false;
+      }
+
+      setRecordOriginSeconds(recordOriginSecondsRef.current);
       capturingLayerIdRef.current = vocal.id;
       setRecordingLayerId(vocal.id);
+
+      console.warn(
+        `[Multitrack] record origin=${recordOriginSecondsRef.current.toFixed(2)}s replaceAll=${recordReplaceAllRef.current} existingStem=${existingStem}`,
+      );
+
       void (async () => {
         await afterNextPaint();
-        void startRecording();
+        await startRecording();
+        // Permission deny / start failure leaves the store idle — clear the live lane.
+        if (!useAudioSessionStore.getState().hasActiveSession) {
+          capturingLayerIdRef.current = null;
+          setRecordingLayerId(null);
+          setRecordOriginSeconds(0);
+          recordOriginSecondsRef.current = 0;
+        }
       })();
     },
     [
@@ -384,6 +455,20 @@ export function useMultitrackSession({
       startRecording,
     ],
   );
+
+  useEffect(() => {
+    if (!isRecording) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const seconds = recordingSessionService.getTick().durationMillis / 1000;
+      if (seconds >= MULTITRACK_MAX_SECONDS) {
+        handleStopPress();
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, [handleStopPress, isRecording]);
 
   const addBeat = useCallback(async () => {
     if (isRecording || isOptimizing || isImportingBeat) {
@@ -456,21 +541,27 @@ export function useMultitrackSession({
       name: nextLayerName(currentProject.layers, 'vocal'),
     });
 
-    const nextProject: AudioProject = {
+    applyProject({
       ...currentProject,
       layers: [...currentProject.layers, layer],
       selectedLayerId: layer.id,
-    };
-    projectRef.current = nextProject;
-    setProject(nextProject);
-  }, [isImportingBeat, isOptimizing, isRecording]);
-
-  const selectLayer = useCallback((layerId: string) => {
-    setProject((currentProject) => {
-      const next = { ...currentProject, selectedLayerId: layerId };
-      projectRef.current = next;
-      return next;
     });
+  }, [applyProject, isImportingBeat, isOptimizing, isRecording]);
+
+  const selectLayer = useCallback(
+    (layerId: string) => {
+      patchProjectFromRef((currentProject) => ({
+        ...currentProject,
+        selectedLayerId: layerId,
+      }));
+    },
+    [patchProjectFromRef],
+  );
+
+  const consumePendingSeek = useCallback((): number | null => {
+    const next = pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    return next;
   }, []);
 
   const renameLayer = useCallback(
@@ -534,12 +625,17 @@ export function useMultitrackSession({
         return;
       }
 
+      if (confirmRemoveLayer) {
+        confirmRemoveLayer(target.name, apply);
+        return;
+      }
+
       Alert.alert('Remove layer', `Remove ${target.name} from this recording?`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Remove', style: 'destructive', onPress: apply },
       ]);
     },
-    [commitProject, isOptimizing, isRecording, isSaving],
+    [commitProject, confirmRemoveLayer, isOptimizing, isRecording, isSaving],
   );
 
   const applyVocalStem = useCallback(
@@ -574,8 +670,11 @@ export function useMultitrackSession({
       return true;
     }
 
-    if (!hasRecordableContent(latest)) {
-      Alert.alert('Nothing to save', 'Record or import a layer first.');
+    if (!hasMixableContent(latest)) {
+      Alert.alert(
+        'Nothing to save',
+        'Add or unmute at least one audio layer first. Empty slots are fine alongside a take.',
+      );
       return false;
     }
 
@@ -602,12 +701,12 @@ export function useMultitrackSession({
 
   const handleDiscard = useCallback(async () => {
     await resetSession();
-    for (const layer of project.layers) {
+    for (const layer of projectRef.current.layers) {
       await discardPreviewRecording(layer.stemUri ?? '', layer.sourceUri);
     }
     isLeavingRef.current = true;
     onDiscard();
-  }, [onDiscard, project.layers, resetSession]);
+  }, [onDiscard, resetSession]);
 
   const backingTracks = useMemo(() => {
     if (!isRecording) {
@@ -655,6 +754,7 @@ export function useMultitrackSession({
     project,
     current,
     durationSeconds,
+    mixDuration,
     isRecording,
     recordingLayerId,
     recordOriginSeconds,
@@ -682,5 +782,6 @@ export function useMultitrackSession({
     persistPendingWork,
     shouldPromptBeforeLeaving,
     isDirty,
+    consumePendingSeek,
   };
 }

@@ -19,6 +19,7 @@ type TrackActionsDialogProps = {
   /** False when the local audio is missing, so backup cannot run. */
   canBackup: boolean;
   isBackingUp?: boolean;
+  isUnpublishing?: boolean;
   onBackup: () => void;
   onPublish: () => void;
   onUnpublish: () => void;
@@ -34,17 +35,19 @@ export function TrackActionsDialog({
   published,
   canBackup,
   isBackingUp = false,
+  isUnpublishing = false,
   onBackup,
   onPublish,
   onUnpublish,
   onDelete,
 }: TrackActionsDialogProps) {
-  const backupDisabled = !canBackup || synced || isBackingUp;
-  const publishDisabled = !published && (!synced || isBackingUp);
+  const busy = isBackingUp || isUnpublishing;
+  const backupDisabled = !canBackup || synced || busy;
+  const publishDisabled = busy || (!published && !synced);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dismissOnBackdropPress={!isBackingUp}>
+      <DialogContent dismissOnBackdropPress={!busy}>
         <DialogHeader>
           <DialogTitle className="text-[18px]">{title}</DialogTitle>
         </DialogHeader>
@@ -71,7 +74,11 @@ export function TrackActionsDialog({
             disabled={publishDisabled}
             onPress={published ? onUnpublish : onPublish}>
             <Text numberOfLines={1}>
-              {published ? 'Unpublish' : 'Publish'}
+              {isUnpublishing
+                ? 'Unpublishing…'
+                : published
+                  ? 'Unpublish'
+                  : 'Publish'}
             </Text>
           </Button>
         </View>
@@ -88,7 +95,7 @@ export function TrackActionsDialog({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Delete track"
-            disabled={isBackingUp}
+            disabled={busy}
             hitSlop={8}
             onPress={onDelete}>
             <Text variant="label-md" className="text-error">
@@ -98,6 +105,7 @@ export function TrackActionsDialog({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Cancel"
+            disabled={busy}
             hitSlop={8}
             onPress={() => onOpenChange(false)}>
             <Text variant="label-md" className="text-on-surface-variant">

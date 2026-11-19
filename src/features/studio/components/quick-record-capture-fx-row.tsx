@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 
 import {
   EditChipRow,
@@ -23,6 +22,7 @@ import {
   type FxSelection,
   type ReverbPresetId,
 } from '@/features/audio/types/edit-chips';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 
 type PresetSheetKind = 'fx' | 'compressor' | 'eq' | 'echo' | 'reverb' | null;
 
@@ -41,6 +41,7 @@ export function QuickRecordCaptureFxRow({
   processingLabel,
   onChange,
 }: QuickRecordCaptureFxRowProps) {
+  const { confirm, dialog } = useFeedbackDialog();
   const [presetSheet, setPresetSheet] = useState<PresetSheetKind>(null);
 
   const closeSheet = useCallback(() => setPresetSheet(null), []);
@@ -51,18 +52,16 @@ export function QuickRecordCaptureFxRow({
       return;
     }
 
-    Alert.alert(
+    confirm(
       'Clean Voice',
       'Clean Voice is made for speech and singing — not instruments. On guitar, piano, or other instruments it can make the sound worse or remove musical detail.\n\nProcessing can take a little while. Please wait until it finishes.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => onChange({ ...selection, cleanVoice: true }),
-        },
-      ],
+      {
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Continue',
+        onConfirm: () => onChange({ ...selection, cleanVoice: true }),
+      },
     );
-  }, [onChange, selection]);
+  }, [confirm, onChange, selection]);
 
   const selectFx = useCallback(
     (value: FxSelection | null) => {
@@ -82,16 +81,17 @@ export function QuickRecordCaptureFxRow({
         return;
       }
 
-      Alert.alert(
+      confirm(
         'FX',
         'FX is made for singing and speech — not instruments. On guitar, piano, or other instruments it can make the sound worse.\n\nProcessing can take a little while. Please wait until it finishes.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: apply },
-        ],
+        {
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Continue',
+          onConfirm: apply,
+        },
       );
     },
-    [closeSheet, onChange, selection],
+    [closeSheet, confirm, onChange, selection],
   );
 
   const selectCompressor = useCallback(
@@ -205,6 +205,7 @@ export function QuickRecordCaptureFxRow({
         onClear={() => selectReverb(null)}
         onClose={closeSheet}
       />
+      {dialog}
     </>
   );
 }

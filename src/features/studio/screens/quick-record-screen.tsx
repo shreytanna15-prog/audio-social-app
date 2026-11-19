@@ -11,7 +11,6 @@ import { QuickRecordCaptureStage } from '@/features/studio/components/quick-reco
 import { QuickRecordCaptureTransport } from '@/features/studio/components/quick-record-capture-transport';
 import { QuickRecordProcessingOverlay } from '@/features/studio/components/quick-record-processing-overlay';
 import { QuickRecordTimer } from '@/features/studio/components/quick-record-timer';
-import { QuickRecordTitlePill } from '@/features/studio/components/quick-record-title-pill';
 import { QuickRecordWaveform } from '@/features/studio/components/quick-record-waveform';
 import { useQuickRecordSession } from '@/features/studio/hooks/use-quick-record-session';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
@@ -82,21 +81,13 @@ export function QuickRecordScreen() {
         }
       />
 
-      <View className="px-5 pt-3">
-        <View className="flex-row items-end justify-between pb-1">
-          <QuickRecordTimer
-            isRecording={session.isRecording}
-            displaySeconds={displaySeconds}
-            totalSeconds={session.durationSeconds}
-            recordOriginSeconds={session.recordOriginSeconds}
-          />
-
-          <QuickRecordTitlePill
-            title={session.title}
-            onChangeTitle={session.setTitle}
-            disabled={session.isBusy || session.isRecording}
-          />
-        </View>
+      <View className="px-5 pt-3 pb-1">
+        <QuickRecordTimer
+          isRecording={session.isRecording}
+          displaySeconds={displaySeconds}
+          totalSeconds={session.durationSeconds}
+          recordOriginSeconds={session.recordOriginSeconds}
+        />
       </View>
 
       <View className="flex-1 justify-center px-5 pt-2">

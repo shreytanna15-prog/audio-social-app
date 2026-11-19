@@ -51,7 +51,7 @@ export function RecordingEditor({
   onClose,
   onDiscard,
 }: RecordingEditorProps) {
-  const { showError, dialog } = useFeedbackDialog();
+  const { showError, confirm, show, dialog } = useFeedbackDialog();
   const session = useRecordingEditorSession({
     pristineUri: source.pristineUri,
     playbackUri: source.playbackUri,
@@ -61,6 +61,13 @@ export function RecordingEditor({
     isSaving,
     onEffectError: ({ title: errorTitle, message }) => {
       showError(errorTitle, message);
+    },
+    confirmEffectApply: (effectTitle, message, onConfirm) => {
+      confirm(effectTitle, message, {
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Continue',
+        onConfirm,
+      });
     },
   });
 
@@ -228,6 +235,21 @@ export function RecordingEditor({
     enabled: isPending,
     shouldPrompt: shouldPromptBeforeLeaving,
     onSave: persistPendingWork,
+    onPromptLeave: ({ keepEditing, leaveWithoutSaving, saveAndLeave }) => {
+      show({
+        title: 'Save effects?',
+        message: 'Your effects are not saved yet. Save before leaving?',
+        actions: [
+          { label: 'Keep editing', variant: 'ghost', onPress: keepEditing },
+          {
+            label: 'Discard',
+            variant: 'destructive',
+            onPress: leaveWithoutSaving,
+          },
+          { label: 'Save', variant: 'soft', onPress: saveAndLeave },
+        ],
+      });
+    },
   });
 
   return (

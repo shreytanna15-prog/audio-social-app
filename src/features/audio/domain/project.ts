@@ -79,6 +79,16 @@ export function projectDurationSeconds(project: AudioProject): number {
   );
 }
 
+/** Mix / publish length — muted and empty layers do not extend the final audio. */
+export function mixDurationSeconds(project: AudioProject): number {
+  return project.layers.reduce((max, layer) => {
+    if (layer.muted || !layer.stemUri) {
+      return max;
+    }
+    return Math.max(max, layerEndSeconds(layer));
+  }, 0);
+}
+
 export type MixInput = {
   uri: string;
   delayMs: number;
@@ -161,4 +171,9 @@ export function createImportLayerProject(input: {
 
 export function hasRecordableContent(project: AudioProject): boolean {
   return project.layers.some((layer) => layer.stemUri != null);
+}
+
+/** At least one unmuted stem — required to build a mix for save / publish. */
+export function hasMixableContent(project: AudioProject): boolean {
+  return project.layers.some((layer) => !layer.muted && layer.stemUri != null);
 }
