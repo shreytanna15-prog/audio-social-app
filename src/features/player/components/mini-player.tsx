@@ -5,17 +5,16 @@ import { Pressable, View } from 'react-native';
 
 import { isApiTrackId } from '@/features/saves';
 import { Text } from '@/shared/components/ui/text';
-import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { usePlayerStore } from '../store/player.store';
 
 export function MiniPlayer() {
   const { push } = useRouter();
-  const { guard } = useNavigationGuard();
   const track = usePlayerStore((s) => s.track);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progress = usePlayerStore((s) => s.progress);
   const isLiked = usePlayerStore((s) => s.isLiked);
+  const isUnavailable = usePlayerStore((s) => s.isUnavailable);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const next = usePlayerStore((s) => s.next);
   const toggleLike = usePlayerStore((s) => s.toggleLike);
@@ -26,7 +25,7 @@ export function MiniPlayer() {
 
   return (
     <Pressable
-      onPress={() => guard(() => push('/player'))}
+      onPress={() => push('/player')}
       accessibilityRole="button"
       accessibilityLabel={`Open now playing for ${track.title}`}
       className="mx-3 mb-2 overflow-hidden rounded-2xl border border-white/5 bg-surface-container">
@@ -54,12 +53,14 @@ export function MiniPlayer() {
           <Text
             variant="caption"
             className={
-              track.artist.startsWith('Now Playing')
-                ? 'text-primary-tonal'
-                : 'text-on-surface-variant'
+              isUnavailable
+                ? 'text-on-surface-variant'
+                : track.artist.startsWith('Now Playing')
+                  ? 'text-primary-tonal'
+                  : 'text-on-surface-variant'
             }
             numberOfLines={1}>
-            {track.artist}
+            {isUnavailable ? 'Unavailable' : track.artist}
           </Text>
         </View>
 
@@ -82,9 +83,12 @@ export function MiniPlayer() {
 
           <Pressable
             onPress={togglePlay}
+            disabled={isUnavailable}
             accessibilityRole="button"
             accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-            className="h-10 w-10 items-center justify-center rounded-full bg-primary-tonal">
+            accessibilityState={{ disabled: isUnavailable }}
+            className="h-10 w-10 items-center justify-center rounded-full bg-primary-tonal"
+            style={{ opacity: isUnavailable ? 0.45 : 1 }}>
             {isPlaying ? (
               <Pause size={18} color="#3C0091" strokeWidth={2.4} fill="#3C0091" />
             ) : (
@@ -93,7 +97,7 @@ export function MiniPlayer() {
           </Pressable>
 
           <Pressable
-            onPress={next}
+            onPress={() => next()}
             accessibilityRole="button"
             accessibilityLabel="Next track"
             hitSlop={8}

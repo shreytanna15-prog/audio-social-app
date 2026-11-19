@@ -6,8 +6,10 @@ export type MeDto = {
   bio: string | null;
   avatarUrl: string | null;
   coverUrl: string | null;
+  preferredGenres: string[];
   canChangeUsername: boolean;
   usernameChangeAvailableAt: string | null;
+  unreadNotificationCount: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,6 +18,7 @@ export type PatchProfileBody = {
   name?: string | null;
   bio?: string | null;
   username?: string;
+  preferredGenres?: string[];
 };
 
 export type UsernameAvailability = {

@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { getErrorMessage } from '@/core/api/errors';
 import {
+  type CommentSort,
   useCreateTrackComment,
   useDeleteComment,
   useToggleCommentLike,
@@ -112,6 +113,11 @@ function CommentRow({ comment, onLike, onReply, onDelete }: CommentRowProps) {
   );
 }
 
+const SORT_OPTIONS: { value: CommentSort; label: string }[] = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'top', label: 'Top' },
+];
+
 type CommentsCardProps = {
   commentCount: number;
   comments: PlayerComment[];
@@ -124,6 +130,8 @@ type CommentsCardProps = {
   isLoading?: boolean;
   isError?: boolean;
   onViewAll?: () => void;
+  sort?: CommentSort;
+  onSortChange?: (sort: CommentSort) => void;
   onLike?: (comment: PlayerComment) => void;
   onReply?: (comment: PlayerComment) => void;
   onDelete?: (comment: PlayerComment) => void;
@@ -141,13 +149,15 @@ function CommentsCard({
   isLoading = false,
   isError = false,
   onViewAll,
+  sort,
+  onSortChange,
   onLike,
   onReply,
   onDelete,
 }: CommentsCardProps) {
   return (
     <View className="gap-4 rounded-2xl border border-white/5 bg-surface-container p-4">
-      <View className="flex-row items-center justify-between">
+      <View className="flex-row items-center justify-between gap-3">
         <Text variant="title-md" className="text-on-surface">
           Comments ({commentCount})
         </Text>
@@ -160,6 +170,37 @@ function CommentsCard({
           </Text>
         </Pressable>
       </View>
+
+      {onSortChange && sort ? (
+        <View className="flex-row gap-2">
+          {SORT_OPTIONS.map((option) => {
+            const selected = sort === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => onSortChange(option.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Sort by ${option.label}`}
+                className={cn(
+                  'rounded-full px-3 py-1.5',
+                  selected
+                    ? 'bg-primary-tonal'
+                    : 'bg-surface-container-highest',
+                )}>
+                <Text
+                  variant="caption"
+                  className={cn(
+                    'font-semibold',
+                    selected ? 'text-on-primary' : 'text-on-surface-variant',
+                  )}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
 
       {isLoading && comments.length === 0 ? (
         <View className="items-center py-4">
@@ -257,7 +298,8 @@ function FixtureComments({
 
 function LiveComments({ trackId }: { trackId: string }) {
   const { showError, confirm, dialog } = useFeedbackDialog();
-  const commentsQuery = useTrackComments(trackId);
+  const [sort, setSort] = useState<CommentSort>('newest');
+  const commentsQuery = useTrackComments(trackId, sort);
   const createComment = useCreateTrackComment(trackId);
   const deleteComment = useDeleteComment(trackId);
   const toggleLike = useToggleCommentLike(trackId);
@@ -319,6 +361,8 @@ function LiveComments({ trackId }: { trackId: string }) {
         isLoading={commentsQuery.isLoading}
         isError={commentsQuery.isError}
         onViewAll={() => setExpanded((prev) => !prev)}
+        sort={sort}
+        onSortChange={setSort}
         onLike={(comment) =>
           toggleLike.mutate({
             commentId: comment.id,

@@ -19,7 +19,6 @@ import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 're
 import { isApiTrackId } from '@/features/saves';
 import { AppHeader } from '@/shared/components/layout/app-header';
 import { Text } from '@/shared/components/ui/text';
-import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { PlayerComments } from '../components/player-comments';
 import { PlayerProgress } from '../components/player-progress';
@@ -31,7 +30,6 @@ const ICON_ACTIVE = '#D0BCFF';
 
 export function NowPlayingScreen() {
   const { back, canGoBack } = useRouter();
-  const { guard } = useNavigationGuard();
   const { width } = useWindowDimensions();
   const coverSize = Math.min(width - 48, 340);
 
@@ -40,6 +38,7 @@ export function NowPlayingScreen() {
   const progress = usePlayerStore((s) => s.progress);
   const isLiked = usePlayerStore((s) => s.isLiked);
   const isLooping = usePlayerStore((s) => s.isLooping);
+  const isUnavailable = usePlayerStore((s) => s.isUnavailable);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const next = usePlayerStore((s) => s.next);
   const previous = usePlayerStore((s) => s.previous);
@@ -54,7 +53,7 @@ export function NowPlayingScreen() {
           Nothing playing
         </Text>
         <Pressable
-          onPress={() => (canGoBack() ? guard(() => back()) : undefined)}
+          onPress={() => (canGoBack() ? back() : undefined)}
           className="mt-4 rounded-full bg-primary-tonal px-5 py-2.5">
           <Text variant="label-md" className="font-semibold text-on-primary">
             Close
@@ -67,7 +66,10 @@ export function NowPlayingScreen() {
   const durationSec = track.durationSec ?? DEFAULT_DURATION_SEC;
   const artistAvatar = track.artistAvatarUrl ?? track.coverUrl;
   const playsLabel = track.playsLabel ?? '24.5K plays';
-  const likeLabel = track.likeCountLabel ?? '1.2K';
+  const likeLabel =
+    track.likeCount != null
+      ? String(track.likeCount)
+      : (track.likeCountLabel ?? '0');
   const commentCount = track.commentCount ?? 382;
   const canLike = isApiTrackId(track.id);
 
@@ -88,7 +90,7 @@ export function NowPlayingScreen() {
 
       <View className="flex-row items-center justify-between px-3 pb-2">
         <Pressable
-          onPress={() => (canGoBack() ? guard(() => back()) : undefined)}
+          onPress={() => (canGoBack() ? back() : undefined)}
           accessibilityRole="button"
           accessibilityLabel="Close player"
           hitSlop={8}
@@ -168,15 +170,23 @@ export function NowPlayingScreen() {
           </View>
         </View>
 
-        <PlayerProgress
-          progress={progress}
-          durationSec={durationSec}
-          onSeek={setProgress}
-        />
+        {isUnavailable ? (
+          <View className="rounded-2xl bg-surface-container-high px-4 py-3">
+            <Text variant="label-md" className="text-center text-on-surface-variant">
+              Audio unavailable — this track has no playable mix.
+            </Text>
+          </View>
+        ) : (
+          <PlayerProgress
+            progress={progress}
+            durationSec={durationSec}
+            onSeek={setProgress}
+          />
+        )}
 
         <View className="flex-row items-center justify-center gap-10 py-1">
           <Pressable
-            onPress={previous}
+            onPress={() => previous()}
             accessibilityRole="button"
             accessibilityLabel="Previous"
             hitSlop={10}
@@ -186,10 +196,15 @@ export function NowPlayingScreen() {
 
           <Pressable
             onPress={togglePlay}
+            disabled={isUnavailable}
             accessibilityRole="button"
             accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+            accessibilityState={{ disabled: isUnavailable }}
             className="h-18 w-18 items-center justify-center rounded-full bg-primary-tonal"
-            style={{ boxShadow: '0 10px 28px rgba(208, 188, 255, 0.35)' }}>
+            style={{
+              boxShadow: '0 10px 28px rgba(208, 188, 255, 0.35)',
+              opacity: isUnavailable ? 0.45 : 1,
+            }}>
             {isPlaying ? (
               <Pause size={30} color="#3C0091" strokeWidth={2.4} fill="#3C0091" />
             ) : (
@@ -198,7 +213,7 @@ export function NowPlayingScreen() {
           </Pressable>
 
           <Pressable
-            onPress={next}
+            onPress={() => next()}
             accessibilityRole="button"
             accessibilityLabel="Next"
             hitSlop={10}
