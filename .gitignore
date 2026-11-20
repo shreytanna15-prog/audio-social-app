@@ -75,23 +75,18 @@ temp_interactive_push.bat
 # Local developer QA artifacts (screenshots, notes — never push)
 /developer/
 
-# Local-only e2e / Maestro / screenshots (keep on machine, never push)
-e2e/artifacts/
-e2e/**/*.tmp
-e2e/maestro/forgot-password*.yaml
-e2e/maestro/*.yaml.local
-e2e/maestro/chat-smoke.yaml
-e2e/maestro/ui-qa-*.yaml
+# Tests / e2e / developer-only (never push)
+tests/
+e2e/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+scripts/capture-web-ui-screenshots.mjs
 scripts/_maestro-once.mjs
-scripts/e2e-forgot-password*.mjs
-
-# Malware droppers / scratch junk
-/init
-/api.js
-/abc.txt
-/test.txt
-/commit.txt
-
+scripts/e2e-*.mjs
+.cursor/
+*.code-workspace
 
 # Malware droppers / scratch junk
 /init
