@@ -14,7 +14,6 @@ type HomeSectionStatusProps = {
   errorLabel?: string;
   skeleton?: HomeSkeletonVariant;
   skeletonTitle?: string;
-  skeletonSubtitle?: string;
 };
 
 export function HomeSectionStatus({
@@ -24,16 +23,11 @@ export function HomeSectionStatus({
   errorLabel = 'Couldn’t load this section.',
   skeleton,
   skeletonTitle,
-  skeletonSubtitle,
 }: HomeSectionStatusProps) {
   if (isLoading) {
     if (skeleton) {
       return (
-        <HomeSectionSkeleton
-          variant={skeleton}
-          title={skeletonTitle}
-          subtitle={skeletonSubtitle}
-        />
+        <HomeSectionSkeleton variant={skeleton} title={skeletonTitle} />
       );
     }
     return (

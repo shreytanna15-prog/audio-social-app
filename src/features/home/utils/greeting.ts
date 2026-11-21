@@ -1,9 +1,9 @@
 const MORNING = [
   'Ready to lay down a take',
-  'Fresh ears, fresh session',
+  'Fresh ears for a new session',
   "Let's find today's tempo",
   'Warm up those vocals',
-  'Coffee, cans, create',
+  'Coffee on, cans on, create',
 ] as const;
 
 const AFTERNOON = [
@@ -17,14 +17,14 @@ const AFTERNOON = [
 const EVENING = [
   'Golden-hour sessions hit different',
   'Dim the lights, up the gain',
-  'Evening write mode',
+  'Evening write mode unlocked',
   'Soft light, loud ideas',
   'Wind down with a melody',
 ] as const;
 
 const NIGHT = [
   'Late-night booth vibes',
-  'After-hours inspiration',
+  'After-hours inspiration loading',
   'Quiet room, big sounds',
   'Night owl playlist energy',
   'One more take before sleep',
@@ -54,7 +54,7 @@ type HomeGreetingProps = {
   name?: string;
 };
 
-export function getHomeGreeting(name = 'there', date = new Date()): string {
+export function getHomeGreetingParts(name = 'there', date = new Date()) {
   const bucket = getGreetingBucket(date);
   const lines =
     bucket === 'morning'
@@ -64,7 +64,12 @@ export function getHomeGreeting(name = 'there', date = new Date()): string {
         : bucket === 'evening'
           ? EVENING
           : NIGHT;
-  return `${pickLine(lines, date)}, ${name}`;
+  return { phrase: pickLine(lines, date), name };
+}
+
+export function getHomeGreeting(name = 'there', date = new Date()): string {
+  const { phrase, name: displayName } = getHomeGreetingParts(name, date);
+  return `${phrase}, ${displayName}`;
 }
 
 export type { HomeGreetingProps };

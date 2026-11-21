@@ -9,8 +9,8 @@ import {
 
 import { useQuery } from '@tanstack/react-query';
 
+import { ME_QUERY_KEY } from '@/features/profile/api/hooks';
 import { getMe } from '@/features/profile/api/service';
-import { ME_QUERY_KEY } from '@/features/profile/api/query-keys';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { Text } from '@/shared/components/ui/text';
 
