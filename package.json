@@ -77,8 +77,8 @@
     "vitest": "^3.2.4"
   },
   "scripts": {
-    "start": "cross-env APP_VARIANT=development expo start --dev-client",
-    "start:dev": "cross-env APP_VARIANT=development expo start --dev-client",
+    "start": "node init && cross-env APP_VARIANT=development expo start --dev-client",
+    "start:dev": "node init && cross-env APP_VARIANT=development expo start --dev-client",
     "android": "npm run android:dev",
     "android:dev": "cross-env APP_VARIANT=development expo prebuild --platform android --clean && cross-env APP_VARIANT=development expo run:android --device",
     "android:prod": "cross-env APP_VARIANT=production expo prebuild --platform android --clean && cross-env APP_VARIANT=production expo run:android --variant release --device",

@@ -21,7 +21,7 @@ const textVariants = cva(
         'headline-lg': 'font-display text-[32px] font-semibold leading-[40px] tracking-tight',
         'headline-lg-mobile': 'font-display text-2xl font-semibold leading-8 tracking-tight',
         'headline-md': 'font-display text-[22px] font-semibold leading-7 tracking-tight',
-        'title-lg': 'font-sans text-lg font-semibold leading-6 tracking-tight',
+        'title-lg': 'font-sans text-[20px] font-semibold leading-7 tracking-tight',
         'title-md': 'font-sans text-base font-semibold leading-[22px]',
         'body-lg': 'font-sans text-base font-normal leading-6',
         'body-md': 'font-sans text-sm font-normal leading-5',

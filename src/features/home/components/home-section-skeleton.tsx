@@ -13,7 +13,6 @@ export type HomeSkeletonVariant =
 type HomeSectionSkeletonProps = {
   variant: HomeSkeletonVariant;
   title?: string;
-  subtitle?: string;
 };
 
 function Bone({ className, style }: { className?: string; style?: object }) {
@@ -25,29 +24,16 @@ function Bone({ className, style }: { className?: string; style?: object }) {
   );
 }
 
-function SectionHeader({
-  title,
-  subtitle,
-}: {
-  title?: string;
-  subtitle?: string;
-}) {
-  if (!title && !subtitle) {
+function SectionHeader({ title }: { title?: string }) {
+  if (!title) {
     return null;
   }
 
   return (
-    <View className="gap-1 px-4">
-      {title ? (
-        <Text variant="title-lg" className="text-on-surface">
-          {title}
-        </Text>
-      ) : null}
-      {subtitle ? (
-        <Text variant="body-md" className="text-on-surface-variant">
-          {subtitle}
-        </Text>
-      ) : null}
+    <View className="px-4">
+      <Text variant="title-lg" className="text-on-surface">
+        {title}
+      </Text>
     </View>
   );
 }
@@ -55,7 +41,6 @@ function SectionHeader({
 export function HomeSectionSkeleton({
   variant,
   title,
-  subtitle,
 }: HomeSectionSkeletonProps) {
   if (variant === 'project') {
     return (
@@ -76,7 +61,7 @@ export function HomeSectionSkeleton({
   if (variant === 'artists') {
     return (
       <View className="gap-4">
-        <SectionHeader title={title ?? 'Featured Artists'} subtitle={subtitle} />
+        <SectionHeader title={title ?? 'Featured Artists'} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -96,10 +81,7 @@ export function HomeSectionSkeleton({
   if (variant === 'vibe') {
     return (
       <View className="gap-4">
-        <SectionHeader
-          title={title ?? 'Made For Your Vibe'}
-          subtitle={subtitle ?? 'Picked from your taste and recent listens.'}
-        />
+        <SectionHeader title={title ?? 'Made for your vibe'} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -124,7 +106,7 @@ export function HomeSectionSkeleton({
   if (variant === 'trending') {
     return (
       <View className="gap-4 px-4">
-        <SectionHeader title={title ?? 'Trending Right Now'} subtitle={subtitle} />
+        <SectionHeader title={title ?? 'Trending'} />
         <View className="gap-2.5">
           {Array.from({ length: 4 }).map((_, index) => (
             <View
@@ -146,10 +128,7 @@ export function HomeSectionSkeleton({
   if (variant === 'playlists') {
     return (
       <View className="gap-4">
-        <SectionHeader
-          title={title ?? 'Your Playlists'}
-          subtitle={subtitle ?? 'Created and saved by you'}
-        />
+        <SectionHeader title={title ?? 'Your playlists'} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -168,7 +147,7 @@ export function HomeSectionSkeleton({
 
   return (
     <View className="gap-4 px-4">
-      <SectionHeader title={title ?? 'Recently Played'} subtitle={subtitle} />
+      <SectionHeader title={title ?? 'Recently played'} />
       <View className="gap-2.5">
         {Array.from({ length: 2 }).map((_, row) => (
           <View key={`recent-skel-row-${row}`} className="flex-row gap-2.5">
