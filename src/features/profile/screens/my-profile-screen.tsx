@@ -64,6 +64,8 @@ export function MyProfileScreen() {
           }
         />
       }
+      onFollowersPress={() => goTo('/(tabs)/profile/followers' as Href)}
+      onFollowingPress={() => goTo('/(tabs)/profile/following' as Href)}
       onLogout={() => {
         void logout();
       }}

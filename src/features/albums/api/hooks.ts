@@ -1,16 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { CoverContentType } from '@/features/tracks';
+
 import {
   attachAlbumTracks,
   createAlbum,
   deleteAlbum,
+  deleteAlbumCover,
   getAlbum,
   listAlbums,
   listPublicAlbumsByUser,
   releaseAlbum,
+  reorderAlbumTracks,
   unlinkAlbumTrack,
   unreleaseAlbum,
   updateAlbum,
+  uploadAndCompleteAlbumCover,
 } from './service';
 import type {
   AttachAlbumTracksRequest,
@@ -121,5 +126,48 @@ export function usePublicAlbumsByUser(userId: string | undefined) {
     queryKey: [...ALBUMS_QUERY_KEY, 'public', userId] as const,
     queryFn: () => listPublicAlbumsByUser(userId!),
     enabled: typeof userId === 'string' && userId.length > 0,
+  });
+}
+
+export function useReorderAlbumTracks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { albumId: string; trackIds: string[] }) =>
+      reorderAlbumTracks(input.albumId, input.trackIds),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ALBUMS_QUERY_KEY });
+    },
+  });
+}
+
+export function useUploadAlbumCover() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      albumId: string;
+      localUri: string;
+      contentType: CoverContentType;
+    }) =>
+      uploadAndCompleteAlbumCover(
+        input.albumId,
+        input.localUri,
+        input.contentType,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ALBUMS_QUERY_KEY });
+    },
+  });
+}
+
+export function useDeleteAlbumCover() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (albumId: string) => deleteAlbumCover(albumId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ALBUMS_QUERY_KEY });
+    },
   });
 }

@@ -27,6 +27,8 @@ type ProfileScreenShellProps = {
   onLogout?: () => void;
   /** Public-only sheets can be omitted by not rendering message sheet from parent. */
   messageSheet?: ReactNode;
+  onFollowersPress?: () => void;
+  onFollowingPress?: () => void;
 };
 
 /**
@@ -37,6 +39,8 @@ export function ProfileScreenShell({
   actions,
   onLogout,
   messageSheet,
+  onFollowersPress,
+  onFollowingPress,
 }: ProfileScreenShellProps) {
   const { push } = useRouter();
   const { guard } = useNavigationGuard();
@@ -127,7 +131,11 @@ export function ProfileScreenShell({
         />
 
         <View className="gap-8" style={{ marginTop: 16 }}>
-          <ProfileStatsRow stats={profile.stats} />
+          <ProfileStatsRow
+            stats={profile.stats}
+            onFollowersPress={onFollowersPress}
+            onFollowingPress={onFollowingPress}
+          />
           <ProfileFeaturedSongCard
             song={profile.featuredSong}
             isPlaying={featuredPlaying}

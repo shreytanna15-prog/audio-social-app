@@ -1,14 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { CoverContentType } from '@/features/tracks';
+
 import {
   attachPlaylistTracks,
   createPlaylist,
   deletePlaylist,
+  deletePlaylistCover,
   getPlaylist,
   listPlaylists,
   listPublicPlaylistsByUser,
+  reorderPlaylistTracks,
   unlinkPlaylistTrack,
   updatePlaylist,
+  uploadAndCompletePlaylistCover,
 } from './service';
 import type {
   AttachPlaylistTracksRequest,
@@ -92,10 +97,53 @@ export function useUnlinkPlaylistTrack() {
   });
 }
 
+export function useReorderPlaylistTracks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { playlistId: string; trackIds: string[] }) =>
+      reorderPlaylistTracks(input.playlistId, input.trackIds),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
+    },
+  });
+}
+
 export function usePublicPlaylistsByUser(userId: string | undefined) {
   return useQuery({
     queryKey: [...PLAYLISTS_QUERY_KEY, 'public', userId] as const,
     queryFn: () => listPublicPlaylistsByUser(userId!),
     enabled: typeof userId === 'string' && userId.length > 0,
+  });
+}
+
+export function useUploadPlaylistCover() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      playlistId: string;
+      localUri: string;
+      contentType: CoverContentType;
+    }) =>
+      uploadAndCompletePlaylistCover(
+        input.playlistId,
+        input.localUri,
+        input.contentType,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
+    },
+  });
+}
+
+export function useDeletePlaylistCover() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (playlistId: string) => deletePlaylistCover(playlistId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
+    },
   });
 }

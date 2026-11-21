@@ -49,6 +49,7 @@ export type Profile = {
   stats: {
     playsLabel: string;
     followersLabel: string;
+    followingLabel: string;
     likesLabel: string;
   };
   featuredSong: ProfileFeaturedSong;

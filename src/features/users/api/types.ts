@@ -29,6 +29,61 @@ export type FollowActionResult = {
   isMutual: boolean;
 };
 
+export type FollowListUser = {
+  id: string;
+  username: string;
+  name: string | null;
+  avatarUrl: string | null;
+  isFollowing: boolean;
+};
+
+export type FollowListPage = {
+  items: FollowListUser[];
+  nextCursor: string | null;
+};
+
+export type SearchTrackItem = {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  mixUrl: string | null;
+  playCount: number;
+  durationMs: number;
+  artist: {
+    id: string;
+    username: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+};
+
+export type SearchPlaylistItem = {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  trackCount: number;
+  owner: {
+    id: string;
+    username: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+};
+
+export type SearchAlbumItem = {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  trackCount: number;
+  releasedAt: string | null;
+  artist: {
+    id: string;
+    username: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 export type SearchRecentKind = 'ARTIST' | 'SONG' | 'ALBUM' | 'PLAYLIST';
 
 export type SearchRecentItem = {

@@ -27,6 +27,7 @@ export function mapMeToProfile(me: MeDto): Profile {
       // MeDto has no counters yet — show 0 rather than an “unknown” dash.
       playsLabel: zero,
       followersLabel: zero,
+      followingLabel: zero,
       likesLabel: zero,
     },
     featuredSong: {

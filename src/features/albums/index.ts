@@ -5,24 +5,31 @@ export {
   useAttachAlbumTracks,
   useCreateAlbum,
   useDeleteAlbum,
+  useDeleteAlbumCover,
   usePublicAlbumsByUser,
   useReleaseAlbum,
+  useReorderAlbumTracks,
   useUnlinkAlbumTrack,
   useUnreleaseAlbum,
   useUpdateAlbum,
+  useUploadAlbumCover,
 } from './api/hooks';
 export {
   attachAlbumTracks,
   createAlbum,
   deleteAlbum,
+  deleteAlbumCover,
   getAlbum,
   listAlbums,
   listPublicAlbumsByUser,
   releaseAlbum,
+  reorderAlbumTracks,
   unlinkAlbumTrack,
   unreleaseAlbum,
   updateAlbum,
+  uploadAndCompleteAlbumCover,
 } from './api/service';
+export { default as AlbumEditScreen } from './screens/album-edit-screen';
 export type {
   AlbumDetailDto,
   AlbumStatusDto,

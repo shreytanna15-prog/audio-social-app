@@ -16,10 +16,6 @@ import { Text } from '@/shared/components/ui/text';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { CollectionAttachTracksSheet } from '@/features/library/components/collection-attach-tracks-sheet';
-import {
-  CollectionEditDialog,
-  type CollectionEditValues,
-} from '@/features/library/components/collection-edit-dialog';
 import { CollectionOverviewCard } from '@/features/library/components/collection-overview-card';
 import { CollectionSaveButton } from '@/features/library/components/collection-save-button';
 import {
@@ -36,7 +32,6 @@ import {
   useDeletePlaylist,
   usePlaylist,
   useUnlinkPlaylistTrack,
-  useUpdatePlaylist,
 } from '../api/hooks';
 
 export function PlaylistDetailScreen() {
@@ -53,7 +48,6 @@ export function PlaylistDetailScreen() {
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
   const playlistQuery = usePlaylist(playlistId);
-  const updatePlaylist = useUpdatePlaylist();
   const deletePlaylist = useDeletePlaylist();
   const attachTracks = useAttachPlaylistTracks();
   const unlinkTrack = useUnlinkPlaylistTrack();
@@ -62,7 +56,6 @@ export function PlaylistDetailScreen() {
   const play = usePlayerStore((s) => s.play);
 
   const [attachOpen, setAttachOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
 
   const playlist = playlistQuery.data ?? null;
   const coverUrl = playlist
@@ -105,27 +98,6 @@ export function PlaylistDetailScreen() {
     });
   };
 
-  const submitEdit = (values: CollectionEditValues) => {
-    if (!playlistId) return;
-    if (!values.title) {
-      showError('Title required', 'Give it a name.');
-      return;
-    }
-    void updatePlaylist
-      .mutateAsync({
-        id: playlistId,
-        body: {
-          title: values.title,
-          description: values.description || null,
-          visibility: values.visibility === 'public' ? 'PUBLIC' : 'PRIVATE',
-        },
-      })
-      .then(() => setEditOpen(false))
-      .catch((error) => {
-        showError('Could not save', getErrorMessage(error, 'Try again.'));
-      });
-  };
-
   const openMenu = () => {
     if (!playlistId) return;
     show({
@@ -139,7 +111,10 @@ export function PlaylistDetailScreen() {
         {
           label: 'Edit details',
           variant: 'soft',
-          onPress: () => setEditOpen(true),
+          onPress: () => {
+            if (!playlistId) return;
+            guard(() => push(`/playlists/${playlistId}/edit` as Href));
+          },
         },
         {
           label: 'Delete playlist…',
@@ -332,21 +307,6 @@ export function PlaylistDetailScreen() {
             }}
           />
 
-          {playlist ? (
-            <CollectionEditDialog
-              key={`${playlist.id}-${playlist.updatedAt}-${editOpen}`}
-              kind="playlist"
-              open={editOpen}
-              onOpenChange={setEditOpen}
-              isPending={updatePlaylist.isPending}
-              initial={{
-                title: playlist.title,
-                description: playlist.description ?? '',
-                visibility: playlist.visibility === 'PUBLIC' ? 'public' : 'private',
-              }}
-              onSubmit={submitEdit}
-            />
-          ) : null}
         </>
       ) : null}
 

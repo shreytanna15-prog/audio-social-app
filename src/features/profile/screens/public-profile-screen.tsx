@@ -119,6 +119,14 @@ export function PublicProfileScreen() {
           bottomOffset={sheetBottomOffset}
         />
       }
+      onFollowersPress={() => {
+        if (!profileId) return;
+        guard(() => push(`/artist/${profileId}/followers` as Href));
+      }}
+      onFollowingPress={() => {
+        if (!profileId) return;
+        guard(() => push(`/artist/${profileId}/following` as Href));
+      }}
     />
   );
 }

@@ -21,6 +21,7 @@ export function mapPublicProfileToProfile(api: PublicUserProfile): Profile {
     stats: {
       playsLabel: formatCountLabel(0),
       followersLabel: formatCountLabel(api.followerCount),
+      followingLabel: formatCountLabel(api.followingCount),
       likesLabel: formatCountLabel(0),
     },
     featuredSong: {

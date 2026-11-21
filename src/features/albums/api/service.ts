@@ -1,4 +1,10 @@
 import { apiRequest } from '@/core/api';
+import {
+  uploadCoverToSignedUrl,
+  type CoverCompleteResponse,
+  type CoverContentType,
+  type CoverUploadUrlResponse,
+} from '@/features/tracks';
 
 import type {
   AlbumDetailDto,
@@ -95,4 +101,56 @@ export async function unlinkAlbumTrack(
     path: `/api/albums/${albumId}/tracks/${trackId}`,
     method: 'DELETE',
   });
+}
+
+export async function reorderAlbumTracks(
+  albumId: string,
+  trackIds: string[],
+): Promise<{ id: string; trackIds: string[] }> {
+  return apiRequest<{ id: string; trackIds: string[] }>({
+    path: `/api/albums/${albumId}/tracks/reorder`,
+    method: 'PUT',
+    body: { trackIds },
+  });
+}
+
+export async function createAlbumCoverUploadUrl(
+  albumId: string,
+  contentType: CoverContentType,
+): Promise<CoverUploadUrlResponse> {
+  return apiRequest<CoverUploadUrlResponse>({
+    path: `/api/albums/${albumId}/cover/upload-url`,
+    method: 'POST',
+    body: { contentType },
+  });
+}
+
+export async function completeAlbumCoverUpload(
+  albumId: string,
+  path: string,
+): Promise<CoverCompleteResponse> {
+  return apiRequest<CoverCompleteResponse>({
+    path: `/api/albums/${albumId}/cover/complete`,
+    method: 'POST',
+    body: { path },
+  });
+}
+
+export async function deleteAlbumCover(
+  albumId: string,
+): Promise<{ id: string }> {
+  return apiRequest<{ id: string }>({
+    path: `/api/albums/${albumId}/cover`,
+    method: 'DELETE',
+  });
+}
+
+export async function uploadAndCompleteAlbumCover(
+  albumId: string,
+  localUri: string,
+  contentType: CoverContentType,
+): Promise<CoverCompleteResponse> {
+  const upload = await createAlbumCoverUploadUrl(albumId, contentType);
+  await uploadCoverToSignedUrl(upload.signedUrl, localUri, contentType);
+  return completeAlbumCoverUpload(albumId, upload.path);
 }

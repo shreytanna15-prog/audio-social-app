@@ -1,4 +1,10 @@
 import { apiRequest } from '@/core/api';
+import {
+  uploadCoverToSignedUrl,
+  type CoverCompleteResponse,
+  type CoverContentType,
+  type CoverUploadUrlResponse,
+} from '@/features/tracks';
 
 import type {
   AttachPlaylistTracksRequest,
@@ -76,6 +82,17 @@ export async function unlinkPlaylistTrack(
   });
 }
 
+export async function reorderPlaylistTracks(
+  playlistId: string,
+  trackIds: string[],
+): Promise<{ id: string; trackIds: string[] }> {
+  return apiRequest<{ id: string; trackIds: string[] }>({
+    path: `/api/playlists/${playlistId}/tracks/reorder`,
+    method: 'PUT',
+    body: { trackIds },
+  });
+}
+
 export async function listPublicPlaylistsByUser(
   userId: string,
 ): Promise<PlaylistSummaryDto[]> {
@@ -83,4 +100,45 @@ export async function listPublicPlaylistsByUser(
     path: `/api/users/${userId}/playlists`,
     method: 'GET',
   });
+}
+
+export async function createPlaylistCoverUploadUrl(
+  playlistId: string,
+  contentType: CoverContentType,
+): Promise<CoverUploadUrlResponse> {
+  return apiRequest<CoverUploadUrlResponse>({
+    path: `/api/playlists/${playlistId}/cover/upload-url`,
+    method: 'POST',
+    body: { contentType },
+  });
+}
+
+export async function completePlaylistCoverUpload(
+  playlistId: string,
+  path: string,
+): Promise<CoverCompleteResponse> {
+  return apiRequest<CoverCompleteResponse>({
+    path: `/api/playlists/${playlistId}/cover/complete`,
+    method: 'POST',
+    body: { path },
+  });
+}
+
+export async function deletePlaylistCover(
+  playlistId: string,
+): Promise<{ id: string }> {
+  return apiRequest<{ id: string }>({
+    path: `/api/playlists/${playlistId}/cover`,
+    method: 'DELETE',
+  });
+}
+
+export async function uploadAndCompletePlaylistCover(
+  playlistId: string,
+  localUri: string,
+  contentType: CoverContentType,
+): Promise<CoverCompleteResponse> {
+  const upload = await createPlaylistCoverUploadUrl(playlistId, contentType);
+  await uploadCoverToSignedUrl(upload.signedUrl, localUri, contentType);
+  return completePlaylistCoverUpload(playlistId, upload.path);
 }

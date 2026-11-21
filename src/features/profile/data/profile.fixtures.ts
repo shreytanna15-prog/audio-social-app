@@ -29,6 +29,7 @@ export const AURA_MIST_PROFILE: Profile = {
   stats: {
     playsLabel: '24.5K',
     followersLabel: '3.2K',
+    followingLabel: '412',
     likesLabel: '8.7K',
   },
   featuredSong: {
@@ -188,6 +189,7 @@ function buildProfileFromFeatured(
     stats: {
       playsLabel: '18.2K',
       followersLabel: '2.1K',
+      followingLabel: '180',
       likesLabel: '5.4K',
     },
     featuredSong: {

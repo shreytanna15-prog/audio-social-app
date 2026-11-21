@@ -41,6 +41,8 @@ export const AURA_MIST_PROFILE: ArtistProfile = {
       'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop',
     qualityBadge: 'Master Audio',
     formatLabel: '48kHz • 24bit',
+    likeCount: 1480,
+    isLiked: false,
     durationSec: 228,
   },
   songs: [
@@ -50,6 +52,8 @@ export const AURA_MIST_PROFILE: ArtistProfile = {
       coverUrl: TRACK_COVERS[0]!,
       durationLabel: '3:48',
       playsLabel: '14.8k plays',
+      likeCount: 1480,
+      isLiked: false,
       durationSec: 228,
     },
     {
@@ -58,6 +62,8 @@ export const AURA_MIST_PROFILE: ArtistProfile = {
       coverUrl: TRACK_COVERS[1]!,
       durationLabel: '4:12',
       playsLabel: '9.2k plays',
+      likeCount: 920,
+      isLiked: true,
       durationSec: 252,
     },
     {
@@ -66,6 +72,8 @@ export const AURA_MIST_PROFILE: ArtistProfile = {
       coverUrl: TRACK_COVERS[2]!,
       durationLabel: '3:15',
       playsLabel: '6.4k plays',
+      likeCount: 640,
+      isLiked: false,
       durationSec: 195,
     },
     {
@@ -74,6 +82,8 @@ export const AURA_MIST_PROFILE: ArtistProfile = {
       coverUrl: TRACK_COVERS[3]!,
       durationLabel: '2:54',
       playsLabel: '4.1k plays',
+      likeCount: 410,
+      isLiked: false,
       durationSec: 174,
     },
   ],
@@ -146,6 +156,8 @@ function buildProfileFromFeatured(
       coverUrl: TRACK_COVERS[0]!,
       durationLabel: '3:42',
       playsLabel: '12.1k plays',
+      likeCount: 1210,
+      isLiked: false,
       durationSec: 222,
     },
     {
@@ -154,6 +166,8 @@ function buildProfileFromFeatured(
       coverUrl: TRACK_COVERS[1]!,
       durationLabel: '4:08',
       playsLabel: '8.4k plays',
+      likeCount: 840,
+      isLiked: false,
       durationSec: 248,
     },
     {
@@ -162,6 +176,8 @@ function buildProfileFromFeatured(
       coverUrl: TRACK_COVERS[2]!,
       durationLabel: '2:56',
       playsLabel: '6.2k plays',
+      likeCount: 620,
+      isLiked: true,
       durationSec: 176,
     },
     {
@@ -170,6 +186,8 @@ function buildProfileFromFeatured(
       coverUrl: TRACK_COVERS[3]!,
       durationLabel: '3:21',
       playsLabel: '4.9k plays',
+      likeCount: 490,
+      isLiked: false,
       durationSec: 201,
     },
   ];
@@ -199,6 +217,8 @@ function buildProfileFromFeatured(
       coverUrl: songs[0]!.coverUrl,
       qualityBadge: 'Master Audio',
       formatLabel: '48kHz • 24bit',
+      likeCount: songs[0]!.likeCount,
+      isLiked: songs[0]!.isLiked,
       durationSec: songs[0]!.durationSec,
     },
     songs,

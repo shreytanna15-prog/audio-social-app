@@ -6,7 +6,10 @@ export type ArtistTrack = {
   coverUrl: string;
   durationLabel: string;
   playsLabel: string;
+  likeCount: number;
+  isLiked: boolean;
   durationSec?: number;
+  mixUrl?: string | null;
 };
 
 export type ArtistAlbum = {
@@ -33,7 +36,10 @@ export type ArtistFeaturedSong = {
   coverUrl: string;
   qualityBadge: string;
   formatLabel: string;
+  likeCount: number;
+  isLiked: boolean;
   durationSec?: number;
+  mixUrl?: string | null;
 };
 
 export type ArtistProfile = {

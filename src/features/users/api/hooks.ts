@@ -1,12 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 
 import {
   clearSearchRecent,
   followUser,
   getPublicProfile,
+  listFollowers,
+  listFollowing,
   listSearchRecent,
   recordSearchRecent,
   removeSearchRecent,
+  searchAlbums,
+  searchPlaylists,
+  searchTracks,
   searchUsers,
   unfollowUser,
 } from './service';
@@ -16,10 +26,27 @@ import type {
   RecordSearchRecentRequest,
   SearchRecentItem,
 } from './types';
+import {
+  ALBUMS_SEARCH_QUERY_KEY,
+  PLAYLISTS_SEARCH_QUERY_KEY,
+  SEARCH_RECENT_QUERY_KEY,
+  TRACKS_SEARCH_QUERY_KEY,
+  USER_FOLLOWERS_QUERY_KEY,
+  USER_FOLLOWING_QUERY_KEY,
+  USER_PROFILE_QUERY_KEY,
+  USERS_SEARCH_QUERY_KEY,
+} from './query-keys';
 
-export const USERS_SEARCH_QUERY_KEY = ['users', 'search'] as const;
-export const SEARCH_RECENT_QUERY_KEY = ['search', 'recent'] as const;
-export const USER_PROFILE_QUERY_KEY = ['users', 'profile'] as const;
+export {
+  ALBUMS_SEARCH_QUERY_KEY,
+  PLAYLISTS_SEARCH_QUERY_KEY,
+  SEARCH_RECENT_QUERY_KEY,
+  TRACKS_SEARCH_QUERY_KEY,
+  USER_FOLLOWERS_QUERY_KEY,
+  USER_FOLLOWING_QUERY_KEY,
+  USER_PROFILE_QUERY_KEY,
+  USERS_SEARCH_QUERY_KEY,
+} from './query-keys';
 
 export function useSearchUsers(q: string, enabled = true) {
   const trimmed = q.trim();
@@ -28,6 +55,62 @@ export function useSearchUsers(q: string, enabled = true) {
     queryKey: [...USERS_SEARCH_QUERY_KEY, trimmed],
     queryFn: () => searchUsers(trimmed),
     enabled: enabled && trimmed.length >= 1,
+  });
+}
+
+export function useSearchTracks(q: string, enabled = true) {
+  const trimmed = q.trim();
+
+  return useQuery({
+    queryKey: [...TRACKS_SEARCH_QUERY_KEY, trimmed],
+    queryFn: () => searchTracks(trimmed),
+    enabled: enabled && trimmed.length >= 1,
+  });
+}
+
+export function useSearchPlaylists(q: string, enabled = true) {
+  const trimmed = q.trim();
+
+  return useQuery({
+    queryKey: [...PLAYLISTS_SEARCH_QUERY_KEY, trimmed],
+    queryFn: () => searchPlaylists(trimmed),
+    enabled: enabled && trimmed.length >= 1,
+  });
+}
+
+export function useSearchAlbums(q: string, enabled = true) {
+  const trimmed = q.trim();
+
+  return useQuery({
+    queryKey: [...ALBUMS_SEARCH_QUERY_KEY, trimmed],
+    queryFn: () => searchAlbums(trimmed),
+    enabled: enabled && trimmed.length >= 1,
+  });
+}
+
+export function useFollowers(userId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: [...USER_FOLLOWERS_QUERY_KEY, userId],
+    queryFn: ({ pageParam }) =>
+      listFollowers(userId!, {
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: typeof userId === 'string' && userId.length > 0,
+  });
+}
+
+export function useFollowing(userId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: [...USER_FOLLOWING_QUERY_KEY, userId],
+    queryFn: ({ pageParam }) =>
+      listFollowing(userId!, {
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: typeof userId === 'string' && userId.length > 0,
   });
 }
 
@@ -155,6 +238,8 @@ export function useFollowUser() {
     },
     onSuccess: (result, id) => {
       patchProfileCache(queryClient, id, result);
+      void queryClient.invalidateQueries({ queryKey: USER_FOLLOWERS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: USER_FOLLOWING_QUERY_KEY });
     },
   });
 }
@@ -195,6 +280,8 @@ export function useUnfollowUser() {
     },
     onSuccess: (result, id) => {
       patchProfileCache(queryClient, id, result);
+      void queryClient.invalidateQueries({ queryKey: USER_FOLLOWERS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: USER_FOLLOWING_QUERY_KEY });
     },
   });
 }

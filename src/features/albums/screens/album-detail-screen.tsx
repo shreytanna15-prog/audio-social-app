@@ -6,10 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
 import { CollectionAttachTracksSheet } from '@/features/library/components/collection-attach-tracks-sheet';
-import {
-  CollectionEditDialog,
-  type CollectionEditValues,
-} from '@/features/library/components/collection-edit-dialog';
 import { CollectionOverviewCard } from '@/features/library/components/collection-overview-card';
 import { CollectionSaveButton } from '@/features/library/components/collection-save-button';
 import {
@@ -34,7 +30,6 @@ import {
   useReleaseAlbum,
   useUnlinkAlbumTrack,
   useUnreleaseAlbum,
-  useUpdateAlbum,
 } from '../api/hooks';
 
 export function AlbumDetailScreen() {
@@ -51,7 +46,6 @@ export function AlbumDetailScreen() {
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
   const albumQuery = useAlbum(albumId);
-  const updateAlbum = useUpdateAlbum();
   const deleteAlbum = useDeleteAlbum();
   const releaseAlbum = useReleaseAlbum();
   const unreleaseAlbum = useUnreleaseAlbum();
@@ -62,7 +56,6 @@ export function AlbumDetailScreen() {
   const play = usePlayerStore((s) => s.play);
 
   const [attachOpen, setAttachOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
 
   const album = albumQuery.data ?? null;
   const coverUrl = album ? (album.coverUrl ?? album.coverFallbackUrl) : null;
@@ -103,26 +96,6 @@ export function AlbumDetailScreen() {
     });
   };
 
-  const submitEdit = (values: CollectionEditValues) => {
-    if (!albumId) return;
-    if (!values.title) {
-      showError('Title required', 'Give it a name.');
-      return;
-    }
-    void updateAlbum
-      .mutateAsync({
-        id: albumId,
-        body: {
-          title: values.title,
-          description: values.description || null,
-        },
-      })
-      .then(() => setEditOpen(false))
-      .catch((error) => {
-        showError('Could not save', getErrorMessage(error, 'Try again.'));
-      });
-  };
-
   const toggleRelease = () => {
     if (!albumId || !album) return;
     const isReleased = album.status === 'RELEASED';
@@ -149,7 +122,10 @@ export function AlbumDetailScreen() {
         {
           label: 'Edit details',
           variant: 'soft',
-          onPress: () => setEditOpen(true),
+          onPress: () => {
+            if (!albumId) return;
+            guard(() => push(`/albums/${albumId}/edit` as Href));
+          },
         },
         {
           label: isReleased ? 'Unrelease album' : 'Release album',
@@ -345,20 +321,6 @@ export function AlbumDetailScreen() {
             }}
           />
 
-          {album ? (
-            <CollectionEditDialog
-              key={`${album.id}-${album.updatedAt}-${editOpen}`}
-              kind="album"
-              open={editOpen}
-              onOpenChange={setEditOpen}
-              isPending={updateAlbum.isPending}
-              initial={{
-                title: album.title,
-                description: album.description ?? '',
-              }}
-              onSubmit={submitEdit}
-            />
-          ) : null}
         </>
       ) : null}
 

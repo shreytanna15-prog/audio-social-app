@@ -30,6 +30,8 @@ export type CollectionTrackItemDto = {
   durationMs?: number;
   mixUrl?: string | null;
   coverUrl?: string | null;
+  likeCount?: number;
+  isLiked?: boolean;
   artist?: CollectionTrackArtistDto;
 };
 
