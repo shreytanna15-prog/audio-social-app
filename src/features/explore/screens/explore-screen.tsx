@@ -106,8 +106,6 @@ export function ExploreScreen() {
 
         <FeaturedArtistsSection
           title="Top Creators"
-          subtitle="Trendsetters & Sound Designers"
-          actionLabel="Explore All"
           onArtistPress={(artist) => guard(() => push(`/artist/${artist.id}`))}
         />
 
@@ -124,8 +122,6 @@ export function ExploreScreen() {
 
         <TrendingSection
           title="Top Songs"
-          subtitle="Most played & remixed this week"
-          actionLabel="Full Chart"
           onTrackPress={(track) =>
             play({
               id: `explore-top-${track.id}`,
@@ -136,10 +132,7 @@ export function ExploreScreen() {
           }
         />
 
-        <CuratedPlaylistsSection
-          subtitle="Handpicked for creative flow"
-          actionLabel="See All"
-        />
+        <CuratedPlaylistsSection title="Curated playlists" />
       </ScrollView>
     </View>
   );

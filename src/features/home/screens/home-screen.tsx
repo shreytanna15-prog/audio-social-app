@@ -179,7 +179,7 @@ export function HomeScreen() {
       <AppHeader showNotificationBadge={hasUnreadNotifications} />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-5 pb-8 pt-4"
+        contentContainerClassName="gap-5 pb-8 pt-1"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing && (hasContent || showGlobalEmptyState)}
@@ -322,18 +322,8 @@ export function HomeScreen() {
 
             {homePlaylists.length > 0 ? (
               <CuratedPlaylistsSection
-                title="Your Playlists"
-                subtitle="Created and saved by you"
-                actionLabel="Library"
+                title="Your playlists"
                 playlists={homePlaylists}
-                onActionPress={() =>
-                  guard(() =>
-                    push({
-                      pathname: '/(tabs)/library',
-                      params: { from: 'home' },
-                    } as Href),
-                  )
-                }
                 onPlaylistPress={(playlist) =>
                   guard(() =>
                     push({
@@ -362,9 +352,6 @@ export function HomeScreen() {
             {recentlyPlayed.length > 0 ? (
               <RecentlyPlayedSection
                 tracks={recentlyPlayed}
-                onHistoryPress={() =>
-                  guard(() => push('/listening-history' as Href))
-                }
                 onTrackPress={(track) =>
                   playSectionQueue(track, recentlyPlayed)
                 }

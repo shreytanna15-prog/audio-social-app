@@ -10,10 +10,7 @@ import {
 
 type FeaturedArtistsSectionProps = {
   title?: string;
-  subtitle?: string;
-  actionLabel?: string;
   artists?: FeaturedArtist[];
-  onSeeAllPress?: () => void;
   onArtistPress?: (artist: FeaturedArtist) => void;
 };
 
@@ -63,30 +60,15 @@ function ArtistStory({
 
 export function FeaturedArtistsSection({
   title = 'Featured Artists',
-  subtitle,
-  actionLabel = 'See all',
   artists = FEATURED_ARTISTS,
-  onSeeAllPress,
   onArtistPress,
 }: FeaturedArtistsSectionProps) {
   return (
     <View className="gap-4">
-      <View className="flex-row items-start justify-between gap-3 px-4">
-        <View className="min-w-0 flex-1 gap-1">
-          <Text variant="title-lg" className="text-on-surface">
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text variant="body-md" className="text-on-surface-variant">
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-        <Pressable onPress={onSeeAllPress} accessibilityRole="link" hitSlop={8} className="mt-0.5">
-          <Text variant="label-md" className="font-semibold text-primary-tonal">
-            {actionLabel}
-          </Text>
-        </Pressable>
+      <View className="px-4">
+        <Text variant="title-lg" className="text-on-surface">
+          {title}
+        </Text>
       </View>
 
       <ScrollView
