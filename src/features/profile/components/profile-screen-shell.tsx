@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePlayerStore } from '@/features/player';
+import { useAppChromeNav } from '@/shared/lib/use-app-chrome-nav';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import type { Profile, ProfileAlbum, ProfileContentTab, ProfilePlaylist, ProfileTrack } from '../types';
@@ -39,6 +40,7 @@ export function ProfileScreenShell({
 }: ProfileScreenShellProps) {
   const { push } = useRouter();
   const { guard } = useNavigationGuard();
+  const { openNotifications } = useAppChromeNav();
   const insets = useSafeAreaInsets();
 
   const play = usePlayerStore((s) => s.play);
@@ -121,7 +123,7 @@ export function ProfileScreenShell({
           bioExpanded={bioExpanded}
           onToggleBio={() => setBioExpanded((prev) => !prev)}
           onMorePress={() => setOptionsOpen(true)}
-          onNotificationsPress={() => guard(() => push('/notifications' as Href))}
+          onNotificationsPress={openNotifications}
         />
 
         <View className="gap-8" style={{ marginTop: 16 }}>

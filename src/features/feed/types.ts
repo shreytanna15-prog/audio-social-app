@@ -9,7 +9,8 @@ export type FeedVibe = {
   artistAvatarUrl: string;
   coverUrl: string;
   genresLabel: string;
-  bpm: number;
+  /** Omitted when API has no BPM (v1 feed). */
+  bpm?: number;
   verified: boolean;
   likesLabel: string;
   commentsLabel: string;
@@ -21,8 +22,13 @@ export type FeedVibe = {
    * Live UI uses the real loaded duration once available.
    */
   previewDurationSec: number;
-  /** Bundled `require()` audio module (or remote source). */
-  previewAudio: FeedPreviewAudioSource;
+  /** Remote mix `{ uri }` or bundled `require()` module. */
+  previewAudio?: FeedPreviewAudioSource;
   /** Peak bars for the static waveform (0–1), keyed to this preview. */
   waveformPeaks: number[];
+  mixUrl?: string | null;
+  isLiked: boolean;
+  isFollowing: boolean;
+  likeCount: number;
+  commentCount: number;
 };

@@ -3,8 +3,9 @@ import { type ReactNode, useState } from 'react';
 import { Pressable, Share, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Bell } from 'lucide-react-native';
+
 import { Text } from '@/shared/components/ui/text';
-import { BellIcon } from '@/shared/SVGs/bell-icon';
 import { MoreIcon } from '@/shared/SVGs/more-icon';
 import { OnlineDotIcon } from '@/shared/SVGs/online-dot-icon';
 import { ShareIcon } from '@/shared/SVGs/share-icon';
@@ -17,7 +18,7 @@ const AVATAR_SIZE = 108;
 const COVER_HEIGHT = 200;
 const COVER_ACTION = '#E4E1EA';
 const COVER_ACTION_BG = 'rgba(14, 14, 20, 0.7)';
-const BELL_ICON = '#CBC3D7';
+const BELL_COLOR = '#F5F0FA';
 const COVER_ACTION_SIZE = 36;
 const COVER_ACTIONS_GAP = 8;
 const COVER_ACTIONS_INSET = 14;
@@ -65,14 +66,9 @@ export function ProfileHero({
           onPress={onNotificationsPress}
           accessibilityRole="button"
           accessibilityLabel="Notifications"
-          style={{
-            width: 84,
-            height: 44,
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingLeft: 0,
-          }}>
-          <BellIcon color={BELL_ICON} />
+          hitSlop={8}
+          className="mr-1 h-10 w-10 items-center justify-center">
+          <Bell size={22} color={BELL_COLOR} strokeWidth={1.8} />
         </Pressable>
       </View>
 

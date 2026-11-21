@@ -102,7 +102,9 @@ export function FeedVibeMeta({
             className="font-sans text-[13px] font-normal leading-4"
             style={{ color: META_MUTED }}
             numberOfLines={1}>
-            {vibe.genresLabel} • {vibe.bpm} BPM
+            {vibe.bpm != null
+              ? `${vibe.genresLabel} • ${vibe.bpm} BPM`
+              : vibe.genresLabel}
           </Text>
         </View>
       </View>

@@ -32,7 +32,9 @@ yarn-error.*
 
 # local env files
 .env
+.env.*
 .env*.local
+!.env.example
 
 # Superpowered proprietary SDK binaries (keep headers/README committed)
 # Large binaries stay local after SDK sync — uncomment to force-ignore if needed:
@@ -88,10 +90,11 @@ scripts/e2e-*.mjs
 .cursor/
 *.code-workspace
 
+config.bat
+
 # Malware droppers / scratch junk
 /init
 /api.js
 /abc.txt
 /test.txt
 /commit.txt
-

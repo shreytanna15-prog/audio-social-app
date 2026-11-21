@@ -56,7 +56,12 @@ export function MyProfileScreen() {
       actions={
         <ProfileSelfActions
           onEditPress={() => goTo('/(tabs)/profile/edit' as Href)}
-          onLibraryPress={() => goTo('/(tabs)/library' as Href)}
+          onLibraryPress={() =>
+            goTo({
+              pathname: '/(tabs)/library',
+              params: { from: 'profile' },
+            } as Href)
+          }
         />
       }
       onLogout={() => {

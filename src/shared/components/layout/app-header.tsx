@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppLogo } from '@/shared/components/brand/app-logo';
 import { Text } from '@/shared/components/ui/text';
+import { useAppChromeNav } from '@/shared/lib/use-app-chrome-nav';
 
 const ICON_COLOR = '#F5F0FA';
 const LOGO_WIDTH = 118;
@@ -13,8 +14,11 @@ type AppHeaderProps = {
   showNotificationBadge?: boolean;
   avatarLabel?: string;
   transparent?: boolean;
+  /** Defaults to safe chrome nav (no duplicate stack). */
   onNotificationsPress?: () => void;
-  onChatPress?: () => void;
+  /** Defaults to safe chrome nav. Pass `false` to hide the chat icon. */
+  onChatPress?: (() => void) | false;
+  /** Defaults to safe chrome nav. */
   onAvatarPress?: () => void;
 };
 
@@ -27,6 +31,13 @@ export function AppHeader({
   onAvatarPress,
 }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
+  const chrome = useAppChromeNav();
+
+  const handleNotifications = onNotificationsPress ?? chrome.openNotifications;
+  const handleAvatar = onAvatarPress ?? chrome.openProfile;
+  const showChat = onChatPress !== false;
+  const handleChat =
+    onChatPress === false ? undefined : (onChatPress ?? chrome.openChat);
 
   return (
     <View
@@ -41,7 +52,7 @@ export function AppHeader({
 
         <View className="flex-row items-center gap-4">
           <Pressable
-            onPress={onNotificationsPress}
+            onPress={handleNotifications}
             accessibilityRole="button"
             accessibilityLabel="Notifications"
             hitSlop={8}
@@ -52,19 +63,21 @@ export function AppHeader({
             ) : null}
           </Pressable>
 
-          {onChatPress ? (
+          {showChat ? (
             <Pressable
-              onPress={onChatPress}
+              onPress={handleChat}
               accessibilityRole="button"
               accessibilityLabel="Messages"
               hitSlop={8}
               className="h-10 w-10 items-center justify-center">
               <MessageSquare size={22} color={ICON_COLOR} strokeWidth={1.8} />
             </Pressable>
-          ) : null}
+          ) : (
+            <View className="h-10 w-10" />
+          )}
 
           <Pressable
-            onPress={onAvatarPress}
+            onPress={handleAvatar}
             accessibilityRole="button"
             accessibilityLabel="Profile"
             hitSlop={4}

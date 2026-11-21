@@ -23,4 +23,6 @@ export type AppNotification = {
   metaLabel: string;
   unread: boolean;
   trailing?: NotificationTrailing;
+  actorId?: string;
+  trackId?: string;
 };

@@ -19,6 +19,7 @@ export {
   createTrack,
   deleteCover,
   deleteTrack,
+  getTrack,
   listPublishedTracksByUser,
   listTracks,
   publishTrack,

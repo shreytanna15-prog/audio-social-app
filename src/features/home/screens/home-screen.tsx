@@ -68,8 +68,10 @@ export function HomeScreen() {
   const { push } = useRouter();
   const { guard } = useNavigationGuard();
   const playQueue = usePlayerStore((s) => s.playQueue);
-  const { data: me } = useMe();
-  const greetingName = me?.name?.trim() || me?.username;
+  const { data: me, isPending: isMePending, isError: isMeError } = useMe();
+  // Wait for /me so greeting does not flash placeholder → real name.
+  const isGreetingReady = !isMePending || me != null || isMeError;
+  const greetingName = me?.name?.trim() || me?.username || 'there';
   const hasUnreadNotifications = (me?.unreadNotificationCount ?? 0) > 0;
 
   const latestProjectQuery = useLatestProject();
@@ -174,14 +176,7 @@ export function HomeScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <AppHeader
-        showNotificationBadge={hasUnreadNotifications}
-        onNotificationsPress={() =>
-          guard(() => push('/notifications' as Href))
-        }
-        onChatPress={() => guard(() => push('/(tabs)/chat' as Href))}
-        onAvatarPress={() => guard(() => push('/(tabs)/profile' as Href))}
-      />
+      <AppHeader showNotificationBadge={hasUnreadNotifications} />
       <ScrollView
         className="flex-1"
         contentContainerClassName="gap-5 pb-8 pt-4"
@@ -193,7 +188,7 @@ export function HomeScreen() {
           />
         }
         showsVerticalScrollIndicator={false}>
-        <HomeGreetingRow name={greetingName} />
+        {isGreetingReady ? <HomeGreetingRow name={greetingName} /> : null}
 
         {showGlobalEmptyState ? (
           <View className="mx-4 gap-3 rounded-2xl border border-white/5 bg-surface-container px-4 py-8">
@@ -238,7 +233,10 @@ export function HomeScreen() {
                 status="Open"
                 onOpenPress={() =>
                   guard(() =>
-                    push(`/projects/${latestProject.id}` as Href),
+                    push({
+                      pathname: '/projects/[id]',
+                      params: { id: latestProject.id, from: 'home' },
+                    } as Href),
                   )
                 }
               />
@@ -329,10 +327,20 @@ export function HomeScreen() {
                 actionLabel="Library"
                 playlists={homePlaylists}
                 onActionPress={() =>
-                  guard(() => push('/(tabs)/library' as Href))
+                  guard(() =>
+                    push({
+                      pathname: '/(tabs)/library',
+                      params: { from: 'home' },
+                    } as Href),
+                  )
                 }
                 onPlaylistPress={(playlist) =>
-                  guard(() => push(`/playlists/${playlist.id}` as Href))
+                  guard(() =>
+                    push({
+                      pathname: '/playlists/[id]',
+                      params: { id: playlist.id, from: 'home' },
+                    } as Href),
+                  )
                 }
               />
             ) : (

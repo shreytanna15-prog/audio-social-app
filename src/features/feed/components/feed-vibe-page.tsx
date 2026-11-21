@@ -3,6 +3,9 @@ import { Play } from 'lucide-react-native';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, Share, View } from 'react-native';
 
+import { useLikeTrack, useUnlikeTrack } from '@/features/saves';
+import { useFollowUser, useUnfollowUser } from '@/features/users';
+
 import type { FeedVibe } from '../types';
 import { FeedNextVibeTeaser } from './feed-next-vibe-teaser';
 import { FeedOpenTrackCta } from './feed-open-track-cta';
@@ -42,9 +45,19 @@ export function FeedVibePage({
   onOpenFullTrack,
   onArtistPress,
 }: FeedVibePageProps) {
-  const [liked, setLiked] = useState(false);
+  const likeTrack = useLikeTrack();
+  const unlikeTrack = useUnlikeTrack();
+  const followUser = useFollowUser();
+  const unfollowUser = useUnfollowUser();
+
+  const [liked, setLiked] = useState(vibe.isLiked);
   const [saved, setSaved] = useState(false);
-  const [following, setFollowing] = useState(false);
+  const [following, setFollowing] = useState(vibe.isFollowing);
+
+  useEffect(() => {
+    setLiked(vibe.isLiked);
+    setFollowing(vibe.isFollowing);
+  }, [vibe.id, vibe.isLiked, vibe.isFollowing]);
   /**
    * Next Up only after a full play on this visit. Hidden before paint when
    * leaving; shown only on a false→true `completedOnce` edge while active.
@@ -141,7 +154,16 @@ export function FeedVibePage({
               <FeedVibeMeta
                 vibe={vibe}
                 following={following}
-                onFollowPress={() => setFollowing((prev) => !prev)}
+                onFollowPress={() => {
+                  if (!vibe.artistId) return;
+                  if (following) {
+                    setFollowing(false);
+                    unfollowUser.mutate(vibe.artistId);
+                    return;
+                  }
+                  setFollowing(true);
+                  followUser.mutate(vibe.artistId);
+                }}
                 onArtistPress={onArtistPress ? () => onArtistPress(vibe) : undefined}
               />
               <FeedWaveformBars
@@ -161,10 +183,16 @@ export function FeedVibePage({
               sharesLabel={vibe.sharesLabel}
               liked={liked}
               saved={saved}
-              onLikePress={() => setLiked((prev) => !prev)}
-              onCommentPress={() => {
-                /* comments sheet wired when feed API lands */
+              onLikePress={() => {
+                if (liked) {
+                  setLiked(false);
+                  unlikeTrack.mutate(vibe.id);
+                  return;
+                }
+                setLiked(true);
+                likeTrack.mutate(vibe.id);
               }}
+              onCommentPress={() => onOpenFullTrack(vibe)}
               onSharePress={() => {
                 void Share.share({
                   message: `Check out ${vibe.title} by ${vibe.artist} on VibeOGram`,

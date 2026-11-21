@@ -1,13 +1,13 @@
 import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 
+import { AppHeader } from '@/shared/components/layout/app-header';
 import { Text } from '@/shared/components/ui/text';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { useConversations, useMessageRequests } from '../api/hooks';
 import { mapConversationPreview } from '../api/mappers';
 import { ConversationRow } from '../components/conversation-row';
-import { MessageBrandHeader } from '../components/message-brand-header';
 import { MessageSearchBar } from '../components/message-search-bar';
 import { MessageSegmentTabs } from '../components/message-segment-tabs';
 import { useMessageStore } from '../store/message.store';
@@ -46,13 +46,9 @@ export function MessagesScreen() {
     guard(() => push('/(tabs)/chat/requests' as Href));
   };
 
-  const openProfile = () => {
-    guard(() => push('/(tabs)/profile' as Href));
-  };
-
   return (
     <View className="flex-1 bg-background">
-      <MessageBrandHeader onAvatarPress={openProfile} />
+      <AppHeader />
 
       <View className="gap-4 pb-2 pt-3">
         <Text variant="headline-lg-mobile" className="px-4 text-on-surface">

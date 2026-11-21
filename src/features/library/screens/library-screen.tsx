@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
-import { type Href, useFocusEffect, useRouter } from 'expo-router';
+import {
+  type Href,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -67,6 +72,8 @@ import { mapTrackToLibraryItem } from '../utils/map-track-to-library-item';
 export function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { push, replace } = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string | string[] }>();
+  const openedFrom = Array.isArray(from) ? from[0] : from;
   const [activeTab, setActiveTab] = useState<LibraryTab>('audio');
   const [audioFilter, setAudioFilter] = useState<LibraryAudioFilter>('all');
   const [publishTrack, setPublishTrack] = useState<LibraryAudioItem | null>(
@@ -645,7 +652,13 @@ export function LibraryScreen() {
     <View className="flex-1 bg-background">
       <ScreenHeader
         title="Library"
-        onBack={() => replace('/(tabs)/profile' as Href)}
+        onBack={() =>
+          replace(
+            (openedFrom === 'home'
+              ? '/(tabs)'
+              : '/(tabs)/profile') as Href,
+          )
+        }
       />
 
       <LibrarySegmentTabs activeTab={activeTab} onChange={setActiveTab} />

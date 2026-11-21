@@ -33,6 +33,10 @@ export const FEED_VIBES: FeedVibe[] = [
     previewDurationSec: 45,
     previewAudio: FEED_PREVIEW_DEMO,
     waveformPeaks: demoPeaks,
+    isLiked: false,
+    isFollowing: false,
+    likeCount: 14800,
+    commentCount: 382,
   },
   {
     id: 'feed-2',
@@ -54,6 +58,10 @@ export const FEED_VIBES: FeedVibe[] = [
     previewDurationSec: 40,
     previewAudio: FEED_PREVIEW_DEMO,
     waveformPeaks: demoPeaks,
+    isLiked: false,
+    isFollowing: false,
+    likeCount: 9200,
+    commentCount: 214,
   },
   {
     id: 'feed-3',
@@ -75,6 +83,10 @@ export const FEED_VIBES: FeedVibe[] = [
     previewDurationSec: 35,
     previewAudio: FEED_PREVIEW_DEMO,
     waveformPeaks: demoPeaks,
+    isLiked: false,
+    isFollowing: false,
+    likeCount: 6400,
+    commentCount: 156,
   },
   {
     id: 'feed-4',
@@ -96,5 +108,9 @@ export const FEED_VIBES: FeedVibe[] = [
     previewDurationSec: 30,
     previewAudio: FEED_PREVIEW_DEMO,
     waveformPeaks: demoPeaks,
+    isLiked: false,
+    isFollowing: false,
+    likeCount: 4100,
+    commentCount: 98,
   },
 ];

@@ -41,11 +41,13 @@ export function AlbumDetailScreen() {
   const insets = useSafeAreaInsets();
   const { back, canGoBack, replace, push } = useRouter();
   const { guard } = useNavigationGuard();
-  const { id, title: titleParam } = useLocalSearchParams<{
+  const { id, title: titleParam, from } = useLocalSearchParams<{
     id?: string;
     title?: string;
+    from?: string | string[];
   }>();
   const albumId = typeof id === 'string' ? id : undefined;
+  const openedFrom = Array.isArray(from) ? from[0] : from;
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
   const albumQuery = useAlbum(albumId);
@@ -75,6 +77,10 @@ export function AlbumDetailScreen() {
   );
 
   const leave = () => {
+    if (openedFrom === 'home') {
+      guard(() => replace('/(tabs)' as Href));
+      return;
+    }
     if (canGoBack()) {
       guard(() => back());
       return;

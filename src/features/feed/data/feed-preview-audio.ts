@@ -25,7 +25,15 @@ export type FeedPreviewAudioSource = AudioSource;
  * waveform shape tracks the selected preview asset (same asset → same shape).
  */
 export function buildPeaksForAudioSource(source: number, barCount = 48): number[] {
-  let hash = source | 0;
+  return buildPeaksForSeed(String(source | 0), barCount);
+}
+
+/** Deterministic peaks from any string seed (track id / remote mix). */
+export function buildPeaksForSeed(seed: string, barCount = 48): number[] {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
   if (hash === 0) hash = 1;
 
   return Array.from({ length: barCount }, (_, i) => {

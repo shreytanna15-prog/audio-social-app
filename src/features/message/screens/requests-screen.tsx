@@ -3,6 +3,7 @@ import { ArrowLeft, Shield } from 'lucide-react-native';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '@/shared/components/layout/app-header';
 import { Text } from '@/shared/components/ui/text';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
@@ -12,7 +13,6 @@ import {
   useMessageRequests,
 } from '../api/hooks';
 import { mapMessageRequest } from '../api/mappers';
-import { MessageBrandHeader } from '../components/message-brand-header';
 import { RequestCard } from '../components/request-card';
 import { RequestCountBadge } from '../components/request-count-badge';
 import { RequestInfoBanner } from '../components/request-info-banner';
@@ -51,7 +51,7 @@ export function RequestsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <MessageBrandHeader onAvatarPress={() => guard(() => push('/(tabs)/profile' as Href))} />
+      <AppHeader />
 
       <View className="flex-row items-center gap-2 px-3 pb-3 pt-2">
         <Pressable
