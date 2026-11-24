@@ -26,10 +26,12 @@ const EDIT_WAVE_PADDING = 16;
 
 export function QuickRecordEditScreen() {
   const insets = useSafeAreaInsets();
-  // Recorder binding stays on the capture screen underneath the stack.
-  const session = useQuickRecordEditSession();
-  const monitor = useInputMonitor();
   const { showError, confirm, dialog } = useFeedbackDialog();
+  // Recorder binding stays on the capture screen underneath the stack.
+  const session = useQuickRecordEditSession({
+    onError: (title, message) => showError(title, message),
+  });
+  const monitor = useInputMonitor();
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
   const [publishOpen, setPublishOpen] = useState(false);
 

@@ -225,12 +225,9 @@ export function HomeScreen() {
             {latestProject ? (
               <ProjectCard
                 title={latestProject.title}
-                version={`${latestProject.trackCount} tracks`}
+                version={`${latestProject.trackCount} ${latestProject.trackCount === 1 ? 'track' : 'tracks'}`}
                 meta={`Updated ${formatRelativeUpdatedAt(latestProject.updatedAt)}`}
-                format={
-                  latestProject.description?.trim() || 'Your latest project'
-                }
-                status="Open"
+                description={latestProject.description?.trim() || null}
                 onOpenPress={() =>
                   guard(() =>
                     push({

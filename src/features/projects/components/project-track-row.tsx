@@ -16,12 +16,18 @@ function TrackKindIcon({ kind }: { kind: ProjectTrackKind }) {
 
 type ProjectTrackRowProps = {
   track: ProjectTrack;
+  onPress?: (track: ProjectTrack) => void;
   onMorePress?: (track: ProjectTrack) => void;
 };
 
-export function ProjectTrackRow({ track, onMorePress }: ProjectTrackRowProps) {
+export function ProjectTrackRow({ track, onPress, onMorePress }: ProjectTrackRowProps) {
   return (
-    <View className="flex-row items-center gap-3.5 rounded-2xl bg-surface-container px-4 py-3.5">
+    <Pressable
+      onPress={() => onPress?.(track)}
+      disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${track.title}`}
+      className="flex-row items-center gap-3.5 rounded-2xl bg-surface-container px-4 py-3.5 active:bg-surface-container-high">
       <View className="h-12 w-12 items-center justify-center rounded-2xl bg-surface-container-highest">
         <TrackKindIcon kind={track.kind} />
       </View>
@@ -37,14 +43,17 @@ export function ProjectTrackRow({ track, onMorePress }: ProjectTrackRowProps) {
 
       {onMorePress ? (
         <Pressable
-          onPress={() => onMorePress(track)}
+          onPress={(e) => {
+            e.stopPropagation();
+            onMorePress(track);
+          }}
           accessibilityRole="button"
           accessibilityLabel={`More options for ${track.title}`}
           hitSlop={8}
-          className="h-9 w-9 items-center justify-center">
+          className="h-9 w-9 items-center justify-center rounded-full active:bg-white/10">
           <MoreVertical size={18} color="#958EA0" strokeWidth={2} />
         </Pressable>
       ) : null}
-    </View>
+    </Pressable>
   );
 }

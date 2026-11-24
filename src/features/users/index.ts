@@ -24,6 +24,7 @@ export {
   useSearchUsers,
   useUnfollowUser,
 } from './api/hooks';
+export * from '@/features/search';
 export {
   clearSearchRecent,
   followUser,

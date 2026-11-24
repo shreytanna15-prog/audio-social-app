@@ -10,7 +10,7 @@ import {
 import { Platform, Pressable, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import type { SearchRecentItem, SearchRecentKind } from '@/features/users';
+import type { SearchRecentItem, SearchRecentKind } from '@/features/search';
 import { Text } from '@/shared/components/ui/text';
 
 const ICON_REMOVE = '#958EA0';

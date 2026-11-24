@@ -1,3 +1,4 @@
+import { FolderOpen, Pencil, Trash2 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import {
   type Href,
@@ -16,7 +17,11 @@ import {
   useDeletePlaylist,
   usePlaylists,
 } from '@/features/playlists';
-import { useDeleteProject, useProjects } from '@/features/projects/api/hooks';
+import {
+  useDeleteProject,
+  useProjects,
+  useUpdateProject,
+} from '@/features/projects/api/hooks';
 import type { ProjectSummary } from '@/features/projects';
 import { mapProjectSummary } from '@/features/projects/utils/map-project';
 import { usePlayerStore } from '@/features/player';
@@ -38,8 +43,19 @@ import {
   useUnpublishTrack,
 } from '@/features/tracks';
 import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
+import { ActionsDialog } from '@/shared/components/ui/actions-dialog';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
+import { Button } from '@/shared/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
+import { Input } from '@/shared/components/ui/input';
+import { Text } from '@/shared/components/ui/text';
 
 import { LibraryAlbumsPanel } from '../components/library-albums-panel';
 import { LibraryAudioPanel } from '../components/library-audio-panel';
@@ -80,6 +96,13 @@ export function LibraryScreen() {
     null,
   );
   const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
+  const [menuPlaylist, setMenuPlaylist] = useState<LibraryPlaylistItem | null>(null);
+  const [menuAlbum, setMenuAlbum] = useState<LibraryAlbumItem | null>(null);
+  const [menuProject, setMenuProject] = useState<ProjectSummary | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ProjectSummary | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<ProjectSummary | null>(null);
+  const [menuSavedCollection, setMenuSavedCollection] = useState<LibrarySavedCollectionItem | null>(null);
   const listBottomInset = Math.max(insets.bottom, 16) + 28;
   const { show, showError, confirm, dialog } = useFeedbackDialog();
 
@@ -99,6 +122,7 @@ export function LibraryScreen() {
   const deletePlaylist = useDeletePlaylist();
   const deleteAlbum = useDeleteAlbum();
   const deleteProject = useDeleteProject();
+  const updateProject = useUpdateProject();
   const unsavePlaylist = useUnsavePlaylist();
   const unsaveAlbum = useUnsaveAlbum();
   const [createKind, setCreateKind] = useState<'playlist' | 'album' | null>(
@@ -240,131 +264,39 @@ export function LibraryScreen() {
   };
 
   const openPlaylistMenu = (item: LibraryPlaylistItem) => {
-    show({
-      title: item.title,
-      actions: [
-        {
-          label: 'Open',
-          variant: 'soft',
-          onPress: () => openPlaylist(item),
-        },
-        {
-          label: 'Delete playlist…',
-          variant: 'destructive',
-          onPress: () => {
-            confirm(
-              'Delete playlist?',
-              'Tracks stay in your library. Only the playlist is removed.',
-              {
-                confirmLabel: 'Delete',
-                destructive: true,
-                onConfirm: () => {
-                  void deletePlaylist.mutateAsync(item.id).catch((error) => {
-                    showError(
-                      'Could not delete',
-                      getErrorMessage(error, 'Try again.'),
-                    );
-                  });
-                },
-              },
-            );
-          },
-        },
-        { label: 'Cancel', variant: 'ghost' },
-      ],
-    });
+    setMenuPlaylist(item);
   };
 
   const openAlbumMenu = (item: LibraryAlbumItem) => {
-    show({
-      title: item.title,
-      actions: [
-        {
-          label: 'Open',
-          variant: 'soft',
-          onPress: () => openAlbum(item),
-        },
-        {
-          label: 'Delete album…',
-          variant: 'destructive',
-          onPress: () => {
-            confirm(
-              'Delete album?',
-              'Tracks stay published as singles. Only the album is removed.',
-              {
-                confirmLabel: 'Delete',
-                destructive: true,
-                onConfirm: () => {
-                  void deleteAlbum.mutateAsync(item.id).catch((error) => {
-                    showError(
-                      'Could not delete',
-                      getErrorMessage(error, 'Try again.'),
-                    );
-                  });
-                },
-              },
-            );
-          },
-        },
-        { label: 'Cancel', variant: 'ghost' },
-      ],
-    });
+    setMenuAlbum(item);
   };
 
   const openProjectMenu = (project: ProjectSummary) => {
-    show({
-      title: project.title,
-      actions: [
-        {
-          label: 'Open',
-          variant: 'soft',
-          onPress: () => openProject(project),
-        },
-        {
-          label: 'Delete project…',
-          variant: 'destructive',
-          onPress: () => {
-            show({
-              title: 'Delete project?',
-              message:
-                'Keep the tracks in your library, or delete the tracks too.',
-              actions: [
-                { label: 'Cancel', variant: 'ghost' },
-                {
-                  label: 'Keep tracks',
-                  variant: 'soft',
-                  onPress: () => {
-                    void deleteProject
-                      .mutateAsync({ id: project.id, deleteTracks: false })
-                      .catch((error) => {
-                        showError(
-                          'Could not delete',
-                          getErrorMessage(error, 'Try again.'),
-                        );
-                      });
-                  },
-                },
-                {
-                  label: 'Delete tracks too',
-                  variant: 'destructive',
-                  onPress: () => {
-                    void deleteProject
-                      .mutateAsync({ id: project.id, deleteTracks: true })
-                      .catch((error) => {
-                        showError(
-                          'Could not delete',
-                          getErrorMessage(error, 'Try again.'),
-                        );
-                      });
-                  },
-                },
-              ],
-            });
-          },
-        },
-        { label: 'Cancel', variant: 'ghost' },
-      ],
-    });
+    setMenuProject(project);
+  };
+
+  const runDeleteProject = (project: ProjectSummary, deleteTracks: boolean) => {
+    void deleteProject
+      .mutateAsync({ id: project.id, deleteTracks })
+      .then(() => setDeleteProjectTarget(null))
+      .catch((error) => {
+        showError('Could not delete', getErrorMessage(error, 'Try again.'));
+      });
+  };
+
+  const submitRename = () => {
+    if (!renameTarget) return;
+    const trimmed = renameTitle.trim();
+    if (!trimmed) {
+      showError('Title required', 'Give your project a name.');
+      return;
+    }
+    void updateProject
+      .mutateAsync({ id: renameTarget.id, body: { title: trimmed } })
+      .then(() => setRenameTarget(null))
+      .catch((error) => {
+        showError('Could not rename project', getErrorMessage(error, 'Try again.'));
+      });
   };
 
   const openSavedCollection = (item: LibrarySavedCollectionItem) => {
@@ -380,26 +312,7 @@ export function LibraryScreen() {
   };
 
   const openSavedCollectionMenu = (item: LibrarySavedCollectionItem) => {
-    const unsave = item.kind === 'playlist' ? unsavePlaylist : unsaveAlbum;
-
-    show({
-      title: item.title,
-      actions: [
-        { label: 'Cancel', variant: 'ghost' },
-        {
-          label: 'Remove from saved',
-          variant: 'destructive',
-          onPress: () => {
-            void unsave.mutateAsync(item.id).catch((error) => {
-              showError(
-                'Could not remove',
-                getErrorMessage(error, 'Try again.'),
-              );
-            });
-          },
-        },
-      ],
-    });
+    setMenuSavedCollection(item);
   };
 
   const openLikedTrack = (item: LibraryLikedTrackItem) => {
@@ -500,9 +413,22 @@ export function LibraryScreen() {
     if (!menuTrack) return;
     const item = menuTrack;
     closeTrackMenu();
-    void deleteTrack.mutateAsync(item.id).catch((error) => {
-      showError('Could not delete', getErrorMessage(error, 'Try again.'));
-    });
+    confirm(
+      'Delete track?',
+      'This permanently deletes the track from your library and projects.',
+      {
+        confirmLabel: 'Delete',
+        pendingLabel: 'Deleting…',
+        destructive: true,
+        onConfirm: async () => {
+          try {
+            await deleteTrack.mutateAsync(item.id);
+          } catch (error) {
+            showError('Could not delete', getErrorMessage(error, 'Try again.'));
+          }
+        },
+      },
+    );
   };
 
   const canRestoreFromCloud = (item: LibraryAudioItem) =>
@@ -774,6 +700,194 @@ export function LibraryScreen() {
         onDelete={deleteFromMenu}
       />
 
+      {/* Playlist Actions Sheet */}
+      <ActionsDialog
+        open={menuPlaylist != null}
+        onOpenChange={(open) => {
+          if (!open) setMenuPlaylist(null);
+        }}
+        variant="menu"
+        title={menuPlaylist?.title ?? ''}
+        actions={[
+          {
+            key: 'open',
+            label: 'Open playlist',
+            icon: FolderOpen,
+            onPress: () => {
+              if (!menuPlaylist) return;
+              const item = menuPlaylist;
+              setMenuPlaylist(null);
+              openPlaylist(item);
+            },
+          },
+        ]}
+        destructiveAction={{
+          label: 'Delete playlist',
+          icon: Trash2,
+          onPress: () => {
+            if (!menuPlaylist) return;
+            const item = menuPlaylist;
+            setMenuPlaylist(null);
+            confirm(
+              'Delete playlist?',
+              'Tracks stay in your library. Only the playlist is removed.',
+              {
+                confirmLabel: 'Delete',
+                destructive: true,
+                onConfirm: async () => {
+                  try {
+                    await deletePlaylist.mutateAsync(item.id);
+                  } catch (error) {
+                    showError(
+                      'Could not delete',
+                      getErrorMessage(error, 'Try again.'),
+                    );
+                  }
+                },
+              },
+            );
+          },
+        }}
+      />
+
+      {/* Album Actions Sheet */}
+      <ActionsDialog
+        open={menuAlbum != null}
+        onOpenChange={(open) => {
+          if (!open) setMenuAlbum(null);
+        }}
+        variant="menu"
+        title={menuAlbum?.title ?? ''}
+        actions={[
+          {
+            key: 'open',
+            label: 'Open album',
+            icon: FolderOpen,
+            onPress: () => {
+              if (!menuAlbum) return;
+              const item = menuAlbum;
+              setMenuAlbum(null);
+              openAlbum(item);
+            },
+          },
+        ]}
+        destructiveAction={{
+          label: 'Delete album',
+          icon: Trash2,
+          onPress: () => {
+            if (!menuAlbum) return;
+            const item = menuAlbum;
+            setMenuAlbum(null);
+            confirm(
+              'Delete album?',
+              'Tracks stay published as singles. Only the album is removed.',
+              {
+                confirmLabel: 'Delete',
+                destructive: true,
+                onConfirm: async () => {
+                  try {
+                    await deleteAlbum.mutateAsync(item.id);
+                  } catch (error) {
+                    showError(
+                      'Could not delete',
+                      getErrorMessage(error, 'Try again.'),
+                    );
+                  }
+                },
+              },
+            );
+          },
+        }}
+      />
+
+      {/* Project Actions Sheet */}
+      <ActionsDialog
+        open={menuProject != null}
+        onOpenChange={(open) => {
+          if (!open) setMenuProject(null);
+        }}
+        variant="menu"
+        title={menuProject?.title ?? ''}
+        actions={[
+          {
+            key: 'rename',
+            label: 'Rename project',
+            icon: Pencil,
+            onPress: () => {
+              if (!menuProject) return;
+              const project = menuProject;
+              setMenuProject(null);
+              setRenameTitle(project.title);
+              setRenameTarget(project);
+            },
+          },
+        ]}
+        destructiveAction={{
+          label: 'Delete project',
+          icon: Trash2,
+          onPress: () => {
+            if (!menuProject) return;
+            const project = menuProject;
+            setMenuProject(null);
+            setDeleteProjectTarget(project);
+          },
+        }}
+      />
+
+      {/* Delete Project Confirm Dialog */}
+      <ActionsDialog
+        open={deleteProjectTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteProjectTarget(null);
+        }}
+        variant="confirm"
+        title="Delete project?"
+        message="Keep the tracks in your library, or delete the tracks too."
+        busy={deleteProject.isPending}
+        actions={[
+          {
+            key: 'keep',
+            label: deleteProject.isPending ? 'Deleting…' : 'Keep tracks',
+            onPress: () => {
+              if (!deleteProjectTarget) return;
+              runDeleteProject(deleteProjectTarget, false);
+            },
+          },
+          {
+            key: 'delete-tracks',
+            label: 'Delete tracks too',
+            variant: 'destructive',
+            onPress: () => {
+              if (!deleteProjectTarget) return;
+              runDeleteProject(deleteProjectTarget, true);
+            },
+          },
+        ]}
+      />
+
+      {/* Saved Collection Actions Sheet */}
+      <ActionsDialog
+        open={menuSavedCollection != null}
+        onOpenChange={(open) => {
+          if (!open) setMenuSavedCollection(null);
+        }}
+        variant="menu"
+        title={menuSavedCollection?.title ?? ''}
+        destructiveAction={{
+          label: 'Remove from saved',
+          icon: Trash2,
+          onPress: () => {
+            if (!menuSavedCollection) return;
+            const item = menuSavedCollection;
+            const unsave = item.kind === 'playlist' ? unsavePlaylist : unsaveAlbum;
+            setMenuSavedCollection(null);
+            void unsave.mutateAsync(item.id).catch((error) => {
+              showError('Could not remove', getErrorMessage(error, 'Try again.'));
+            });
+          },
+        }}
+      />
+
       <PublishTrackSheet
         open={publishTrack != null}
         onOpenChange={(open) => {
@@ -797,6 +911,44 @@ export function LibraryScreen() {
         isPending={createPlaylist.isPending || createAlbum.isPending}
         onSubmit={submitCreateCollection}
       />
+
+      <Dialog
+        open={renameTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}>
+        <DialogContent dismissOnBackdropPress={!updateProject.isPending}>
+          <DialogHeader>
+            <DialogTitle>Rename project</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameTitle}
+            onChangeText={setRenameTitle}
+            placeholder="Project title"
+            autoFocus
+            maxLength={100}
+            editable={!updateProject.isPending}
+            returnKeyType="done"
+            onSubmitEditing={submitRename}
+          />
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={updateProject.isPending}
+              onPress={() => setRenameTarget(null)}>
+              <Text>Cancel</Text>
+            </Button>
+            <Button
+              variant="soft"
+              size="sm"
+              disabled={updateProject.isPending}
+              onPress={submitRename}>
+              <Text>{updateProject.isPending ? 'Saving…' : 'Save'}</Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {dialog}
     </View>

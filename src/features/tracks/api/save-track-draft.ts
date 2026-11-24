@@ -1,6 +1,11 @@
 import * as Crypto from 'expo-crypto';
+import { deleteAsync } from 'expo-file-system/legacy';
 
 import {
+  PENDING_FOLDER,
+} from '@/features/audio/utils/recording-paths';
+import {
+  loadProjectById,
   saveProject,
   updateProject,
 } from '@/features/audio/data/project-repository';
@@ -108,6 +113,7 @@ export async function saveTrackDraft(
         title: input.title,
         kind: input.kind,
         skipIndex: true,
+        keepSourceFiles: true,
       })
     : await saveProject({
         id: trackId,
@@ -116,6 +122,7 @@ export async function saveTrackDraft(
         title: input.title,
         kind: input.kind,
         skipIndex: true,
+        keepSourceFiles: true,
       });
 
   const layers = toLayerRequests(input.project);
@@ -129,6 +136,19 @@ export async function saveTrackDraft(
     });
   } else {
     await createTrack(body);
+  }
+
+  // Once backend save succeeds, clean up temporary pending files safely
+  for (const layer of input.project.layers) {
+    for (const uri of [layer.stemUri, layer.baselineUri, layer.sourceUri]) {
+      if (uri && (uri.includes(PENDING_FOLDER) || uri.includes('/_processed/'))) {
+        try {
+          await deleteAsync(uri, { idempotent: true });
+        } catch {
+          // ignore
+        }
+      }
+    }
   }
 
   return recording;
