@@ -107,8 +107,16 @@ export function SearchScreen() {
           coverUrl: song.coverUrl ?? '',
           mixUrl: song.mixUrl,
         });
-        record({ kind: 'SONG', targetId: song.id, title: song.title,
-          subtitle: song.artist.name?.trim() || song.artist.username });
+        record({
+          kind: 'SONG',
+          targetId: song.id,
+          title: song.title,
+          subtitle: song.artist.name?.trim() || song.artist.username,
+          ...(song.coverUrl && song.coverUrl.length <= 2048
+            ? { coverUrl: song.coverUrl }
+            : {}),
+          ...(item.query ? { query: item.query } : {}),
+        });
         push('/player');
         return;
       }
@@ -117,7 +125,17 @@ export function SearchScreen() {
         : await getAlbum(item.targetKey);
       const track = collectionToPlayerTrack(collection);
       if (track) play(track);
-      record({ kind: item.kind, targetId: item.targetKey, title: collection.title });
+      const coverUrl = 'coverFallbackUrls' in collection
+        ? (collection.coverUrl ?? collection.coverFallbackUrls[0])
+        : (collection.coverUrl ?? collection.coverFallbackUrl);
+      record({
+        kind: item.kind,
+        targetId: item.targetKey,
+        title: collection.title,
+        ...(item.subtitle ? { subtitle: item.subtitle } : {}),
+        ...(coverUrl && coverUrl.length <= 2048 ? { coverUrl } : {}),
+        ...(item.query ? { query: item.query } : {}),
+      });
       push(item.kind === 'PLAYLIST'
         ? `/playlists/${item.targetKey}` : `/albums/${item.targetKey}`);
     } catch {
