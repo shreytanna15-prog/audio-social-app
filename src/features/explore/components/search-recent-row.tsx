@@ -7,7 +7,8 @@ import {
   User,
   X,
 } from 'lucide-react-native';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import type { SearchRecentItem, SearchRecentKind } from '@/features/users';
 import { Text } from '@/shared/components/ui/text';
@@ -70,7 +71,7 @@ export function SearchRecentRow({
       : 'Untitled');
   const subtitle = item.subtitle?.trim() || defaultSubtitle(item);
 
-  return (
+  const row = (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
@@ -145,5 +146,24 @@ export function SearchRecentRow({
         </Pressable>
       ) : null}
     </Pressable>
+  );
+
+  if (!onRemove || Platform.OS === 'web') return row;
+
+  return (
+    <ReanimatedSwipeable
+      friction={2}
+      rightThreshold={40}
+      renderRightActions={() => (
+        <Pressable
+          onPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${title} from recent`}
+          className="w-24 items-center justify-center bg-surface-container-high">
+          <Text variant="label-md" className="text-on-surface">Remove</Text>
+        </Pressable>
+      )}>
+      {row}
+    </ReanimatedSwipeable>
   );
 }

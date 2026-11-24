@@ -84,6 +84,40 @@ export type SearchAlbumItem = {
   };
 };
 
+export type MusicSearchFirstTrack = {
+  id: string;
+  title: string;
+  mixUrl: string | null;
+  coverUrl: string | null;
+  artistName: string;
+};
+
+type MusicSearchBase = {
+  id: string;
+  title: string;
+  subtitle: string;
+  coverUrl: string | null;
+};
+
+export type MusicSearchItem =
+  | (MusicSearchBase & {
+      type: 'song';
+      mixUrl: string | null;
+      playCount: number;
+      artist: { id: string; username: string; name: string | null };
+    })
+  | (MusicSearchBase & {
+      type: 'playlist';
+      trackCount: number;
+      saveCount: number;
+      firstTrack: MusicSearchFirstTrack | null;
+    })
+  | (MusicSearchBase & {
+      type: 'album';
+      trackCount: number;
+      firstTrack: MusicSearchFirstTrack | null;
+    });
+
 export type SearchRecentKind = 'ARTIST' | 'SONG' | 'ALBUM' | 'PLAYLIST';
 
 export type SearchRecentItem = {

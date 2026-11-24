@@ -39,23 +39,20 @@ export function ExploreSearchBar({
       </Text>
 
       <View className="flex-row items-center gap-1">
-        <Pressable
-          onPress={onWaveformPress}
-          accessibilityRole="button"
-          accessibilityLabel="Audio search"
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center">
-          <AudioLines size={20} color={ICON_ACTIVE} strokeWidth={2} />
-        </Pressable>
-
-        <Pressable
-          onPress={onMicPress}
-          accessibilityRole="button"
-          accessibilityLabel="Voice search"
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center">
-          <Mic size={20} color={ICON_MUTED} strokeWidth={2} />
-        </Pressable>
+        {onWaveformPress ? (
+          <Pressable onPress={onWaveformPress} accessibilityRole="button"
+            accessibilityLabel="Audio search" hitSlop={8}
+            className="h-9 w-9 items-center justify-center">
+            <AudioLines size={20} color={ICON_ACTIVE} strokeWidth={2} />
+          </Pressable>
+        ) : null}
+        {onMicPress ? (
+          <Pressable onPress={onMicPress} accessibilityRole="button"
+            accessibilityLabel="Voice search" hitSlop={8}
+            className="h-9 w-9 items-center justify-center">
+            <Mic size={20} color={ICON_MUTED} strokeWidth={2} />
+          </Pressable>
+        ) : null}
       </View>
     </Pressable>
   );
