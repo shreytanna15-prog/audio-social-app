@@ -13,6 +13,7 @@ import { AppTabBar } from '@/shared/navigation/app-tab-bar';
 export default function AppTabs() {
   return (
     <Tabs
+      backBehavior="history"
       tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{
         headerShown: false,

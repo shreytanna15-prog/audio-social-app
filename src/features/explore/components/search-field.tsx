@@ -73,6 +73,7 @@ export function SearchField({
           autoCapitalize="none"
           multiline={false}
           numberOfLines={1}
+          maxLength={100}
           testID={testID}
           accessibilityLabel={accessibilityLabel}
           className={cn(embeddedInputClassName, 'text-[15px] leading-5')}
@@ -94,23 +95,23 @@ export function SearchField({
           </Pressable>
         ) : null}
 
-        <Pressable
+        {onWaveformPress ? <Pressable
           onPress={onWaveformPress}
           accessibilityRole="button"
           accessibilityLabel="Audio search"
           hitSlop={8}
           className="h-9 w-9 items-center justify-center">
           <AudioLines size={20} color={ICON_ACTIVE} strokeWidth={2} />
-        </Pressable>
+        </Pressable> : null}
 
-        <Pressable
+        {onMicPress ? <Pressable
           onPress={onMicPress}
           accessibilityRole="button"
           accessibilityLabel="Voice search"
           hitSlop={8}
           className="h-9 w-9 items-center justify-center">
           <Mic size={20} color={ICON_MUTED} strokeWidth={2} />
-        </Pressable>
+        </Pressable> : null}
       </View>
     </View>
   );

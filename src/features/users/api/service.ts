@@ -2,6 +2,7 @@ import { apiRequest } from '@/core/api';
 
 import type {
   FollowActionResult,
+  MusicSearchItem,
   FollowListPage,
   PublicUserProfile,
   RecordSearchRecentRequest,
@@ -84,6 +85,14 @@ export async function searchTracks(
   const params = new URLSearchParams({ q, limit: String(limit) });
   return apiRequest<SearchTrackItem[]>({
     path: `/api/tracks/search?${params.toString()}`,
+    method: 'GET',
+  });
+}
+
+export async function searchMusic(q: string, limit = 30): Promise<MusicSearchItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return apiRequest<MusicSearchItem[]>({
+    path: `/api/search/music?${params.toString()}`,
     method: 'GET',
   });
 }

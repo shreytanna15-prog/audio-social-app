@@ -15,6 +15,7 @@ import {
   recordSearchRecent,
   removeSearchRecent,
   searchAlbums,
+  searchMusic,
   searchPlaylists,
   searchTracks,
   searchUsers,
@@ -55,6 +56,17 @@ export function useSearchUsers(q: string, enabled = true) {
     queryKey: [...USERS_SEARCH_QUERY_KEY, trimmed],
     queryFn: () => searchUsers(trimmed),
     enabled: enabled && trimmed.length >= 1,
+  });
+}
+
+export const MUSIC_SEARCH_QUERY_KEY = ['search', 'music'] as const;
+
+export function useSearchMusic(q: string, enabled = true) {
+  const trimmed = q.trim();
+  return useQuery({
+    queryKey: [...MUSIC_SEARCH_QUERY_KEY, trimmed],
+    queryFn: () => searchMusic(trimmed),
+    enabled: enabled && trimmed.length > 0,
   });
 }
 

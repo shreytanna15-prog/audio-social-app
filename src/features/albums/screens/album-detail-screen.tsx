@@ -16,7 +16,7 @@ import {
   mapCollectionTrackToPlayerTrack,
   mapCollectionTrackToRow,
 } from '@/features/library/utils/map-collection-track';
-import { usePlayerStore } from '@/features/player';
+import { MiniPlayerDock, usePlayerStore } from '@/features/player';
 import { useSaveAlbum, useUnsaveAlbum } from '@/features/saves';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
@@ -324,6 +324,7 @@ export function AlbumDetailScreen() {
         </>
       ) : null}
 
+      <MiniPlayerDock />
       {dialog}
     </View>
   );

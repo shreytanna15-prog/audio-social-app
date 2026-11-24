@@ -5,7 +5,7 @@ import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
-import { usePlayerStore } from '@/features/player';
+import { MiniPlayerDock, usePlayerStore } from '@/features/player';
 import {
   useSavePlaylist,
   useUnsavePlaylist,
@@ -310,6 +310,7 @@ export function PlaylistDetailScreen() {
         </>
       ) : null}
 
+      <MiniPlayerDock />
       {dialog}
     </View>
   );
