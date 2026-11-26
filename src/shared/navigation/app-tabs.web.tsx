@@ -25,6 +25,9 @@ export default function AppTabs() {
           <TabTrigger name="home" href={'/' as Href} asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
+          <TabTrigger name="explore" href={'/explore' as Href} asChild>
+            <TabButton>Explore</TabButton>
+          </TabTrigger>
           <TabTrigger name="audio" href={'/audio' as Href} asChild>
             <TabButton>Audio</TabButton>
           </TabTrigger>
@@ -78,6 +81,7 @@ export function CustomTabList(props: TabListProps) {
 const styles = StyleSheet.create({
   tabListContainer: {
     position: 'absolute',
+    bottom: 0,
     width: '100%',
     padding: Spacing.three,
     justifyContent: 'center',
