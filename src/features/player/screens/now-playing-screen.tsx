@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import {
   Check,
   ChevronLeft,
@@ -19,17 +19,31 @@ import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 're
 import { isApiTrackId } from '@/features/saves';
 import { AppHeader } from '@/shared/components/layout/app-header';
 import { Text } from '@/shared/components/ui/text';
+import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { PlayerComments } from '../components/player-comments';
 import { PlayerProgress } from '../components/player-progress';
 import { usePlayerStore } from '../store/player.store';
+import type { RepeatMode } from '../types';
 
 const DEFAULT_DURATION_SEC = 198;
 const ICON = '#CBC3D7';
 const ICON_ACTIVE = '#D0BCFF';
 
+function repeatAccessibilityLabel(mode: RepeatMode): string {
+  switch (mode) {
+    case 'all':
+      return 'Repeat all';
+    case 'one':
+      return 'Repeat one';
+    default:
+      return 'Repeat off';
+  }
+}
+
 export function NowPlayingScreen() {
-  const { back, canGoBack } = useRouter();
+  const { back, canGoBack, push } = useRouter();
+  const { guard } = useNavigationGuard();
   const { width } = useWindowDimensions();
   const coverSize = Math.min(width - 48, 340);
 
@@ -37,13 +51,13 @@ export function NowPlayingScreen() {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progress = usePlayerStore((s) => s.progress);
   const isLiked = usePlayerStore((s) => s.isLiked);
-  const isLooping = usePlayerStore((s) => s.isLooping);
+  const repeatMode = usePlayerStore((s) => s.repeatMode);
   const isUnavailable = usePlayerStore((s) => s.isUnavailable);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const next = usePlayerStore((s) => s.next);
   const previous = usePlayerStore((s) => s.previous);
   const toggleLike = usePlayerStore((s) => s.toggleLike);
-  const toggleLoop = usePlayerStore((s) => s.toggleLoop);
+  const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode);
   const setProgress = usePlayerStore((s) => s.setProgress);
 
   if (!track) {
@@ -65,13 +79,20 @@ export function NowPlayingScreen() {
 
   const durationSec = track.durationSec ?? DEFAULT_DURATION_SEC;
   const artistAvatar = track.artistAvatarUrl ?? track.coverUrl;
-  const playsLabel = track.playsLabel ?? '24.5K plays';
+  const playsLabel = track.playsLabel ?? (track.playCount != null
+    ? `${track.playCount} plays`
+    : null);
   const likeLabel =
     track.likeCount != null
       ? String(track.likeCount)
       : (track.likeCountLabel ?? '0');
-  const commentCount = track.commentCount ?? 382;
+  const commentCount = track.commentCount ?? 0;
   const canLike = isApiTrackId(track.id);
+  const repeatActive = repeatMode !== 'off';
+  const openArtist = () => {
+    if (!track.artistId) return;
+    guard(() => push(`/artist/${track.artistId}` as Href));
+  };
 
   return (
     <View className="flex-1 bg-background">
@@ -136,37 +157,46 @@ export function NowPlayingScreen() {
           </Text>
 
           <View className="flex-row items-center gap-2">
-            <View className="h-8 w-8 overflow-hidden rounded-full bg-surface-container-high">
+            <Pressable
+              onPress={openArtist}
+              disabled={!track.artistId}
+              accessibilityRole={track.artistId ? 'button' : undefined}
+              accessibilityLabel={
+                track.artistId ? `Open ${track.artist} profile` : undefined
+              }
+              className="h-8 w-8 overflow-hidden rounded-full bg-surface-container-high">
               <Image
                 source={{ uri: artistAvatar }}
                 style={{ width: '100%', height: '100%' }}
                 contentFit="cover"
                 recyclingKey={`${track.id}-artist`}
               />
-            </View>
+            </Pressable>
 
             <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
-              <Text variant="title-md" className="shrink text-on-surface" numberOfLines={1}>
-                {track.artist}
-              </Text>
-              {track.verified !== false ? (
+              <Pressable
+                onPress={openArtist}
+                disabled={!track.artistId}
+                className="min-w-0 shrink">
+                <Text
+                  variant="title-md"
+                  className="text-on-surface"
+                  numberOfLines={1}>
+                  {track.artist}
+                </Text>
+              </Pressable>
+              {track.verified ? (
                 <View className="h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-container">
                   <Check size={9} color="#FFFFFF" strokeWidth={3} />
                 </View>
               ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Follow ${track.artist}`}
-                className="ml-1 rounded-full bg-surface-container-high px-2.5 py-1">
-                <Text variant="caption" className="font-semibold text-on-surface">
-                  + Follow
-                </Text>
-              </Pressable>
             </View>
 
-            <Text variant="caption" className="shrink-0 text-on-surface-variant">
-              {playsLabel}
-            </Text>
+            {playsLabel ? (
+              <Text variant="caption" className="shrink-0 text-on-surface-variant">
+                {playsLabel}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -224,17 +254,27 @@ export function NowPlayingScreen() {
 
         <View className="flex-row items-center justify-between px-2">
           <Pressable
-            onPress={toggleLoop}
+            onPress={cycleRepeatMode}
             accessibilityRole="button"
-            accessibilityLabel="Loop"
-            accessibilityState={{ selected: isLooping }}
+            accessibilityLabel={repeatAccessibilityLabel(repeatMode)}
+            accessibilityState={{ selected: repeatActive }}
             hitSlop={8}
-            className="h-11 w-11 items-center justify-center">
+            className="relative h-11 w-11 items-center justify-center">
             <Repeat
               size={22}
-              color={isLooping ? ICON_ACTIVE : ICON}
-              strokeWidth={isLooping ? 2.2 : 1.8}
+              color={repeatActive ? ICON_ACTIVE : ICON}
+              strokeWidth={repeatActive ? 2.2 : 1.8}
             />
+            {repeatMode === 'one' ? (
+              <View className="absolute right-1 top-1 h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-tonal px-0.5">
+                <Text
+                  variant="caption"
+                  className="font-bold text-on-primary"
+                  style={{ fontSize: 9, lineHeight: 11 }}>
+                  1
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
 
           {canLike ? (

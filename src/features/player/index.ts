@@ -4,4 +4,4 @@ export { MiniPlayer } from './components/mini-player';
 export { MiniPlayerDock } from './components/mini-player-dock';
 export { NowPlayingScreen } from './screens/now-playing-screen';
 export { trackHasMixUrl } from './types';
-export type { PlayerTrack, PlayTrackOptions } from './types';
+export type { PlayerTrack, PlayTrackOptions, RepeatMode } from './types';

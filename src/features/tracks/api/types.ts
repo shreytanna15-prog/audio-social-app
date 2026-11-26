@@ -9,6 +9,7 @@ export type {
   CreateTrackRequest,
   CreateTrackResponse,
   PublishedTrackItem,
+  PublicTrackDetail,
   PublishTrackRequest,
   SignedUpload,
   TrackDetail,

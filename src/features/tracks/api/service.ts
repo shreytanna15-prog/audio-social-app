@@ -10,6 +10,7 @@ import type {
   CreateTrackRequest,
   CreateTrackResponse,
   PublishedTrackItem,
+  PublicTrackDetail,
   PublishTrackRequest,
   TrackDetail,
   TrackListItem,
@@ -54,6 +55,13 @@ export async function listTracks(
 export async function getTrack(id: string): Promise<TrackDetail> {
   return apiRequest<TrackDetail>({
     path: `/api/tracks/${id}`,
+    method: 'GET',
+  });
+}
+
+export async function getPublicTrack(id: string): Promise<PublicTrackDetail> {
+  return apiRequest<PublicTrackDetail>({
+    path: `/api/tracks/${id}/public`,
     method: 'GET',
   });
 }

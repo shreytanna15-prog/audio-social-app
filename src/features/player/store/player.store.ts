@@ -9,7 +9,10 @@ import {
 import { likeTrack, unlikeTrack } from '@/features/saves/api/service';
 import type { LikedTrackItemDto } from '@/features/saves/api/types';
 import { isApiTrackId } from '@/features/saves/utils/is-api-track-id';
-import { recordPlay } from '@/features/tracks/api/service';
+import {
+  getPublicTrack,
+  recordPlay,
+} from '@/features/tracks/api/service';
 
 import {
   listenLoadAndPlay,
@@ -24,6 +27,7 @@ import {
   trackHasMixUrl,
   type PlayerTrack,
   type PlayTrackOptions,
+  type RepeatMode,
 } from '../types';
 
 function listenMetadata(track: PlayerTrack) {
@@ -34,8 +38,24 @@ function listenMetadata(track: PlayerTrack) {
   };
 }
 
-const playedThisSession = new Set<string>();
+function formatPlaysLabel(playCount: number): string {
+  if (playCount >= 1_000_000) {
+    return `${(playCount / 1_000_000).toFixed(1).replace(/\.0$/, '')}M plays`;
+  }
+  if (playCount >= 1_000) {
+    return `${(playCount / 1_000).toFixed(1).replace(/\.0$/, '')}k plays`;
+  }
+  return `${playCount} plays`;
+}
+
+/** Meaningful-play gate: once per track until seek/restart from near 0. */
+let playRecordedForCurrentTrack = false;
 const PREV_RESTART_PROGRESS = 0.04;
+const REPEAT_CYCLE: RepeatMode[] = ['off', 'all', 'one'];
+
+function isLoopOne(mode: RepeatMode): boolean {
+  return mode === 'one';
+}
 
 function isTrackLikedInCache(trackId: string): boolean {
   if (!isApiTrackId(trackId)) return false;
@@ -67,10 +87,70 @@ function findPlayableIndex(
 ): number | null {
   if (queue.length === 0) return null;
   for (let step = 1; step <= queue.length; step += 1) {
-    const index = (fromIndex + direction * step + queue.length * step) % queue.length;
+    const index =
+      (fromIndex + direction * step + queue.length * step) % queue.length;
     if (trackHasMixUrl(queue[index])) return index;
   }
   return null;
+}
+
+function refreshPublicMetadata(trackId: string) {
+  if (!isApiTrackId(trackId)) return;
+
+  void getPublicTrack(trackId)
+    .then((detail) => {
+      const state = usePlayerStore.getState();
+      if (state.track?.id !== trackId) return;
+
+      const artistName =
+        detail.artist.name?.trim() || detail.artist.username;
+      const nextTrack: PlayerTrack = {
+        ...state.track,
+        title: detail.title,
+        artist: artistName,
+        coverUrl: detail.coverUrl ?? state.track.coverUrl,
+        mixUrl: detail.mixUrl ?? state.track.mixUrl,
+        artistId: detail.artist.id,
+        artistAvatarUrl: detail.artist.avatarUrl ?? undefined,
+        likeCount: detail.likeCount,
+        playCount: detail.playCount,
+        playsLabel: formatPlaysLabel(detail.playCount),
+        commentCount: detail.commentCount,
+        durationSec: detail.durationSec,
+        isLiked: detail.isLiked,
+        isFollowingArtist: detail.artist.isFollowing,
+      };
+
+      usePlayerStore.setState({
+        track: nextTrack,
+        isLiked: detail.isLiked,
+        isUnavailable: !trackHasMixUrl(nextTrack),
+      });
+    })
+    .catch(() => undefined);
+}
+
+function maybeRecordMeaningfulPlay(
+  trackId: string,
+  currentTimeSec: number,
+  durationSec: number,
+) {
+  if (playRecordedForCurrentTrack || !isApiTrackId(trackId)) return;
+  if (durationSec <= 0) return;
+
+  const threshold = durationSec >= 30 ? 30 : durationSec * 0.5;
+  if (currentTimeSec < threshold) return;
+
+  playRecordedForCurrentTrack = true;
+  void recordPlay(trackId)
+    .then(() => {
+      void queryClient.invalidateQueries({
+        queryKey: RECENTLY_PLAYED_QUERY_KEY,
+      });
+    })
+    .catch(() => {
+      playRecordedForCurrentTrack = false;
+    });
 }
 
 type PlayerState = {
@@ -80,7 +160,7 @@ type PlayerState = {
   isPlaying: boolean;
   progress: number;
   isLiked: boolean;
-  isLooping: boolean;
+  repeatMode: RepeatMode;
   /** True when current track has no streamable mix. */
   isUnavailable: boolean;
   play: (track: PlayerTrack, options?: PlayTrackOptions) => boolean;
@@ -90,7 +170,7 @@ type PlayerState = {
   next: (options?: { fromEnded?: boolean }) => void;
   previous: () => void;
   toggleLike: () => void;
-  toggleLoop: () => void;
+  cycleRepeatMode: () => void;
   setProgress: (progress: number) => void;
   clear: () => void;
 };
@@ -101,7 +181,10 @@ function applyTrack(
   queue: PlayerTrack[],
   queueIndex: number,
 ): boolean {
+  playRecordedForCurrentTrack = false;
   const hasAudio = trackHasMixUrl(track);
+  const repeatMode = usePlayerStore.getState().repeatMode;
+
   set({
     track,
     queue,
@@ -114,28 +197,16 @@ function applyTrack(
 
   if (!hasAudio) {
     listenStop();
+    refreshPublicMetadata(track.id);
     return false;
   }
 
   void listenLoadAndPlay(
     track.mixUrl!.trim(),
-    usePlayerStore.getState().isLooping,
+    isLoopOne(repeatMode),
     listenMetadata(track),
   );
-
-  if (isApiTrackId(track.id) && !playedThisSession.has(track.id)) {
-    playedThisSession.add(track.id);
-    void recordPlay(track.id)
-      .then(() => {
-        void queryClient.invalidateQueries({
-          queryKey: RECENTLY_PLAYED_QUERY_KEY,
-        });
-      })
-      .catch(() => {
-        playedThisSession.delete(track.id);
-      });
-  }
-
+  refreshPublicMetadata(track.id);
   return true;
 }
 
@@ -146,7 +217,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isPlaying: false,
   progress: 0,
   isLiked: false,
-  isLooping: false,
+  repeatMode: 'off',
   isUnavailable: false,
 
   play: (track, options) => {
@@ -157,8 +228,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         return false;
       }
       if (get().isPlaying) return true;
-      const loop = get().isLooping;
-      listenResume(loop);
+      listenResume(isLoopOne(get().repeatMode));
       set({ isPlaying: true, isUnavailable: false });
       return true;
     }
@@ -188,7 +258,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   togglePlay: () => {
-    const { track, isPlaying, isLooping } = get();
+    const { track, isPlaying, repeatMode } = get();
     if (!track) return;
     if (!trackHasMixUrl(track)) {
       set({ isUnavailable: true, isPlaying: false });
@@ -199,15 +269,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ isPlaying: false });
       return;
     }
-    listenResume(isLooping);
+    listenResume(isLoopOne(repeatMode));
     set({ isPlaying: true, isUnavailable: false });
   },
 
   next: (options) => {
-    const { queue, queueIndex, isLooping, track, progress } = get();
+    const { queue, queueIndex, repeatMode, track, progress } = get();
     const fromEnded = options?.fromEnded === true;
+    const loopOne = isLoopOne(repeatMode);
 
-    if (isLooping && fromEnded && track && trackHasMixUrl(track)) {
+    // Native loop handles REPEAT_ONE; if onEnded still fires, restart same track.
+    if (loopOne && fromEnded && track && trackHasMixUrl(track)) {
+      playRecordedForCurrentTrack = false;
       void listenLoadAndPlay(track.mixUrl!.trim(), true, listenMetadata(track));
       set({ progress: 0, isPlaying: true, isUnavailable: false });
       return;
@@ -230,17 +303,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    // Single-track queue: restart when skip/next with audio available.
+    const wouldWrap =
+      nextIndex <= queueIndex ||
+      (queue.length === 1 && nextIndex === queueIndex);
+
+    if (fromEnded && repeatMode === 'off' && wouldWrap) {
+      listenPause();
+      set({ isPlaying: false, progress: Math.min(1, progress) });
+      return;
+    }
+
     if (queue.length === 1 && nextIndex === queueIndex) {
       const only = queue[0];
-      if (trackHasMixUrl(only)) {
-        void listenLoadAndPlay(
-          only.mixUrl!.trim(),
-          isLooping,
-          listenMetadata(only),
-        );
-        set({ progress: 0, isPlaying: true, isUnavailable: false });
-      }
+      if (!trackHasMixUrl(only)) return;
+      playRecordedForCurrentTrack = false;
+      void listenLoadAndPlay(
+        only.mixUrl!.trim(),
+        loopOne,
+        listenMetadata(only),
+      );
+      set({ progress: 0, isPlaying: true, isUnavailable: false });
       return;
     }
 
@@ -248,13 +330,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   previous: () => {
-    const { queue, queueIndex, progress, track, isLooping } = get();
+    const { queue, queueIndex, progress, track, repeatMode } = get();
 
     if (progress > PREV_RESTART_PROGRESS && track && trackHasMixUrl(track)) {
+      playRecordedForCurrentTrack = false;
       listenSeekRatio(0, track.durationSec ?? 0);
       set({ progress: 0 });
       if (!get().isPlaying) {
-        listenResume(isLooping);
+        listenResume(isLoopOne(repeatMode));
         set({ isPlaying: true });
       }
       return;
@@ -265,6 +348,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const prevIndex = findPlayableIndex(queue, queueIndex, -1);
     if (prevIndex == null) {
       if (track && trackHasMixUrl(track)) {
+        playRecordedForCurrentTrack = false;
         listenSeekRatio(0, track.durationSec ?? 0);
         set({ progress: 0 });
       }
@@ -279,33 +363,53 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (!track || !isApiTrackId(track.id)) return;
 
     const nextLiked = !isLiked;
-    set({ isLiked: nextLiked });
+    const nextCount = Math.max(
+      0,
+      (track.likeCount ?? 0) + (nextLiked ? 1 : -1),
+    );
+    set({
+      isLiked: nextLiked,
+      track: { ...track, isLiked: nextLiked, likeCount: nextCount },
+    });
 
     const request = nextLiked ? likeTrack : unlikeTrack;
     void request(track.id)
       .then(() => queryClient.invalidateQueries({ queryKey: LIKES_QUERY_KEY }))
       .catch(() => {
         if (get().track?.id === track.id) {
-          set({ isLiked: !nextLiked });
+          set({
+            isLiked: !nextLiked,
+            track: {
+              ...get().track!,
+              isLiked: !nextLiked,
+              likeCount: track.likeCount,
+            },
+          });
         }
       });
   },
 
-  toggleLoop: () => {
-    const next = !get().isLooping;
-    listenSetLoop(next);
-    set({ isLooping: next });
+  cycleRepeatMode: () => {
+    const current = get().repeatMode;
+    const index = REPEAT_CYCLE.indexOf(current);
+    const next = REPEAT_CYCLE[(index + 1) % REPEAT_CYCLE.length] ?? 'off';
+    listenSetLoop(isLoopOne(next));
+    set({ repeatMode: next });
   },
 
   setProgress: (progress) => {
     const clamped = Math.min(1, Math.max(0, progress));
     const { track } = get();
+    if (clamped <= PREV_RESTART_PROGRESS) {
+      playRecordedForCurrentTrack = false;
+    }
     listenSeekRatio(clamped, track?.durationSec ?? 0);
     set({ progress: clamped });
   },
 
   clear: () => {
     listenStop();
+    playRecordedForCurrentTrack = false;
     set({
       track: null,
       queue: [],
@@ -313,25 +417,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isPlaying: false,
       progress: 0,
       isLiked: false,
-      isLooping: false,
+      repeatMode: 'off',
       isUnavailable: false,
     });
   },
 }));
 
 setListenAudioCallbacks({
-  onStatus: ({ progress, duration }) => {
+  onStatus: ({ progress, currentTime, duration }) => {
     const state = usePlayerStore.getState();
     if (!state.track || state.isUnavailable) return;
 
     const patch: Partial<PlayerState> = { progress };
+    let durationSec = state.track.durationSec ?? 0;
     if (duration > 0) {
-      const durationSec = Math.max(1, Math.round(duration));
+      durationSec = Math.max(1, Math.round(duration));
       if (state.track.durationSec !== durationSec) {
         patch.track = { ...state.track, durationSec };
       }
     }
+
     usePlayerStore.setState(patch);
+    maybeRecordMeaningfulPlay(state.track.id, currentTime, durationSec);
   },
   onEnded: () => {
     usePlayerStore.getState().next({ fromEnded: true });

@@ -151,6 +151,32 @@ export type PublishedTrackItem = {
   createdAt: string;
 };
 
+/** GET /api/tracks/:id/public — social listen detail for the global player. */
+export type PublicTrackDetail = {
+  id: string;
+  title: string;
+  durationMs: number;
+  durationSec: number;
+  mixUrl: string | null;
+  coverUrl: string | null;
+  caption: string | null;
+  description: string | null;
+  genres: string[];
+  keywords: string[];
+  publishedAt: string | null;
+  playCount: number;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
+  artist: {
+    id: string;
+    username: string;
+    name: string | null;
+    avatarUrl: string | null;
+    isFollowing: boolean;
+  };
+};
+
 export type UnpublishTrackResponse = {
   id: string;
   status: TrackStatus;
