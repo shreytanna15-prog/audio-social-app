@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { queryClient } from '@/core/api';
 import { useAuthStore } from '@/features/auth';
+import { useFlushPreferredGenres } from '@/features/onboarding/hooks/use-flush-preferred-genres';
 import { AnimatedSplashOverlay } from '@/shared/components/animated-icon';
 import { NAV_THEME } from '@/shared/lib/theme';
 
@@ -16,6 +17,7 @@ export default function RootLayout() {
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasCompletedOnboarding = useAuthStore((s) => s.hasCompletedOnboarding);
+  useFlushPreferredGenres();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

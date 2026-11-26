@@ -3,7 +3,8 @@ export type ExploreFilter = {
   label: string;
 };
 
-export const EXPLORE_FILTERS: ExploreFilter[] = [
+/** Design reference only — not exported or wired to Explore. */
+const _EXPLORE_FILTERS: ExploreFilter[] = [
   { id: 'all', label: 'All' },
   { id: 'trending-stems', label: 'Trending Stems' },
   { id: 'vocalists', label: 'Vocalists' },

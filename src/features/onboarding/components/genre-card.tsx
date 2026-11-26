@@ -25,7 +25,7 @@ export function GenreCard({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       className={cn(
-        'relative h-36 overflow-hidden rounded-md p-4',
+        'relative h-28 overflow-hidden rounded-md p-4',
         selected
           ? 'bg-surface-container-high'
           : 'bg-surface-container-low active:bg-surface-container',
@@ -54,19 +54,18 @@ export function GenreCard({
           }}>
           <Music size={18} color={selected ? accent : '#958EA0'} strokeWidth={2} />
         </View>
-        <View className={cn('rounded-full px-2.5 py-1', selected ? 'bg-white/10' : 'bg-surface-container')}>
-          <Text variant="mono-metric" style={{ color: selected ? accent : '#958EA0' }}>
-            {genre.tag}
-          </Text>
-        </View>
+        {selected ? (
+          <View className="rounded-full bg-white/10 px-2.5 py-1">
+            <Text variant="mono-metric" style={{ color: accent }}>
+              On
+            </Text>
+          </View>
+        ) : null}
       </View>
 
-      <View className="relative mt-auto pr-12">
-        <Text variant="title-md" className="text-on-surface">
+      <View className="relative mt-auto pr-10">
+        <Text variant="title-md" className="text-on-surface" numberOfLines={2}>
           {genre.name}
-        </Text>
-        <Text variant="caption" className="text-on-surface-variant">
-          {genre.tagline}
         </Text>
       </View>
 
@@ -89,7 +88,6 @@ export function GenreCard({
           />
         ))}
       </View>
-
     </Pressable>
   );
 }

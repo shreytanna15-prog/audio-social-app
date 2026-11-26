@@ -1,23 +1,32 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/shared/components/ui/button';
+import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
+import type { TrackGenreId } from '@/features/tracks/constants/track-genres';
 
-import { GENRES, type Genre } from '../data/genres';
+import { GENRES, MAX_PREFERRED_GENRES, type Genre } from '../data/genres';
 import { GenreCard } from '../components/genre-card';
 import { OnboardingBackButton } from '../components/onboarding-back-button';
 import { OnboardingBackground } from '../components/onboarding-background';
 import { OnboardingProgress } from '../components/onboarding-progress';
+import { useOnboardingTasteStore } from '../store/onboarding-taste.store';
 
 export function GenrePickerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { guard } = useNavigationGuard();
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const { showError, dialog } = useFeedbackDialog();
+  const setPreferredGenres = useOnboardingTasteStore((s) => s.setPreferredGenres);
+  const clearPreferredGenres = useOnboardingTasteStore((s) => s.clearPreferredGenres);
+  const draft = useOnboardingTasteStore((s) => s.preferredGenres);
+  const [selected, setSelected] = useState<Set<TrackGenreId>>(
+    () => new Set(draft),
+  );
   const count = selected.size;
 
   const toggle = (genre: Genre) => {
@@ -25,14 +34,32 @@ export function GenrePickerScreen() {
       const next = new Set(current);
       if (next.has(genre.id)) {
         next.delete(genre.id);
-      } else {
-        next.add(genre.id);
+        return next;
       }
+      if (next.size >= MAX_PREFERRED_GENRES) {
+        showError(
+          'Genre limit',
+          `Pick up to ${MAX_PREFERRED_GENRES} genres for now.`,
+        );
+        return current;
+      }
+      next.add(genre.id);
       return next;
     });
   };
 
   const goToEntry = () => guard(() => router.push('/entry'));
+
+  const onContinue = () => {
+    if (count < 1 || count > MAX_PREFERRED_GENRES) return;
+    setPreferredGenres([...selected]);
+    goToEntry();
+  };
+
+  const onSkip = () => {
+    clearPreferredGenres();
+    goToEntry();
+  };
 
   return (
     <View
@@ -46,7 +73,7 @@ export function GenrePickerScreen() {
         <View className="flex-row items-center justify-between py-1">
           <OnboardingBackButton onPress={() => guard(() => router.back())} />
           <OnboardingProgress step={2} />
-          <Pressable onPress={goToEntry} hitSlop={8} className="px-2 py-1">
+          <Pressable onPress={onSkip} hitSlop={8} className="px-2 py-1">
             <Text variant="label-md" className="text-on-surface-variant active:text-primary-tonal">
               Skip
             </Text>
@@ -58,8 +85,14 @@ export function GenrePickerScreen() {
             What kind of music do you love?
           </Text>
           <Text variant="body-md" className="leading-relaxed text-on-surface-variant">
-            Pick a few genres to personalize your experience.
+            Pick up to {MAX_PREFERRED_GENRES} genres to personalize your Home
+            recommendations.
           </Text>
+          {count > 0 ? (
+            <Text variant="label-md" className="text-primary-tonal">
+              {count}/{MAX_PREFERRED_GENRES} selected
+            </Text>
+          ) : null}
         </View>
 
         <View className="flex-row flex-wrap" style={{ gap: 12 }}>
@@ -79,7 +112,7 @@ export function GenrePickerScreen() {
             variant="tonal"
             size="lg"
             disabled={count === 0}
-            onPress={goToEntry}
+            onPress={onContinue}
             className="h-14 w-full rounded-md">
             <Text>Continue</Text>
           </Button>
@@ -87,12 +120,13 @@ export function GenrePickerScreen() {
           <Button
             variant="secondary"
             size="default"
-            onPress={goToEntry}
+            onPress={onSkip}
             className="h-12 w-full rounded-md">
             <Text>Skip for now</Text>
           </Button>
         </View>
       </ScrollView>
+      {dialog}
     </View>
   );
 }

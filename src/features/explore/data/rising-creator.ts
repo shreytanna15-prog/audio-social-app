@@ -10,7 +10,8 @@ export type RisingCreator = {
   verified?: boolean;
 };
 
-export const RISING_CREATOR: RisingCreator = {
+/** Design reference only — not exported or wired to Explore. */
+const _RISING_CREATOR: RisingCreator = {
   id: 'aura-mist',
   name: 'Aura Mist',
   role: 'Electronic Vocalist & Synth Artist',

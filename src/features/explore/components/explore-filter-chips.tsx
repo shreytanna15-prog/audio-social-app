@@ -2,18 +2,18 @@ import { Pressable, ScrollView } from 'react-native';
 
 import { Text } from '@/shared/components/ui/text';
 
-import { EXPLORE_FILTERS, type ExploreFilter } from '../data/explore-filters';
+import type { ExploreFilter } from '../data/explore-filters';
 
 type ChipOption = Pick<ExploreFilter, 'id' | 'label'>;
 
 type ExploreFilterChipsProps = {
-  filters?: ChipOption[];
+  filters: ChipOption[];
   selectedId: string;
   onSelect: (id: string) => void;
 };
 
 export function ExploreFilterChips({
-  filters = EXPLORE_FILTERS,
+  filters,
   selectedId,
   onSelect,
 }: ExploreFilterChipsProps) {

@@ -10,17 +10,20 @@ import { SonicStage } from '@/shared/SVGs/sonic-stage';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
 
 import { OnboardingBackground } from '../components/onboarding-background';
-import { OnboardingIcon } from '../components/onboarding-icon';
 import { OnboardingProgress } from '../components/onboarding-progress';
+import { useOnboardingTasteStore } from '../store/onboarding-taste.store';
 
 export function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
+  const clearPreferredGenres = useOnboardingTasteStore((s) => s.clearPreferredGenres);
   const { guard } = useNavigationGuard();
 
   const goToLogin = () => {
+    // Existing users skip genre onboarding — don't carry a stale draft into PATCH.
+    clearPreferredGenres();
     guard(() => completeOnboarding());
     guard(() => router.push('/login'));
   };

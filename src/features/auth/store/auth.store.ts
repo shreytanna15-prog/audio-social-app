@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 
 import { clearTokens, hasStoredSession, onAuthInvalidated } from '@/core/api';
+import { useOnboardingTasteStore } from '@/features/onboarding/store/onboarding-taste.store';
 
 import { resetClientSession } from '../utils/reset-client-session';
 
@@ -80,6 +81,7 @@ export const useAuthStore = create<AuthState>()(
         if (SKIP_AUTH) return;
         await clearTokens();
         resetClientSession();
+        useOnboardingTasteStore.getState().clearPreferredGenres();
         set({ isAuthenticated: false, signupDraft: {} });
       },
 

@@ -190,9 +190,11 @@ export function ProfileHero({
             <Text className="font-sans text-[15px] font-medium leading-5.5 text-primary-container">
               {profile.username}
             </Text>
-            <Text className="font-sans text-[15px] font-normal leading-5.5 text-slate">
-              {` • ${genresLabel}`}
-            </Text>
+            {genresLabel ? (
+              <Text className="font-sans text-[15px] font-normal leading-5.5 text-slate">
+                {` • ${genresLabel}`}
+              </Text>
+            ) : null}
           </Text>
 
           <View className="gap-1">

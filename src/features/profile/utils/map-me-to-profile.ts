@@ -1,8 +1,3 @@
-import {
-  TRACK_GENRE_LABELS,
-  type TrackGenreId,
-} from '@/features/tracks/constants/track-genres';
-
 import type { MeDto } from '../api/types';
 import type { Profile } from '../types';
 import { formatCountLabel } from './format-count-label';
@@ -17,9 +12,8 @@ export function mapMeToProfile(me: MeDto): Profile {
     name: displayName,
     username: `@${me.username}`,
     verified: false,
-    genres: (me.preferredGenres ?? []).map(
-      (id) => TRACK_GENRE_LABELS[id as TrackGenreId] ?? id,
-    ),
+    // preferredGenres are private taste signals for Made for you — not profile chrome.
+    genres: [],
     bio: me.bio ?? '',
     avatarUrl: me.avatarUrl,
     coverUrl: me.coverUrl,

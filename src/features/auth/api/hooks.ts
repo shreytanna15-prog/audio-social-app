@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 
 import { setTokens } from '@/core/api';
 import { useAuthStore } from '@/features/auth/store/auth.store';
+import { flushPreferredGenresDraft } from '@/features/onboarding/utils/flush-preferred-genres';
 
 import { resetClientSession } from '../utils/reset-client-session';
 import {
@@ -31,6 +32,7 @@ export function useLogin() {
       resetClientSession();
       completeOnboarding();
       setAuthenticated(true);
+      await flushPreferredGenresDraft().catch(() => undefined);
     },
   });
 }
@@ -48,6 +50,7 @@ export function useSignup() {
       clearSignupDraft();
       completeOnboarding();
       setAuthenticated(true);
+      await flushPreferredGenresDraft().catch(() => undefined);
     },
   });
 }

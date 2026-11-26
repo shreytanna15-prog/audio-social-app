@@ -8,7 +8,8 @@ export type FeaturedSong = {
   badgeLabel: string;
 };
 
-export const FEATURED_SONG: FeaturedSong = {
+/** Design reference only — not exported or wired to Explore. */
+const _FEATURED_SONG: FeaturedSong = {
   id: 'featured-neo-soul',
   title: 'Neo-Soul & R&B',
   artist: 'Warm Grooves Collective',

@@ -217,24 +217,26 @@ export function ArtistHero({
             ) : null}
           </View>
 
-          <Text className="font-sans text-[15px] leading-[22px]">
-            <Text className="font-sans text-[15px] font-medium leading-[22px] text-primary-container">
+          <Text className="font-sans text-[15px] leading-5.5">
+            <Text className="font-sans text-[15px] font-medium leading-5.5 text-primary-container">
               {profile.username}
             </Text>
-            <Text className="font-sans text-[15px] font-normal leading-[22px] text-slate">
-              {` • ${genresLabel}`}
-            </Text>
+            {genresLabel ? (
+              <Text className="font-sans text-[15px] font-normal leading-5.5 text-slate">
+                {` • ${genresLabel}`}
+              </Text>
+            ) : null}
           </Text>
 
           {/* Figma: 3 full lines clamped · More only when bio overflows */}
           <View className="gap-1">
             <Text
-              className="font-sans text-[15px] font-normal leading-[22px] text-slate"
+              className="font-sans text-[15px] font-normal leading-5.5 text-slate"
               numberOfLines={bioExpanded ? undefined : 3}>
               {profile.bio}
             </Text>
             <Text
-              className="absolute left-0 right-0 opacity-0 font-sans text-[15px] font-normal leading-[22px]"
+              className="absolute left-0 right-0 opacity-0 font-sans text-[15px] font-normal leading-5.5"
               pointerEvents="none"
               onTextLayout={(e) => {
                 setBioOverflows((prev) => {
@@ -246,7 +248,7 @@ export function ArtistHero({
             </Text>
             {bioOverflows || bioExpanded ? (
               <Text
-                className="font-sans text-[15px] font-semibold leading-[22px] text-primary-container"
+                className="font-sans text-[15px] font-semibold leading-5.5 text-primary-container"
                 onPress={onToggleBio}
                 accessibilityRole="link">
                 {bioExpanded ? 'Less' : 'More'}

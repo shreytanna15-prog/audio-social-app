@@ -76,11 +76,11 @@ export function RisingCreatorCard({
           <Pressable
             onPress={onSamplePress}
             accessibilityRole="button"
-            accessibilityLabel={`Sample debut by ${creator.name}`}
+            accessibilityLabel={`Play latest by ${creator.name}`}
             className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-full border border-white/10 bg-surface-container-high px-3">
             <Play size={15} color="#E4E1EA" strokeWidth={2.2} fill="#E4E1EA" />
             <Text variant="label-md" className="font-semibold text-on-surface">
-              Sample Debut
+              Play latest
             </Text>
           </Pressable>
         ) : null}
