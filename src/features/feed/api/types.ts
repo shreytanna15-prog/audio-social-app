@@ -6,22 +6,58 @@ export type FeedArtistDto = {
   isFollowing: boolean;
 };
 
-export type FeedItemDto = {
+export type FeedClipItemDto = {
   id: string;
+  trackId: string;
   title: string;
   caption: string | null;
-  durationMs: number;
-  coverUrl: string | null;
+  clipAudioUrl: string;
   mixUrl: string | null;
+  coverUrl: string | null;
+  durationMs: number;
+  trackDurationMs: number;
+  startMs: number;
+  endMs: number;
   likeCount: number;
   commentCount: number;
   isLiked: boolean;
-  publishedAt: string | null;
-  genres: string[];
   artist: FeedArtistDto;
 };
 
+/** @deprecated Use FeedClipItemDto — feed list is clip-based. */
+export type FeedItemDto = FeedClipItemDto;
+
 export type FeedPageDto = {
-  items: FeedItemDto[];
+  items: FeedClipItemDto[];
   nextCursor: string | null;
+};
+
+export type FeedClipUploadUrlDto = {
+  path: string;
+  signedUrl: string;
+  token?: string;
+};
+
+export type CreateFeedClipRequest = {
+  trackId: string;
+  clipAudioPath: string;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+};
+
+export type FeedClipSummaryDto = {
+  id: string;
+  trackId: string;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  likeCount: number;
+  clipAudioPath: string;
+};
+
+export type FeedClipLikeResultDto = {
+  id: string;
+  isLiked: boolean;
+  likeCount: number;
 };

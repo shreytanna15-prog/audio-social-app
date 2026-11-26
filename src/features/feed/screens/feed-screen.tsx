@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  Dimensions,
   FlatList,
+  Platform,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -60,6 +62,14 @@ export function FeedScreen() {
   const [pageHeight, setPageHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const activeIndexRef = useRef(0);
+  // Native: wait for real layout so paging snaps 1:1 (wrong height → blank gaps).
+  // Web TabSlot can leave onLayout at 0; fall back so the list still mounts.
+  const viewportHeight =
+    pageHeight > 0
+      ? pageHeight
+      : Platform.OS === 'web'
+        ? Math.round(Dimensions.get('window').height * 0.75)
+        : 0;
 
   const activeVibe = vibes[activeIndex] ?? vibes[0];
   const hasPreview = Boolean(activeVibe?.previewAudio);
@@ -67,7 +77,6 @@ export function FeedScreen() {
     source: activeVibe?.previewAudio ?? FEED_PREVIEW_DEMO,
     vibeId: activeVibe?.id ?? 'empty',
     enabled:
-      pageHeight > 0 &&
       appActive &&
       screenFocused &&
       hasPreview &&
@@ -92,7 +101,7 @@ export function FeedScreen() {
   const openFullTrack = (vibe: FeedVibe) => {
     playback.pause();
     play({
-      id: vibe.id,
+      id: vibe.trackId,
       title: vibe.title,
       artist: vibe.artist,
       coverUrl: vibe.coverUrl,
@@ -100,7 +109,7 @@ export function FeedScreen() {
       artistAvatarUrl: vibe.artistAvatarUrl,
       likeCountLabel: vibe.likesLabel,
       likeCount: vibe.likeCount,
-      isLiked: vibe.isLiked,
+      isLiked: false,
       commentCount: vibe.commentCount,
       durationSec: vibe.durationSec,
       verified: vibe.verified,
@@ -150,10 +159,10 @@ export function FeedScreen() {
     return (
       <View className="flex-1 items-center justify-center gap-2 bg-background px-6">
         <Text variant="title-md" className="text-on-surface">
-          No vibes yet
+          No clips yet
         </Text>
         <Text variant="body-md" className="text-center text-on-surface-variant">
-          Published tracks will show up here.
+          Artists can add 10–30s Feed Clips from published tracks.
         </Text>
       </View>
     );
@@ -166,7 +175,11 @@ export function FeedScreen() {
         const next = Math.round(e.nativeEvent.layout.height);
         setPageHeight((prev) => (prev === next ? prev : next));
       }}>
-      {pageHeight > 0 ? (
+      {viewportHeight <= 0 ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color={ACCENT} />
+        </View>
+      ) : (
         <FlatList
           data={vibes}
           keyExtractor={(item) => item.id}
@@ -176,8 +189,8 @@ export function FeedScreen() {
           bounces={false}
           overScrollMode="never"
           getItemLayout={(_, index) => ({
-            length: pageHeight,
-            offset: pageHeight * index,
+            length: viewportHeight,
+            offset: viewportHeight * index,
             index,
           })}
           onViewableItemsChanged={onViewableItemsChanged}
@@ -185,7 +198,9 @@ export function FeedScreen() {
           onEndReached={onEndReached}
           onEndReachedThreshold={0.6}
           onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const index = Math.round(e.nativeEvent.contentOffset.y / pageHeight);
+            const index = Math.round(
+              e.nativeEvent.contentOffset.y / viewportHeight,
+            );
             if (index === activeIndexRef.current) return;
             activeIndexRef.current = index;
             setActiveIndex(index);
@@ -197,7 +212,7 @@ export function FeedScreen() {
                 vibe={item}
                 nextVibe={vibes[index + 1] ?? null}
                 isActive={isActiveCard}
-                pageHeight={pageHeight}
+                pageHeight={viewportHeight}
                 playback={
                   isActiveCard
                     ? playback
@@ -207,16 +222,20 @@ export function FeedScreen() {
                         previewDurationSec: item.previewDurationSec,
                         completedOnce: false,
                         userPaused: false,
+                        isFinished: false,
                       }
                 }
-                onTogglePlayPause={isActiveCard ? playback.togglePlayPause : undefined}
+                onTogglePlayPause={
+                  isActiveCard ? playback.togglePlayPause : undefined
+                }
+                onReplay={isActiveCard ? playback.replay : undefined}
                 onOpenFullTrack={openFullTrack}
                 onArtistPress={openArtist}
               />
             );
           }}
         />
-      ) : null}
+      )}
     </View>
   );
 }

@@ -15,6 +15,7 @@ const demoPeaks = buildPeaksForAudioSource(FEED_PREVIEW_DEMO);
 export const FEED_VIBES: FeedVibe[] = [
   {
     id: 'feed-1',
+    trackId: 'track-1',
     title: 'Luminous Drift',
     subtitle: '(Vocal Stem Flip)',
     artist: 'Aura Mist',
@@ -40,6 +41,7 @@ export const FEED_VIBES: FeedVibe[] = [
   },
   {
     id: 'feed-2',
+    trackId: 'track-2',
     title: 'Astral Echoes',
     subtitle: undefined,
     artist: 'Elara',
@@ -65,6 +67,7 @@ export const FEED_VIBES: FeedVibe[] = [
   },
   {
     id: 'feed-3',
+    trackId: 'track-3',
     title: 'Midnight Pulse',
     subtitle: '(Stem Mix)',
     artist: 'Nova Blake',
@@ -90,6 +93,7 @@ export const FEED_VIBES: FeedVibe[] = [
   },
   {
     id: 'feed-4',
+    trackId: 'track-4',
     title: 'Velvet Rain',
     subtitle: 'Acoustic Take',
     artist: 'Luna Reed',

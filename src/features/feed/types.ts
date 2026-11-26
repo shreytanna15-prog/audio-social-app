@@ -2,6 +2,7 @@ import type { FeedPreviewAudioSource } from './data/feed-preview-audio';
 
 export type FeedVibe = {
   id: string;
+  trackId: string;
   title: string;
   subtitle?: string;
   artist: string;
@@ -22,7 +23,7 @@ export type FeedVibe = {
    * Live UI uses the real loaded duration once available.
    */
   previewDurationSec: number;
-  /** Remote mix `{ uri }` or bundled `require()` module. */
+  /** Remote clip `{ uri }` or bundled `require()` module. */
   previewAudio?: FeedPreviewAudioSource;
   /** Peak bars for the static waveform (0–1), keyed to this preview. */
   waveformPeaks: number[];

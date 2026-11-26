@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const END_EPSILON = 0.35;
 const ADVANCE_SEC = 1.0;
+const MAX_LOOPS = 3;
 
 type Options = {
   source: AudioSource;
@@ -18,8 +19,8 @@ type Options = {
 };
 
 /**
- * Feed preview transport. Keep this lean — complex replace/seek races were
- * preventing autoplay on device.
+ * Feed preview transport. Autoplay on swipe; loops up to 3 times then
+ * pauses for an explicit replay tap. Isolated from the global player.
  */
 export function useFeedPreviewPlayback({
   source,
@@ -34,6 +35,8 @@ export function useFeedPreviewPlayback({
   const status = useAudioPlayerStatus(player);
 
   const [userPaused, setUserPaused] = useState(false);
+  const [loopCount, setLoopCount] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
   const [visitToken, setVisitToken] = useState(0);
   const [completedVisitToken, setCompletedVisitToken] = useState<number | null>(
     null,
@@ -42,8 +45,8 @@ export function useFeedPreviewPlayback({
   const prevVibeRef = useRef(vibeId);
   const hasAdvancedRef = useRef(false);
   const prevTimeRef = useRef(0);
+  const loopCountRef = useRef(0);
 
-  // Audio session once
   useEffect(() => {
     void (async () => {
       try {
@@ -60,58 +63,87 @@ export function useFeedPreviewPlayback({
   }, []);
 
   useEffect(() => {
-    player.loop = true;
+    player.loop = false;
     player.volume = 1;
     player.muted = false;
   }, [player]);
 
-  // Card change → new visit, jump to start
   useEffect(() => {
     if (prevVibeRef.current === vibeId) return;
     prevVibeRef.current = vibeId;
     hasAdvancedRef.current = false;
     prevTimeRef.current = 0;
+    loopCountRef.current = 0;
+    setLoopCount(0);
+    setIsFinished(false);
     setVisitToken((t) => t + 1);
     setCompletedVisitToken(null);
     setUserPaused(false);
     void player.seekTo(0).catch(() => undefined);
   }, [vibeId, player]);
 
-  // Autoplays / pause — same pattern as recording-card (seek then play, no await)
   useEffect(() => {
-    if (!enabled || userPaused) {
+    if (!enabled || userPaused || isFinished) {
       player.pause();
       return;
     }
 
-    player.loop = true;
+    player.loop = false;
     player.volume = 1;
     player.muted = false;
     player.play();
-  }, [enabled, userPaused, vibeId, player, status.isLoaded, status.duration]);
+  }, [
+    enabled,
+    userPaused,
+    isFinished,
+    vibeId,
+    player,
+    status.isLoaded,
+    status.duration,
+  ]);
 
   const pause = useCallback(() => {
     setUserPaused(true);
     player.pause();
   }, [player]);
 
+  const replay = useCallback(() => {
+    loopCountRef.current = 0;
+    setLoopCount(0);
+    setIsFinished(false);
+    setUserPaused(false);
+    hasAdvancedRef.current = false;
+    prevTimeRef.current = 0;
+    void player.seekTo(0).then(() => {
+      player.loop = false;
+      player.volume = 1;
+      player.muted = false;
+      player.play();
+    });
+  }, [player]);
+
   const togglePlayPause = useCallback(() => {
+    if (isFinished) {
+      replay();
+      return;
+    }
+
     setUserPaused((prev) => {
       const next = !prev;
       if (next) {
         player.pause();
       } else {
-        player.loop = true;
+        player.loop = false;
         player.volume = 1;
         player.muted = false;
         player.play();
       }
       return next;
     });
-  }, [player]);
+  }, [isFinished, player, replay]);
 
   useEffect(() => {
-    if (!enabled || userPaused) return;
+    if (!enabled || userPaused || isFinished) return;
 
     const duration =
       status.duration > 0 ? status.duration : Math.max(0, fallbackDurationSec);
@@ -130,18 +162,35 @@ export function useFeedPreviewPlayback({
       current < END_EPSILON;
 
     if (hasAdvancedRef.current && (finishedEvent || loopedNearEnd)) {
+      const nextLoop = loopCountRef.current + 1;
+      loopCountRef.current = nextLoop;
+      setLoopCount(nextLoop);
       setCompletedVisitToken(visitToken);
+      hasAdvancedRef.current = false;
+      prevTimeRef.current = 0;
+
+      if (nextLoop >= MAX_LOOPS) {
+        setIsFinished(true);
+        player.pause();
+      } else {
+        void player.seekTo(0).then(() => {
+          player.play();
+        });
+      }
+      return;
     }
 
     prevTimeRef.current = current;
   }, [
     enabled,
     userPaused,
+    isFinished,
     visitToken,
     status.currentTime,
     status.didJustFinish,
     status.duration,
     fallbackDurationSec,
+    player,
   ]);
 
   const previewDurationSec =
@@ -158,9 +207,12 @@ export function useFeedPreviewPlayback({
     currentSec,
     previewDurationSec,
     completedOnce: completedVisitToken === visitToken,
-    isPlaying: enabled && !userPaused && status.playing,
+    isPlaying: enabled && !userPaused && !isFinished && status.playing,
     userPaused,
+    isFinished,
+    loopCount,
     pause,
+    replay,
     togglePlayPause,
     isLoaded: status.isLoaded,
   };

@@ -54,6 +54,7 @@ export type TrackListItem = {
   mixUrl: string | null;
   coverUrl: string | null;
   playCount: number;
+  feedClipId?: string | null;
   publishedAt: string | null;
   createdAt: string;
 };

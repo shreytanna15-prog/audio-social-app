@@ -1,9 +1,4 @@
-import {
-  TRACK_GENRE_LABELS,
-  type TrackGenreId,
-} from '@/features/tracks/constants/track-genres';
-
-import type { FeedItemDto } from '../api/types';
+import type { FeedClipItemDto } from '../api/types';
 import { buildPeaksForSeed } from '../data/feed-preview-audio';
 import type { FeedVibe } from '../types';
 
@@ -20,33 +15,32 @@ function artistDisplayName(artist: {
   return artist.name?.trim() || artist.username;
 }
 
-function genresLabel(genres: string[]): string {
-  if (genres.length === 0) return 'Track';
-  return genres
-    .map((id) => TRACK_GENRE_LABELS[id as TrackGenreId] ?? id)
-    .join(' / ');
-}
-
-export function mapFeedItemToVibe(dto: FeedItemDto): FeedVibe {
-  const durationSec = Math.max(0, Math.round(dto.durationMs / 1000));
+export function mapFeedItemToVibe(dto: FeedClipItemDto): FeedVibe {
+  const clipDurationSec = Math.max(1, Math.round(dto.durationMs / 1000));
+  const trackDurationSec = Math.max(
+    clipDurationSec,
+    Math.round(dto.trackDurationMs / 1000),
+  );
+  const clipUrl = dto.clipAudioUrl?.trim() || null;
   const mixUrl = dto.mixUrl?.trim() || null;
 
   return {
     id: dto.id,
+    trackId: dto.trackId,
     title: dto.title,
     subtitle: dto.caption?.trim() || undefined,
     artist: artistDisplayName(dto.artist),
     artistId: dto.artist.id,
     artistAvatarUrl: dto.artist.avatarUrl ?? '',
     coverUrl: dto.coverUrl ?? '',
-    genresLabel: genresLabel(dto.genres),
+    genresLabel: 'Clip',
     verified: false,
     likesLabel: formatCount(dto.likeCount),
     commentsLabel: formatCount(dto.commentCount),
     sharesLabel: 'Share',
-    durationSec,
-    previewDurationSec: durationSec,
-    previewAudio: mixUrl ? { uri: mixUrl } : undefined,
+    durationSec: trackDurationSec,
+    previewDurationSec: clipDurationSec,
+    previewAudio: clipUrl ? { uri: clipUrl } : undefined,
     waveformPeaks: buildPeaksForSeed(dto.id),
     mixUrl,
     isLiked: dto.isLiked,
