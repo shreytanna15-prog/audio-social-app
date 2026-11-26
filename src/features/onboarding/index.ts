@@ -1,6 +1,7 @@
 export { WelcomeScreen } from './screens/welcome-screen';
 export { GenrePickerScreen } from './screens/genre-picker-screen';
 export { AuthEntryScreen } from './screens/auth-entry-screen';
+export { GenreCard } from './components/genre-card';
 export { GENRES, MAX_PREFERRED_GENRES } from './data/genres';
 export type { Genre, GenreAccent } from './data/genres';
 export { useOnboardingTasteStore } from './store/onboarding-taste.store';

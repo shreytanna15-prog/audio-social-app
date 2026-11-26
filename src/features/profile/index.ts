@@ -4,8 +4,8 @@ export { PublicProfileScreen } from './screens/public-profile-screen';
 export { getProfileFixture, getMyProfileFixture, AURA_MIST_PROFILE } from './data/profile.fixtures';
 export { useMyProfile } from './hooks/use-my-profile';
 export { usePublicProfile } from './hooks/use-public-profile';
-export { ME_QUERY_KEY, useMe } from './api/hooks';
-export type { MeDto } from './api/types';
+export { ME_QUERY_KEY, useMe, usePatchMe } from './api/hooks';
+export type { MeDto, PatchProfileBody } from './api/types';
 export type {
   Profile,
   ProfileAlbum,
