@@ -4,17 +4,24 @@ import {
   Check,
   ChevronLeft,
   Heart,
-  MessageCircle,
-  MoreHorizontal,
   Pause,
   Play,
   Repeat,
   Share2,
   SkipBack,
   SkipForward,
-  Video,
 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useRef } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { isApiTrackId } from '@/features/saves';
 import { AppHeader } from '@/shared/components/layout/app-header';
@@ -46,6 +53,14 @@ export function NowPlayingScreen() {
   const { guard } = useNavigationGuard();
   const { width } = useWindowDimensions();
   const coverSize = Math.min(width - 48, 340);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const scrollComposerIntoView = () => {
+    // Wait for keyboard/layout resize before scrolling the input into view.
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 80);
+  };
 
   const track = usePlayerStore((s) => s.track);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -82,10 +97,6 @@ export function NowPlayingScreen() {
   const playsLabel = track.playsLabel ?? (track.playCount != null
     ? `${track.playCount} plays`
     : null);
-  const likeLabel =
-    track.likeCount != null
-      ? String(track.likeCount)
-      : (track.likeCountLabel ?? '0');
   const commentCount = track.commentCount ?? 0;
   const canLike = isApiTrackId(track.id);
   const repeatActive = repeatMode !== 'off';
@@ -94,7 +105,13 @@ export function NowPlayingScreen() {
     guard(() => push(`/artist/${track.artistId}` as Href));
   };
 
-  return (
+  const onShare = () => {
+    void Share.share({
+      message: `Listen to ${track.title} by ${track.artist} on VibeOGram`,
+    });
+  };
+
+  const body = (
     <View className="flex-1 bg-background">
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <Image
@@ -120,19 +137,22 @@ export function NowPlayingScreen() {
         </Pressable>
 
         <Pressable
+          onPress={onShare}
           accessibilityRole="button"
-          accessibilityLabel="More options"
+          accessibilityLabel="Share"
           hitSlop={8}
           className="h-11 w-11 items-center justify-center">
-          <MoreHorizontal size={22} color={ICON} strokeWidth={1.8} />
+          <Share2 size={20} color={ICON} strokeWidth={1.8} />
         </Pressable>
       </View>
 
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
-        contentContainerClassName="gap-5 px-6 pb-10"
+        contentContainerClassName="gap-5 px-6 pb-16"
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive">
         <View className="items-center pt-1">
           <View
             className="overflow-hidden rounded-3xl bg-surface-container"
@@ -214,45 +234,7 @@ export function NowPlayingScreen() {
           />
         )}
 
-        <View className="flex-row items-center justify-center gap-10 py-1">
-          <Pressable
-            onPress={() => previous()}
-            accessibilityRole="button"
-            accessibilityLabel="Previous"
-            hitSlop={10}
-            className="h-12 w-12 items-center justify-center">
-            <SkipBack size={28} color="#E4E1EA" strokeWidth={1.8} fill="#E4E1EA" />
-          </Pressable>
-
-          <Pressable
-            onPress={togglePlay}
-            disabled={isUnavailable}
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-            accessibilityState={{ disabled: isUnavailable }}
-            className="h-18 w-18 items-center justify-center rounded-full bg-primary-tonal"
-            style={{
-              boxShadow: '0 10px 28px rgba(208, 188, 255, 0.35)',
-              opacity: isUnavailable ? 0.45 : 1,
-            }}>
-            {isPlaying ? (
-              <Pause size={30} color="#3C0091" strokeWidth={2.4} fill="#3C0091" />
-            ) : (
-              <Play size={30} color="#3C0091" strokeWidth={2.4} fill="#3C0091" />
-            )}
-          </Pressable>
-
-          <Pressable
-            onPress={() => next()}
-            accessibilityRole="button"
-            accessibilityLabel="Next"
-            hitSlop={10}
-            className="h-12 w-12 items-center justify-center">
-            <SkipForward size={28} color="#E4E1EA" strokeWidth={1.8} fill="#E4E1EA" />
-          </Pressable>
-        </View>
-
-        <View className="flex-row items-center justify-between px-2">
+        <View className="flex-row items-center justify-between px-1 py-1">
           <Pressable
             onPress={cycleRepeatMode}
             accessibilityRole="button"
@@ -261,12 +243,12 @@ export function NowPlayingScreen() {
             hitSlop={8}
             className="relative h-11 w-11 items-center justify-center">
             <Repeat
-              size={22}
+              size={20}
               color={repeatActive ? ICON_ACTIVE : ICON}
               strokeWidth={repeatActive ? 2.2 : 1.8}
             />
             {repeatMode === 'one' ? (
-              <View className="absolute right-1 top-1 h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-tonal px-0.5">
+              <View className="absolute -right-0.5 top-0.5 h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-tonal px-0.5">
                 <Text
                   variant="caption"
                   className="font-bold text-on-primary"
@@ -277,55 +259,95 @@ export function NowPlayingScreen() {
             ) : null}
           </Pressable>
 
+          <View className="flex-row items-center gap-6">
+            <Pressable
+              onPress={() => previous()}
+              accessibilityRole="button"
+              accessibilityLabel="Previous"
+              hitSlop={10}
+              className="h-11 w-11 items-center justify-center">
+              <SkipBack size={26} color="#E4E1EA" strokeWidth={2.4} />
+            </Pressable>
+
+            <Pressable
+              onPress={togglePlay}
+              disabled={isUnavailable}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+              accessibilityState={{ disabled: isUnavailable }}
+              className="h-14 w-14 items-center justify-center rounded-full"
+              style={{
+                opacity: isUnavailable ? 0.45 : 1,
+                experimental_backgroundImage:
+                  'linear-gradient(to right, #A078FF 0%, #D0BCFF 50%, #D0BCFF 100%)',
+              }}>
+              {isPlaying ? (
+                <Pause
+                  size={26}
+                  color="#131319"
+                  strokeWidth={0}
+                  fill="#131319"
+                />
+              ) : (
+                <Play
+                  size={26}
+                  color="#131319"
+                  strokeWidth={0}
+                  fill="#131319"
+                  style={{ marginLeft: 2 }}
+                />
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={() => next()}
+              accessibilityRole="button"
+              accessibilityLabel="Next"
+              hitSlop={10}
+              className="h-11 w-11 items-center justify-center">
+              <SkipForward size={26} color="#E4E1EA" strokeWidth={2.4} />
+            </Pressable>
+          </View>
+
           {canLike ? (
             <Pressable
               onPress={toggleLike}
               accessibilityRole="button"
               accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
               hitSlop={8}
-              className="h-11 flex-row items-center gap-1.5 px-1">
+              className="h-11 w-11 items-center justify-center">
               <Heart
-                size={22}
+                size={20}
                 color={isLiked ? '#FFB0CD' : ICON}
                 strokeWidth={1.8}
                 fill={isLiked ? '#FFB0CD' : 'transparent'}
               />
-              <Text variant="label-md" className="text-on-surface-variant">
-                {likeLabel}
-              </Text>
             </Pressable>
-          ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Comments"
-            hitSlop={8}
-            className="h-11 w-11 items-center justify-center">
-            <MessageCircle size={22} color={ICON} strokeWidth={1.8} />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share"
-            hitSlop={8}
-            className="h-11 w-11 items-center justify-center">
-            <Share2 size={22} color={ICON} strokeWidth={1.8} />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Video"
-            hitSlop={8}
-            className="relative h-11 w-11 items-center justify-center">
-            <View className="h-9 w-9 items-center justify-center rounded-full border border-white/10">
-              <Video size={18} color={ICON} strokeWidth={1.8} />
-            </View>
-            <View className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#EF4444]" />
-          </Pressable>
+          ) : (
+            <View className="h-11 w-11" />
+          )}
         </View>
 
-        <PlayerComments trackId={track.id} commentCount={commentCount} />
+        <PlayerComments
+          trackId={track.id}
+          commentCount={commentCount}
+          onComposerFocus={scrollComposerIntoView}
+        />
       </ScrollView>
     </View>
   );
+
+  if (Platform.OS === 'ios') {
+    return (
+      <KeyboardAvoidingView
+        className="flex-1 bg-background"
+        behavior="padding"
+        keyboardVerticalOffset={0}>
+        {body}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Android uses softwareKeyboardLayoutMode "resize".
+  return body;
 }

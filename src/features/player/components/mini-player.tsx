@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Heart, Pause, Play, SkipForward } from 'lucide-react-native';
+import { Heart, Pause, Play, SkipForward, X } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
 import { isApiTrackId } from '@/features/saves';
@@ -18,6 +18,7 @@ export function MiniPlayer() {
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const next = usePlayerStore((s) => s.next);
   const toggleLike = usePlayerStore((s) => s.toggleLike);
+  const clear = usePlayerStore((s) => s.clear);
 
   if (!track) return null;
 
@@ -64,45 +65,83 @@ export function MiniPlayer() {
           </Text>
         </View>
 
-        <View className="flex-row items-center gap-1">
+        <View className="flex-row items-center">
           {canLike ? (
             <Pressable
-              onPress={toggleLike}
+              onPress={(e) => {
+                e.stopPropagation();
+                toggleLike();
+              }}
               accessibilityRole="button"
               accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-              hitSlop={8}
-              className="h-9 w-9 items-center justify-center">
+              hitSlop={6}
+              className="mr-2 h-10 w-10 items-center justify-center">
               <Heart
-                size={18}
+                size={20}
                 color={isLiked ? '#FFB0CD' : '#CBC3D7'}
-                strokeWidth={1.8}
+                strokeWidth={2}
                 fill={isLiked ? '#FFB0CD' : 'transparent'}
               />
             </Pressable>
           ) : null}
 
-          <Pressable
-            onPress={togglePlay}
-            disabled={isUnavailable}
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-            accessibilityState={{ disabled: isUnavailable }}
-            className="h-10 w-10 items-center justify-center rounded-full bg-primary-tonal"
-            style={{ opacity: isUnavailable ? 0.45 : 1 }}>
-            {isPlaying ? (
-              <Pause size={18} color="#3C0091" strokeWidth={2.4} fill="#3C0091" />
-            ) : (
-              <Play size={18} color="#3C0091" strokeWidth={2.4} fill="#3C0091" />
-            )}
-          </Pressable>
+          <View className="flex-row items-center gap-3">
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                togglePlay();
+              }}
+              disabled={isUnavailable}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+              accessibilityState={{ disabled: isUnavailable }}
+              className="h-11 w-11 items-center justify-center rounded-full"
+              style={{
+                opacity: isUnavailable ? 0.45 : 1,
+                experimental_backgroundImage:
+                  'linear-gradient(to right, #A078FF 0%, #D0BCFF 50%, #D0BCFF 100%)',
+              }}>
+              {isPlaying ? (
+                <Pause
+                  size={22}
+                  color="#131319"
+                  strokeWidth={0}
+                  fill="#131319"
+                />
+              ) : (
+                <Play
+                  size={22}
+                  color="#131319"
+                  strokeWidth={0}
+                  fill="#131319"
+                  style={{ marginLeft: 2 }}
+                />
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                next();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Next track"
+              hitSlop={6}
+              className="h-10 w-10 items-center justify-center">
+              <SkipForward size={22} color="#E4E1EA" strokeWidth={2.4} />
+            </Pressable>
+          </View>
 
           <Pressable
-            onPress={() => next()}
+            onPress={(e) => {
+              e.stopPropagation();
+              clear();
+            }}
             accessibilityRole="button"
-            accessibilityLabel="Next track"
-            hitSlop={8}
-            className="h-9 w-9 items-center justify-center">
-            <SkipForward size={18} color="#CBC3D7" strokeWidth={1.8} />
+            accessibilityLabel="Close player"
+            hitSlop={6}
+            className="ml-1 h-10 w-10 items-center justify-center">
+            <X size={20} color="#CBC3D7" strokeWidth={2.2} />
           </Pressable>
         </View>
       </View>

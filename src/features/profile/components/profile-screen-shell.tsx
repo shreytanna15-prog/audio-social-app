@@ -25,6 +25,8 @@ type ProfileScreenShellProps = {
   actions: ReactNode;
   /** Extra row in the more sheet (e.g. Log out on my profile). */
   onLogout?: () => void;
+  /** My profile — opens Settings hub. */
+  onSettingsPress?: () => void;
   /** Public-only sheets can be omitted by not rendering message sheet from parent. */
   messageSheet?: ReactNode;
   onFollowersPress?: () => void;
@@ -38,6 +40,7 @@ export function ProfileScreenShell({
   profile,
   actions,
   onLogout,
+  onSettingsPress,
   messageSheet,
   onFollowersPress,
   onFollowingPress,
@@ -128,6 +131,7 @@ export function ProfileScreenShell({
           onToggleBio={() => setBioExpanded((prev) => !prev)}
           onMorePress={() => setOptionsOpen(true)}
           onNotificationsPress={openNotifications}
+          onSettingsPress={onSettingsPress}
         />
 
         <View className="gap-8" style={{ marginTop: 16 }}>

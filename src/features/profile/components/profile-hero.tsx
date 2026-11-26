@@ -3,7 +3,7 @@ import { type ReactNode, useState } from 'react';
 import { Pressable, Share, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Bell } from 'lucide-react-native';
+import { Bell, Settings } from 'lucide-react-native';
 
 import { Text } from '@/shared/components/ui/text';
 import { MoreIcon } from '@/shared/SVGs/more-icon';
@@ -32,6 +32,8 @@ type ProfileHeroProps = {
   onToggleBio: () => void;
   onMorePress: () => void;
   onNotificationsPress: () => void;
+  /** My profile only — gear left of notifications. */
+  onSettingsPress?: () => void;
 };
 
 export function ProfileHero({
@@ -41,6 +43,7 @@ export function ProfileHero({
   onToggleBio,
   onMorePress,
   onNotificationsPress,
+  onSettingsPress,
 }: ProfileHeroProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -62,6 +65,16 @@ export function ProfileHero({
           paddingTop: insets.top,
           height: insets.top + 44,
         }}>
+        {onSettingsPress ? (
+          <Pressable
+            onPress={onSettingsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={8}
+            className="h-10 w-10 items-center justify-center">
+            <Settings size={22} color={BELL_COLOR} strokeWidth={1.8} />
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={onNotificationsPress}
           accessibilityRole="button"

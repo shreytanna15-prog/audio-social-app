@@ -14,7 +14,6 @@ import { usePlayerStore } from '@/features/player';
 import { ME_QUERY_KEY } from '@/features/profile/api/hooks';
 import { getTrack } from '@/features/tracks';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
-import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
 import { useAppChromeNav } from '@/shared/lib/use-app-chrome-nav';
 import { useNavigationGuard } from '@/shared/lib/use-navigation-guard';
@@ -37,7 +36,6 @@ export function NotificationsScreen() {
   const { push } = useRouter();
   const { guard } = useNavigationGuard();
   const { openProfile } = useAppChromeNav();
-  const { showError, dialog } = useFeedbackDialog();
   const queryClient = useQueryClient();
   const play = usePlayerStore((s) => s.play);
 
@@ -108,10 +106,12 @@ export function NotificationsScreen() {
           <View className="flex-row items-center gap-1">
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="More options"
+              accessibilityLabel="Notification preferences"
               hitSlop={8}
               onPress={() =>
-                showError('Notifications', 'Notification settings coming soon.')
+                guard(() =>
+                  push('/(tabs)/profile/settings/notifications' as Href),
+                )
               }
               className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
               <MoreVertical size={20} color="#E4E1EA" strokeWidth={2} />
@@ -185,7 +185,6 @@ export function NotificationsScreen() {
           )}
         />
       )}
-      {dialog}
     </View>
   );
 }

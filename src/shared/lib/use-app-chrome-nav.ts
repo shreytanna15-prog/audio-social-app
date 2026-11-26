@@ -22,7 +22,11 @@ function isChatRequestsRoute(pathname: string | null): boolean {
 
 function isProfileRoute(pathname: string | null): boolean {
   const path = pathOf(pathname);
-  return /(^|\/)profile(?:\/edit)?\/?$/.test(path);
+  return /(^|\/)profile(?:\/|$)/.test(path);
+}
+
+function isProfileIndexRoute(pathname: string | null): boolean {
+  return /(^|\/)profile\/?$/.test(pathOf(pathname));
 }
 
 /**
@@ -54,7 +58,8 @@ export function useAppChromeNav() {
 
   const openProfile = useCallback(() => {
     guard(() => {
-      if (isProfileRoute(pathname) && !pathOf(pathname).includes('/edit')) {
+      // Stay put on profile index; from edit/settings/etc. return to index.
+      if (isProfileIndexRoute(pathname)) {
         return;
       }
       navigate('/(tabs)/profile' as Href);

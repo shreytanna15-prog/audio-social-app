@@ -30,6 +30,7 @@ type PlayerCommentsProps = {
   trackId?: string;
   commentCount?: number;
   comments?: PlayerComment[];
+  onComposerFocus?: () => void;
   /** `sheet` — no card chrome / title (host provides them). */
   variant?: 'card' | 'sheet';
 };
@@ -137,6 +138,7 @@ type CommentsCardProps = {
   onLike?: (comment: PlayerComment) => void;
   onReply?: (comment: PlayerComment) => void;
   onDelete?: (comment: PlayerComment) => void;
+  onComposerFocus?: () => void;
   variant?: 'card' | 'sheet';
 };
 
@@ -157,6 +159,7 @@ function CommentsCard({
   onLike,
   onReply,
   onDelete,
+  onComposerFocus,
   variant = 'card',
 }: CommentsCardProps) {
   const isSheet = variant === 'sheet';
@@ -275,6 +278,7 @@ function CommentsCard({
           editable={!posting}
           returnKeyType="send"
           onSubmitEditing={onSubmit}
+          onFocus={onComposerFocus}
           className={cn(embeddedInputClassName, 'text-sm')}
         />
         <Pressable
@@ -293,10 +297,12 @@ function CommentsCard({
 function FixtureComments({
   commentCount,
   comments,
+  onComposerFocus,
   variant = 'card',
 }: {
   commentCount: number;
   comments: PlayerComment[];
+  onComposerFocus?: () => void;
   variant?: 'card' | 'sheet';
 }) {
   const [draft, setDraft] = useState('');
@@ -307,6 +313,7 @@ function FixtureComments({
       comments={comments}
       draft={draft}
       onDraftChange={setDraft}
+      onComposerFocus={onComposerFocus}
       variant={variant}
     />
   );
@@ -314,9 +321,11 @@ function FixtureComments({
 
 function LiveComments({
   trackId,
+  onComposerFocus,
   variant = 'card',
 }: {
   trackId: string;
+  onComposerFocus?: () => void;
   variant?: 'card' | 'sheet';
 }) {
   const { showError, confirm, dialog } = useFeedbackDialog();
@@ -398,6 +407,7 @@ function LiveComments({
         }
         onReply={setReplyTo}
         onDelete={removeComment}
+        onComposerFocus={onComposerFocus}
         variant={variant}
       />
       {dialog}
@@ -409,16 +419,25 @@ export function PlayerComments({
   trackId,
   commentCount = 382,
   comments = PLAYER_COMMENTS,
+  onComposerFocus,
   variant = 'card',
 }: PlayerCommentsProps) {
   if (trackId && isApiTrackId(trackId)) {
-    return <LiveComments key={trackId} trackId={trackId} variant={variant} />;
+    return (
+      <LiveComments
+        key={trackId}
+        trackId={trackId}
+        onComposerFocus={onComposerFocus}
+        variant={variant}
+      />
+    );
   }
 
   return (
     <FixtureComments
       commentCount={commentCount}
       comments={comments}
+      onComposerFocus={onComposerFocus}
       variant={variant}
     />
   );
