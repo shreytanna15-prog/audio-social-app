@@ -35,6 +35,7 @@ import {
 } from '@/features/saves';
 import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
+import { useDeleteFeedClip } from '@/features/feed';
 import {
   restoreTrack,
   useBackupTrack,
@@ -111,6 +112,7 @@ export function LibraryScreen() {
   const deleteTrack = useDeleteTrack();
   const backupTrack = useBackupTrack();
   const unpublishTrack = useUnpublishTrack();
+  const deleteFeedClip = useDeleteFeedClip();
   const likedTracksQuery = useLikedTracks();
   const unlikeTrack = useUnlikeTrack();
   const playlistsQuery = usePlaylists();
@@ -692,11 +694,41 @@ export function LibraryScreen() {
         synced={menuTrack?.storageState === 'SYNCED'}
         published={menuTrack?.status === 'PUBLISHED'}
         canBackup={Boolean(menuTrack?.localUri)}
+        hasFeedClip={Boolean(menuTrack?.feedClipId)}
         isBackingUp={backupTrack.isPending}
         isUnpublishing={unpublishTrack.isPending}
+        isRemovingFeedClip={deleteFeedClip.isPending}
         onBackup={backupFromMenu}
         onPublish={publishFromMenu}
         onUnpublish={unpublishFromMenu}
+        onCreateFeedClip={() => {
+          if (!menuTrack) return;
+          const id = menuTrack.id;
+          closeTrackMenu();
+          push(`/studio/create-feed-clip?trackId=${encodeURIComponent(id)}`);
+        }}
+        onEditFeedClip={() => {
+          if (!menuTrack) return;
+          const id = menuTrack.id;
+          closeTrackMenu();
+          push(`/studio/create-feed-clip?trackId=${encodeURIComponent(id)}`);
+        }}
+        onRemoveFeedClip={() => {
+          if (!menuTrack?.feedClipId) return;
+          const clipId = menuTrack.feedClipId;
+          closeTrackMenu();
+          void deleteFeedClip
+            .mutateAsync(clipId)
+            .then(() => {
+              showError('Removed from Feed', 'The full song is unchanged.');
+            })
+            .catch((error) => {
+              showError(
+                'Could not remove clip',
+                getErrorMessage(error, 'Try again.'),
+              );
+            });
+        }}
         onDelete={deleteFromMenu}
       />
 
@@ -896,7 +928,18 @@ export function LibraryScreen() {
         track={publishTrack}
         bottomOffset={Math.max(insets.bottom, 12)}
         onPublished={() => {
-          showError('Published', 'Your track is live.');
+          const id = publishTrack?.id;
+          showError(
+            'Published',
+            id
+              ? 'Your track is live. Opening Feed Clip editor…'
+              : 'Your track is live.',
+          );
+          if (id) {
+            push(
+              `/studio/create-feed-clip?trackId=${encodeURIComponent(id)}`,
+            );
+          }
         }}
         onError={showError}
       />

@@ -30,6 +30,8 @@ type PlayerCommentsProps = {
   trackId?: string;
   commentCount?: number;
   comments?: PlayerComment[];
+  /** `sheet` — no card chrome / title (host provides them). */
+  variant?: 'card' | 'sheet';
 };
 
 type CommentRowProps = {
@@ -135,6 +137,7 @@ type CommentsCardProps = {
   onLike?: (comment: PlayerComment) => void;
   onReply?: (comment: PlayerComment) => void;
   onDelete?: (comment: PlayerComment) => void;
+  variant?: 'card' | 'sheet';
 };
 
 function CommentsCard({
@@ -154,22 +157,32 @@ function CommentsCard({
   onLike,
   onReply,
   onDelete,
+  variant = 'card',
 }: CommentsCardProps) {
+  const isSheet = variant === 'sheet';
+
   return (
-    <View className="gap-4 rounded-2xl border border-white/5 bg-surface-container p-4">
-      <View className="flex-row items-center justify-between gap-3">
-        <Text variant="title-md" className="text-on-surface">
-          Comments ({commentCount})
-        </Text>
-        <Pressable
-          accessibilityRole="link"
-          hitSlop={8}
-          onPress={onViewAll}>
-          <Text variant="label-md" className="font-semibold text-primary-tonal">
-            View all
+    <View
+      className={
+        isSheet
+          ? 'gap-4'
+          : 'gap-4 rounded-2xl border border-white/5 bg-surface-container p-4'
+      }>
+      {isSheet ? null : (
+        <View className="flex-row items-center justify-between gap-3">
+          <Text variant="title-md" className="text-on-surface">
+            Comments ({commentCount})
           </Text>
-        </Pressable>
-      </View>
+          <Pressable
+            accessibilityRole="link"
+            hitSlop={8}
+            onPress={onViewAll}>
+            <Text variant="label-md" className="font-semibold text-primary-tonal">
+              View all
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       {onSortChange && sort ? (
         <View className="flex-row gap-2">
@@ -280,9 +293,11 @@ function CommentsCard({
 function FixtureComments({
   commentCount,
   comments,
+  variant = 'card',
 }: {
   commentCount: number;
   comments: PlayerComment[];
+  variant?: 'card' | 'sheet';
 }) {
   const [draft, setDraft] = useState('');
 
@@ -292,11 +307,18 @@ function FixtureComments({
       comments={comments}
       draft={draft}
       onDraftChange={setDraft}
+      variant={variant}
     />
   );
 }
 
-function LiveComments({ trackId }: { trackId: string }) {
+function LiveComments({
+  trackId,
+  variant = 'card',
+}: {
+  trackId: string;
+  variant?: 'card' | 'sheet';
+}) {
   const { showError, confirm, dialog } = useFeedbackDialog();
   const [sort, setSort] = useState<CommentSort>('newest');
   const commentsQuery = useTrackComments(trackId, sort);
@@ -305,14 +327,17 @@ function LiveComments({ trackId }: { trackId: string }) {
   const toggleLike = useToggleCommentLike(trackId);
 
   const [draft, setDraft] = useState('');
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(variant === 'sheet');
   const [replyTo, setReplyTo] = useState<PlayerComment | null>(null);
 
   const comments = useMemo(
     () => (commentsQuery.data ?? []).map((dto) => mapCommentToPlayerComment(dto)),
     [commentsQuery.data],
   );
-  const visible = expanded ? comments : comments.slice(0, PREVIEW_COUNT);
+  const visible =
+    variant === 'sheet' || expanded
+      ? comments
+      : comments.slice(0, PREVIEW_COUNT);
 
   const submit = () => {
     const body = draft.trim();
@@ -360,7 +385,9 @@ function LiveComments({ trackId }: { trackId: string }) {
         onCancelReply={() => setReplyTo(null)}
         isLoading={commentsQuery.isLoading}
         isError={commentsQuery.isError}
-        onViewAll={() => setExpanded((prev) => !prev)}
+        onViewAll={
+          variant === 'sheet' ? undefined : () => setExpanded((prev) => !prev)
+        }
         sort={sort}
         onSortChange={setSort}
         onLike={(comment) =>
@@ -371,6 +398,7 @@ function LiveComments({ trackId }: { trackId: string }) {
         }
         onReply={setReplyTo}
         onDelete={removeComment}
+        variant={variant}
       />
       {dialog}
     </>
@@ -381,10 +409,17 @@ export function PlayerComments({
   trackId,
   commentCount = 382,
   comments = PLAYER_COMMENTS,
+  variant = 'card',
 }: PlayerCommentsProps) {
   if (trackId && isApiTrackId(trackId)) {
-    return <LiveComments key={trackId} trackId={trackId} />;
+    return <LiveComments key={trackId} trackId={trackId} variant={variant} />;
   }
 
-  return <FixtureComments commentCount={commentCount} comments={comments} />;
+  return (
+    <FixtureComments
+      commentCount={commentCount}
+      comments={comments}
+      variant={variant}
+    />
+  );
 }

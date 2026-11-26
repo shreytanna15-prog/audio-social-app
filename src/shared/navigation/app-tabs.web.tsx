@@ -28,6 +28,9 @@ export default function AppTabs() {
           <TabTrigger name="explore" href={'/explore' as Href} asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>
+          <TabTrigger name="feed" href={'/feed' as Href} asChild>
+            <TabButton>Feed</TabButton>
+          </TabTrigger>
           <TabTrigger name="audio" href={'/audio' as Href} asChild>
             <TabButton>Audio</TabButton>
           </TabTrigger>

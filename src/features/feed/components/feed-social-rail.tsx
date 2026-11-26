@@ -7,7 +7,6 @@ import {
   FEED_SOCIAL_ICON_SIZE,
   FeedCommentIcon,
   FeedLikeIcon,
-  FeedSaveIcon,
   FeedShareNetworkIcon,
 } from './feed-social-icons';
 
@@ -16,11 +15,9 @@ type FeedSocialRailProps = {
   commentsLabel: string;
   sharesLabel: string;
   liked: boolean;
-  saved: boolean;
   onLikePress: () => void;
   onCommentPress: () => void;
   onSharePress: () => void;
-  onSavePress: () => void;
 };
 
 /** Equal gap between each circular icon (label sits in this gap) */
@@ -64,11 +61,9 @@ export function FeedSocialRail({
   commentsLabel,
   sharesLabel,
   liked,
-  saved,
   onLikePress,
   onCommentPress,
   onSharePress,
-  onSavePress,
 }: FeedSocialRailProps) {
   return (
     <View className="items-center" style={{ gap: ICON_GAP }}>
@@ -80,9 +75,6 @@ export function FeedSocialRail({
       </RailAction>
       <RailAction label={sharesLabel} onPress={onSharePress} accessibilityLabel="Share">
         <FeedShareNetworkIcon />
-      </RailAction>
-      <RailAction onPress={onSavePress} accessibilityLabel={saved ? 'Unsave' : 'Save'}>
-        <FeedSaveIcon active={saved} />
       </RailAction>
     </View>
   );

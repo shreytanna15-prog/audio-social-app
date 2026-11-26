@@ -11,6 +11,7 @@ export default function StudioLayout() {
       <Stack.Screen name="multitrack" />
       <Stack.Screen name="import-audio" />
       <Stack.Screen name="import-audio/edit" />
+      <Stack.Screen name="create-feed-clip" />
     </Stack>
   );
 }
