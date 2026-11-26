@@ -37,6 +37,10 @@ import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entr
 import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
 import { useDeleteFeedClip } from '@/features/feed';
 import {
+  createFeedClipHref,
+  showPostPublishFeedClipPrompt,
+} from '@/features/feed/utils/post-publish-feed-clip-prompt';
+import {
   restoreTrack,
   useBackupTrack,
   useDeleteTrack,
@@ -927,19 +931,13 @@ export function LibraryScreen() {
         }}
         track={publishTrack}
         bottomOffset={Math.max(insets.bottom, 12)}
-        onPublished={() => {
-          const id = publishTrack?.id;
-          showError(
-            'Published',
-            id
-              ? 'Your track is live. Opening Feed Clip editor…'
-              : 'Your track is live.',
-          );
-          if (id) {
-            push(
-              `/studio/create-feed-clip?trackId=${encodeURIComponent(id)}`,
-            );
-          }
+        onPublished={(trackId) => {
+          showPostPublishFeedClipPrompt(show, {
+            trackId,
+            onCreate: (id) => {
+              push(createFeedClipHref(id));
+            },
+          });
         }}
         onError={showError}
       />

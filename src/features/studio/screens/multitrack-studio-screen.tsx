@@ -13,6 +13,7 @@ import { QuickRecordToolRow } from '@/features/studio/components/quick-record-to
 import { QuickRecordTransport } from '@/features/studio/components/quick-record-transport';
 import { QuickRecordTimeline } from '@/features/studio/components/quick-record-waveform';
 import { StudioSessionTitle } from '@/features/studio/components/studio-session-title';
+import { showPostPublishFeedClipPrompt } from '@/features/feed/utils/post-publish-feed-clip-prompt';
 import { useMultitrackStudioScreen } from '@/features/studio/hooks/use-multitrack-studio-screen';
 import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
@@ -28,7 +29,7 @@ const DEFAULT_SESSION_TITLE = 'Untitled Session';
 export function MultitrackStudioScreen() {
   const insets = useSafeAreaInsets();
   useAudioRecorderBinding();
-  const { confirm, showError, dialog } = useFeedbackDialog();
+  const { show, confirm, showError, dialog } = useFeedbackDialog();
   const [publishOpen, setPublishOpen] = useState(false);
   const confirmRemoveLayer = useCallback(
     (layerName: string, onConfirm: () => void) => {
@@ -269,7 +270,17 @@ export function MultitrackStudioScreen() {
         canPublish={isSynced}
         synced={isSynced}
         isSyncing={isSyncing}
-        onPublished={finishPublished}
+        onPublished={(trackId) => {
+          showPostPublishFeedClipPrompt(show, {
+            trackId,
+            onCreate: (id) => {
+              finishPublished({ createFeedClipTrackId: id });
+            },
+            onSkip: () => {
+              finishPublished();
+            },
+          });
+        }}
         onError={showError}
       />
 

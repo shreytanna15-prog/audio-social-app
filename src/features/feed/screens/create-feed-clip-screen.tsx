@@ -6,15 +6,13 @@ import {
 import { cacheDirectory } from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  View,
-} from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
 import { persistFile } from '@/features/audio/data/file-persist';
+import { peakBarCountForDuration } from '@/features/audio/domain/timeline';
+import { extractPeaksFromWav } from '@/features/audio/services/peak-extract.service';
 import { trimToFeedClipAac } from '@/features/audio/services/feed-clip-ffmpeg.service';
 import { getTrack } from '@/features/tracks';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
@@ -22,8 +20,9 @@ import { Button } from '@/shared/components/ui/button';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
 
-import { getFeedClipForTrack } from '../api/service';
 import { useCreateFeedClip } from '../api/hooks';
+import { getFeedClipForTrack } from '../api/service';
+import { FeedClipTrimmer } from '../components/feed-clip-trimmer';
 
 const MIN_MS = 10_000;
 const MAX_MS = 30_000;
@@ -43,7 +42,7 @@ function formatMs(ms: number): string {
 export function CreateFeedClipScreen() {
   const insets = useSafeAreaInsets();
   const { back } = useRouter();
-  const { showError } = useFeedbackDialog();
+  const { showError, dialog } = useFeedbackDialog();
   const createClip = useCreateFeedClip();
   const params = useLocalSearchParams<{ trackId?: string | string[] }>();
   const trackId = Array.isArray(params.trackId)
@@ -54,12 +53,12 @@ export function CreateFeedClipScreen() {
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState('');
   const [localMixUri, setLocalMixUri] = useState<string | null>(null);
+  const [peaks, setPeaks] = useState<number[]>([]);
   const [trackDurationMs, setTrackDurationMs] = useState(0);
   const [startMs, setStartMs] = useState(0);
   const [durationMs, setDurationMs] = useState(15_000);
 
   const endMs = startMs + durationMs;
-  const maxStartMs = Math.max(0, trackDurationMs - MIN_MS);
 
   const player = useAudioPlayer(
     localMixUri ? { uri: localMixUri } : null,
@@ -112,9 +111,17 @@ export function CreateFeedClipScreen() {
           0,
           Math.max(0, duration - initialDuration),
         );
+
+        const extracted = await extractPeaksFromWav(
+          mixDest,
+          peakBarCountForDuration(duration / 1000),
+        );
+        if (cancelled) return;
+
         setTitle(track.title);
         setTrackDurationMs(duration);
         setLocalMixUri(mixDest);
+        setPeaks(extracted.length > 0 ? extracted : [0.3, 0.5, 0.4, 0.7, 0.45]);
         setStartMs(initialStart);
         setDurationMs(initialDuration);
       } catch (error) {
@@ -162,17 +169,9 @@ export function CreateFeedClipScreen() {
     [startMs, endMs, durationMs],
   );
 
-  const nudgeStart = (deltaMs: number) => {
-    setStartMs((prev) => clamp(prev + deltaMs, 0, maxStartMs));
-  };
-
-  const nudgeDuration = (deltaMs: number) => {
-    setDurationMs((prev) => {
-      const next = clamp(prev + deltaMs, MIN_MS, MAX_MS);
-      setStartMs((start) => clamp(start, 0, Math.max(0, trackDurationMs - next)));
-      return next;
-    });
-  };
+  const playheadMs = status.playing
+    ? (status.currentTime ?? 0) * 1000
+    : undefined;
 
   const togglePreview = () => {
     if (!localMixUri) return;
@@ -241,44 +240,24 @@ export function CreateFeedClipScreen() {
               {title || 'Untitled'}
             </Text>
             <Text variant="body-md" className="text-on-surface-variant">
-              Pick a 10–30s hook. Preview loops the selection.
+              Drag the window like Instagram Stories music. 10–30s.
             </Text>
             <Text variant="label-md" className="font-semibold text-primary-tonal">
               {selectionLabel}
             </Text>
           </View>
 
-          <View className="h-10 justify-center overflow-hidden rounded-full bg-surface-container-highest">
-            <View
-              className="absolute top-0 bottom-0 rounded-full bg-primary-tonal/70"
-              style={{
-                left: `${trackDurationMs > 0 ? (startMs / trackDurationMs) * 100 : 0}%`,
-                width: `${trackDurationMs > 0 ? (durationMs / trackDurationMs) * 100 : 20}%`,
-              }}
-            />
-          </View>
-
-          <View className="rounded-2xl bg-surface-container-high px-3 py-4" style={{ gap: 14 }}>
-            <Text variant="label-md" className="text-on-surface">
-              Start
-            </Text>
-            <View className="flex-row items-center justify-between">
-              <NudgeButton label="−1s" onPress={() => nudgeStart(-1000)} />
-              <NudgeButton label="−0.1s" onPress={() => nudgeStart(-100)} />
-              <NudgeButton label="+0.1s" onPress={() => nudgeStart(100)} />
-              <NudgeButton label="+1s" onPress={() => nudgeStart(1000)} />
-            </View>
-
-            <Text variant="label-md" className="text-on-surface">
-              Length
-            </Text>
-            <View className="flex-row items-center justify-between">
-              <NudgeButton label="−1s" onPress={() => nudgeDuration(-1000)} />
-              <NudgeButton label="−0.1s" onPress={() => nudgeDuration(-100)} />
-              <NudgeButton label="+0.1s" onPress={() => nudgeDuration(100)} />
-              <NudgeButton label="+1s" onPress={() => nudgeDuration(1000)} />
-            </View>
-          </View>
+          <FeedClipTrimmer
+            peaks={peaks}
+            trackDurationMs={trackDurationMs}
+            startMs={startMs}
+            durationMs={durationMs}
+            playheadMs={playheadMs}
+            onChange={({ startMs: nextStart, durationMs: nextDuration }) => {
+              setStartMs(nextStart);
+              setDurationMs(nextDuration);
+            }}
+          />
 
           <Button
             variant="secondary"
@@ -294,26 +273,8 @@ export function CreateFeedClipScreen() {
           </Button>
         </View>
       )}
-    </View>
-  );
-}
 
-function NudgeButton({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      className="rounded-full bg-surface-container-highest px-3 py-2"
-      hitSlop={6}>
-      <Text variant="label-md" className="text-on-surface">
-        {label}
-      </Text>
-    </Pressable>
+      {dialog}
+    </View>
   );
 }

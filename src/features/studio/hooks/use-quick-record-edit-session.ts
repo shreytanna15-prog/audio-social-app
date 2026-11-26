@@ -246,16 +246,24 @@ export function useQuickRecordEditSession({
     [backup, isSaving, persistDraft, session],
   );
 
-  const finishPublished = useCallback(() => {
-    isLeavingRef.current = true;
-    resetStore();
-    useStudioProjectContextStore.getState().clearProjectId();
-    try {
-      dismissTo('/(tabs)/library' as Href);
-    } catch {
-      replace('/(tabs)/library' as Href);
-    }
-  }, [dismissTo, replace, resetStore]);
+  const finishPublished = useCallback(
+    (opts?: { createFeedClipTrackId?: string }) => {
+      isLeavingRef.current = true;
+      resetStore();
+      useStudioProjectContextStore.getState().clearProjectId();
+      const href = (
+        opts?.createFeedClipTrackId
+          ? `/studio/create-feed-clip?trackId=${encodeURIComponent(opts.createFeedClipTrackId)}`
+          : '/(tabs)/library'
+      ) as Href;
+      try {
+        dismissTo(href);
+      } catch {
+        replace(href);
+      }
+    },
+    [dismissTo, replace, resetStore],
+  );
 
   const currentFingerprint = audioFingerprint(session.project);
   const audioChangedSinceSync =

@@ -361,10 +361,23 @@ export function useMultitrackStudioScreen(
     [backup, busy, studio],
   );
 
-  const finishPublished = useCallback(() => {
-    isLeavingRef.current = true;
-    leaveToLibrary();
-  }, [leaveToLibrary]);
+  const finishPublished = useCallback(
+    (opts?: { createFeedClipTrackId?: string }) => {
+      isLeavingRef.current = true;
+      if (opts?.createFeedClipTrackId) {
+        const href =
+          `/studio/create-feed-clip?trackId=${encodeURIComponent(opts.createFeedClipTrackId)}` as Href;
+        try {
+          dismissTo(href);
+        } catch {
+          replace(href);
+        }
+        return;
+      }
+      leaveToLibrary();
+    },
+    [dismissTo, leaveToLibrary, replace],
+  );
 
   const requestLeave = useCallback(() => {
     if (!shouldPromptBeforeLeaving()) {

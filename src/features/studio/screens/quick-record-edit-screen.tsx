@@ -16,6 +16,7 @@ import {
 import { StudioSessionTitle } from '@/features/studio/components/studio-session-title';
 import { useQuickRecordEditSession } from '@/features/studio/hooks/use-quick-record-edit-session';
 import { DEFAULT_QUICK_RECORD_TITLE } from '@/features/studio/store/quick-record.store';
+import { showPostPublishFeedClipPrompt } from '@/features/feed/utils/post-publish-feed-clip-prompt';
 import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
@@ -26,7 +27,7 @@ const EDIT_WAVE_PADDING = 16;
 
 export function QuickRecordEditScreen() {
   const insets = useSafeAreaInsets();
-  const { showError, confirm, dialog } = useFeedbackDialog();
+  const { show, showError, confirm, dialog } = useFeedbackDialog();
   // Recorder binding stays on the capture screen underneath the stack.
   const session = useQuickRecordEditSession({
     onError: (title, message) => showError(title, message),
@@ -247,7 +248,17 @@ export function QuickRecordEditScreen() {
         canPublish={session.isSynced}
         synced={session.isSynced}
         isSyncing={session.isSyncing}
-        onPublished={session.finishPublished}
+        onPublished={(trackId) => {
+          showPostPublishFeedClipPrompt(show, {
+            trackId,
+            onCreate: (id) => {
+              session.finishPublished({ createFeedClipTrackId: id });
+            },
+            onSkip: () => {
+              session.finishPublished();
+            },
+          });
+        }}
         onError={showError}
       />
 

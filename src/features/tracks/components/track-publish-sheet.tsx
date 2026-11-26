@@ -46,7 +46,7 @@ type TrackPublishSheetProps = {
   synced?: boolean;
   isSyncing?: boolean;
   syncHint?: string;
-  onPublished?: () => void;
+  onPublished?: (trackId: string) => void;
   onError?: (title: string, message: string) => void;
 };
 
@@ -252,7 +252,7 @@ export function TrackPublishSheet({
         },
       });
       onOpenChange(false);
-      onPublished?.();
+      onPublished?.(track.id);
     } catch (error) {
       const message = getErrorMessage(
         error,

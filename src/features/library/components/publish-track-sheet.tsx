@@ -7,7 +7,7 @@ type PublishTrackSheetProps = {
   onOpenChange: (open: boolean) => void;
   track: LibraryAudioItem | null;
   bottomOffset?: number;
-  onPublished?: () => void;
+  onPublished?: (trackId: string) => void;
   onError?: (title: string, message: string) => void;
 };
 
