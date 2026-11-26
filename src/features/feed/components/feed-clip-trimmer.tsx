@@ -1,9 +1,3 @@
-import {
-  Canvas,
-  Group,
-  Rect,
-  RoundedRect,
-} from '@shopify/react-native-skia';
 import { useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -183,59 +177,83 @@ export function FeedClipTrimmer({
       accessibilityHint="Drag the highlighted window or its handles to pick a 10 to 30 second clip">
       {width > 0 ? (
         <>
-          <Canvas style={{ width, height: TRIMMER_HEIGHT }} pointerEvents="none">
-            <Group>
-              {bars.map((bar, index) => {
-                const mid = bar.x + 0.75;
-                const inSel = mid >= selLeft && mid <= selRight;
-                return (
-                  <Rect
-                    key={`bar-${index}`}
-                    x={bar.x}
-                    y={(TRIMMER_HEIGHT - bar.h) / 2}
-                    width={2}
-                    height={bar.h}
-                    color={inSel ? BAR_IN : BAR_OUT}
-                  />
-                );
-              })}
-              <RoundedRect
-                x={selLeft}
-                y={4}
-                width={selWidth}
-                height={TRIMMER_HEIGHT - 8}
-                r={10}
-                color={ACCENT_DIM}
-              />
-              <RoundedRect
-                x={selLeft}
-                y={4}
-                width={4}
-                height={TRIMMER_HEIGHT - 8}
-                r={2}
-                color={ACCENT}
-              />
-              <RoundedRect
-                x={selRight - 4}
-                y={4}
-                width={4}
-                height={TRIMMER_HEIGHT - 8}
-                r={2}
-                color={ACCENT}
-              />
-              {playheadX != null &&
-              playheadX >= selLeft &&
-              playheadX <= selRight ? (
-                <Rect
-                  x={playheadX}
-                  y={6}
-                  width={2}
-                  height={TRIMMER_HEIGHT - 12}
-                  color={PLAYHEAD}
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}>
+            {bars.map((bar, index) => {
+              const mid = bar.x + 0.75;
+              const inSel = mid >= selLeft && mid <= selRight;
+              return (
+                <View
+                  key={`bar-${index}`}
+                  style={{
+                    position: 'absolute',
+                    left: bar.x,
+                    width: 2,
+                    height: bar.h,
+                    top: (TRIMMER_HEIGHT - bar.h) / 2,
+                    borderRadius: 1,
+                    backgroundColor: inSel ? BAR_IN : BAR_OUT,
+                  }}
                 />
-              ) : null}
-            </Group>
-          </Canvas>
+              );
+            })}
+            <View
+              style={{
+                position: 'absolute',
+                left: selLeft,
+                width: selWidth,
+                top: 4,
+                height: TRIMMER_HEIGHT - 8,
+                borderRadius: 10,
+                backgroundColor: ACCENT_DIM,
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                left: selLeft,
+                width: 4,
+                top: 4,
+                height: TRIMMER_HEIGHT - 8,
+                borderRadius: 2,
+                backgroundColor: ACCENT,
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                left: selRight - 4,
+                width: 4,
+                top: 4,
+                height: TRIMMER_HEIGHT - 8,
+                borderRadius: 2,
+                backgroundColor: ACCENT,
+              }}
+            />
+            {playheadX != null &&
+            playheadX >= selLeft &&
+            playheadX <= selRight ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  left: playheadX,
+                  width: 2,
+                  top: 6,
+                  height: TRIMMER_HEIGHT - 12,
+                  backgroundColor: PLAYHEAD,
+                }}
+              />
+            ) : null}
+          </View>
 
           <GestureDetector gesture={moveGesture}>
             <View
