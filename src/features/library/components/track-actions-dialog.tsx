@@ -1,13 +1,6 @@
-import { Pressable, View } from 'react-native';
+import { Check, CloudUpload, Globe, Trash2 } from 'lucide-react-native';
 
-import { Button } from '@/shared/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/components/ui/dialog';
-import { Text } from '@/shared/components/ui/text';
+import { ActionsDialog } from '@/shared/components/ui/actions-dialog';
 
 type TrackActionsDialogProps = {
   open: boolean;
@@ -26,7 +19,7 @@ type TrackActionsDialogProps = {
   onDelete: () => void;
 };
 
-/** Track card menu: cloud + publish actions on top, quiet delete/cancel below. */
+/** Library track ⋮ menu — domain props mapped onto shared ActionsDialog sheet. */
 export function TrackActionsDialog({
   open,
   onOpenChange,
@@ -42,78 +35,51 @@ export function TrackActionsDialog({
   onDelete,
 }: TrackActionsDialogProps) {
   const busy = isBackingUp || isUnpublishing;
-  const backupDisabled = !canBackup || synced || busy;
-  const publishDisabled = busy || (!published && !synced);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dismissOnBackdropPress={!busy}>
-        <DialogHeader>
-          <DialogTitle className="text-[18px]">{title}</DialogTitle>
-        </DialogHeader>
-
-        <View className="flex-row gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="min-w-0 flex-1 items-center justify-center"
-            disabled={backupDisabled}
-            onPress={onBackup}>
-            <Text numberOfLines={1}>
-              {synced
-                ? 'Synced to cloud'
-                : isBackingUp
-                  ? 'Uploading…'
-                  : 'Back up to cloud'}
-            </Text>
-          </Button>
-          <Button
-            variant="soft"
-            size="sm"
-            className="min-w-0 flex-1 items-center justify-center"
-            disabled={publishDisabled}
-            onPress={published ? onUnpublish : onPublish}>
-            <Text numberOfLines={1}>
-              {isUnpublishing
-                ? 'Unpublishing…'
-                : published
-                  ? 'Unpublish'
-                  : 'Publish'}
-            </Text>
-          </Button>
-        </View>
-
-        {!synced && !published ? (
-          <Text variant="caption" className="text-on-surface-variant">
-            {isBackingUp
-              ? 'Uploading this take to the cloud…'
-              : 'Back up to cloud first to publish.'}
-          </Text>
-        ) : null}
-
-        <View className="mt-1 flex-row items-center justify-between border-t border-white/10 pt-3">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete track"
-            disabled={busy}
-            hitSlop={8}
-            onPress={onDelete}>
-            <Text variant="label-md" className="text-error">
-              Delete track
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-            disabled={busy}
-            hitSlop={8}
-            onPress={() => onOpenChange(false)}>
-            <Text variant="label-md" className="text-on-surface-variant">
-              Cancel
-            </Text>
-          </Pressable>
-        </View>
-      </DialogContent>
-    </Dialog>
+    <ActionsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      variant="menu"
+      title={title}
+      busy={busy}
+      message={
+        !synced && !published
+          ? isBackingUp
+            ? 'Uploading this take to the cloud…'
+            : 'Back up to cloud first to publish.'
+          : undefined
+      }
+      actions={[
+        {
+          key: 'backup',
+          label: synced
+            ? 'Synced to cloud'
+            : isBackingUp
+              ? 'Uploading…'
+              : 'Back up to cloud',
+          icon: synced ? Check : CloudUpload,
+          disabled: !canBackup || synced || busy,
+          onPress: onBackup,
+        },
+        {
+          key: 'publish',
+          label: isUnpublishing
+            ? 'Unpublishing…'
+            : published
+              ? 'Unpublish'
+              : 'Publish',
+          icon: Globe,
+          disabled: busy || (!published && !synced),
+          onPress: published ? onUnpublish : onPublish,
+        },
+      ]}
+      destructiveAction={{
+        label: 'Delete track',
+        icon: Trash2,
+        onPress: onDelete,
+        disabled: busy,
+      }}
+    />
   );
 }

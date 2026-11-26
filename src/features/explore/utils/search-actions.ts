@@ -4,7 +4,7 @@ import type { PlaylistDetailDto } from '@/features/playlists';
 import type {
   MusicSearchItem,
   RecordSearchRecentRequest,
-} from '@/features/users';
+} from '@/features/search';
 
 export function musicResultToPlayerTrack(item: MusicSearchItem): PlayerTrack | null {
   if (item.type === 'song') {

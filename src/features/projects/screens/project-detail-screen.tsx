@@ -1,10 +1,17 @@
-import { MoreVertical } from 'lucide-react-native';
+import { AudioLines, FolderMinus, FolderPlus, MoreVertical, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getErrorMessage } from '@/core/api/errors';
+import { loadProjectBundle } from '@/features/audio/data/project-repository';
+import { useMultitrackEntryStore } from '@/features/studio/store/multitrack-entry.store';
+import { useQuickRecordStore } from '@/features/studio/store/quick-record.store';
+import { useDeleteTrack } from '@/features/tracks';
+import { restoreTrack } from '@/features/tracks/api/restore-track';
+import { hasLocalProject } from '@/features/tracks/utils/resolve-local-track';
+import { ActionsDialog } from '@/shared/components/ui/actions-dialog';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
@@ -28,8 +35,9 @@ import { mapProjectDetail } from '../utils/map-project';
  */
 export function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
-  const { back, canGoBack, replace } = useRouter();
+  const { back, canGoBack, replace, push } = useRouter();
   const { guard } = useNavigationGuard();
+  const hydrateFromImport = useQuickRecordStore((s) => s.hydrateFromImport);
   const { id, title: titleParam, from } = useLocalSearchParams<{
     id?: string;
     title?: string;
@@ -37,14 +45,18 @@ export function ProjectDetailScreen() {
   }>();
   const projectId = typeof id === 'string' ? id : undefined;
   const openedFrom = Array.isArray(from) ? from[0] : from;
-  const { show, showError, confirm, dialog } = useFeedbackDialog();
+  const { showError, confirm, dialog } = useFeedbackDialog();
 
   const projectQuery = useProject(projectId);
   const deleteProject = useDeleteProject();
+  const deleteTrack = useDeleteTrack();
   const attachTracks = useAttachProjectTracks();
   const unlinkTrack = useUnlinkProjectTrack();
 
   const [attachOpen, setAttachOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuTrack, setMenuTrack] = useState<ProjectTrack | null>(null);
 
   const project = projectQuery.data
     ? mapProjectDetail(projectQuery.data)
@@ -66,97 +78,72 @@ export function ProjectDetailScreen() {
     guard(() => replace('/projects/' as Href));
   };
 
-  const openProjectMenu = () => {
+  const runDeleteProject = (deleteTracks: boolean) => {
     if (!projectId) return;
-    show({
-      title: headerTitle,
-      actions: [
-        {
-          label: 'Add existing tracks',
-          variant: 'soft',
-          onPress: () => setAttachOpen(true),
-        },
-        {
-          label: 'Delete project…',
-          variant: 'destructive',
-          onPress: () => {
-            show({
-              title: 'Delete project?',
-              message:
-                'Keep the tracks in your library, or delete the tracks too.',
-              actions: [
-                { label: 'Cancel', variant: 'ghost' },
-                {
-                  label: 'Keep tracks',
-                  variant: 'soft',
-                  onPress: () => {
-                    void deleteProject
-                      .mutateAsync({ id: projectId, deleteTracks: false })
-                      .then(leave)
-                      .catch((error) => {
-                        showError(
-                          'Could not delete',
-                          getErrorMessage(error, 'Try again.'),
-                        );
-                      });
-                  },
-                },
-                {
-                  label: 'Delete tracks too',
-                  variant: 'destructive',
-                  onPress: () => {
-                    void deleteProject
-                      .mutateAsync({ id: projectId, deleteTracks: true })
-                      .then(leave)
-                      .catch((error) => {
-                        showError(
-                          'Could not delete',
-                          getErrorMessage(error, 'Try again.'),
-                        );
-                      });
-                  },
-                },
-              ],
-            });
-          },
-        },
-        { label: 'Cancel', variant: 'ghost' },
-      ],
-    });
+    void deleteProject
+      .mutateAsync({ id: projectId, deleteTracks })
+      .then(() => {
+        setDeleteOpen(false);
+        leave();
+      })
+      .catch((error) => {
+        showError(
+          'Could not delete',
+          getErrorMessage(error, 'Try again.'),
+        );
+      });
   };
 
   const onTrackMore = (track: ProjectTrack) => {
-    if (!projectId) return;
-    show({
-      title: track.title,
-      actions: [
-        {
-          label: 'Remove from project',
-          variant: 'destructive',
-          onPress: () => {
-            confirm(
-              'Remove from project?',
-              'The track stays in your library.',
-              {
-                confirmLabel: 'Remove',
-                destructive: true,
-                onConfirm: () => {
-                  void unlinkTrack
-                    .mutateAsync({ projectId, trackId: track.id })
-                    .catch((error) => {
-                      showError(
-                        'Could not remove',
-                        getErrorMessage(error, 'Try again.'),
-                      );
-                    });
-                },
-              },
-            );
-          },
-        },
-        { label: 'Cancel', variant: 'ghost' },
-      ],
-    });
+    setMenuTrack(track);
+  };
+
+  const openTrackInStudio = async (track: ProjectTrack) => {
+    let storageState: 'LOCAL_ONLY' | 'SYNCED' =
+      track.storageState === 'SYNCED' ? 'SYNCED' : 'LOCAL_ONLY';
+
+    if (!hasLocalProject(track.id)) {
+      try {
+        await restoreTrack(track.id);
+        storageState = 'SYNCED';
+      } catch (error) {
+        showError(
+          'Could not download',
+          getErrorMessage(error, 'Try again in a moment.'),
+        );
+        return;
+      }
+    }
+
+    const loaded = await loadProjectBundle(track.id);
+    if (!loaded) {
+      showError(track.title, 'Could not load this take locally.');
+      return;
+    }
+
+    if (track.kind === 'MULTI') {
+      useMultitrackEntryStore.getState().setPendingEntry({
+        project: loaded.project,
+        trackId: track.id,
+        title: loaded.title || track.title,
+        storageState,
+      });
+      guard(() =>
+        push({
+          pathname: '/studio/multitrack',
+          params: { projectId },
+        } as Href),
+      );
+      return;
+    }
+
+    hydrateFromImport(loaded.project, loaded.title || track.title, track.id);
+    guard(() =>
+      push({
+        pathname: '/studio/quick-record/edit',
+        params: { storageState, projectId, discardTarget: 'library' },
+      } as Href),
+    );
   };
 
   return (
@@ -168,7 +155,10 @@ export function ProjectDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel="More options"
             hitSlop={8}
-            onPress={openProjectMenu}
+            onPress={() => {
+              if (!projectId) return;
+              setMenuOpen(true);
+            }}
             className="h-10 w-10 items-center justify-center rounded-full active:bg-surface-bright">
             <MoreVertical size={20} color="#E4E1EA" strokeWidth={2} />
           </Pressable>
@@ -217,13 +207,15 @@ export function ProjectDetailScreen() {
               </View>
 
               {project.tracks.length === 0 ? (
-                <View className="gap-2 rounded-2xl bg-surface-container px-4 py-6">
-                  <Text variant="title-md" className="text-on-surface">
+                <View className="items-center justify-center py-12 px-4 gap-2.5">
+                  <View className="h-12 w-12 items-center justify-center rounded-2xl bg-white/4 mb-1">
+                    <AudioLines size={24} color="#79747E" />
+                  </View>
+                  <Text className="text-[15px] font-medium text-on-surface">
                     No tracks yet
                   </Text>
-                  <Text variant="body-md" className="text-on-surface-variant">
-                    Record something new below, or add existing takes from the
-                    menu.
+                  <Text className="text-[13px] text-center text-on-surface-variant max-w-60 leading-5">
+                    Record a take or import audio using the studio tools below.
                   </Text>
                 </View>
               ) : (
@@ -232,6 +224,7 @@ export function ProjectDetailScreen() {
                     <ProjectTrackRow
                       key={track.id}
                       track={track}
+                      onPress={openTrackInStudio}
                       onMorePress={onTrackMore}
                     />
                   ))}
@@ -243,6 +236,128 @@ export function ProjectDetailScreen() {
           <ProjectAddActions projectId={projectId} />
         </>
       )}
+
+      <ActionsDialog
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        variant="menu"
+        title={headerTitle}
+        actions={[
+          {
+            key: 'add',
+            label: 'Add existing tracks',
+            icon: FolderPlus,
+            onPress: () => {
+              setMenuOpen(false);
+              setAttachOpen(true);
+            },
+          },
+        ]}
+        destructiveAction={{
+          label: 'Delete project',
+          icon: Trash2,
+          onPress: () => {
+            setMenuOpen(false);
+            setDeleteOpen(true);
+          },
+        }}
+      />
+
+      <ActionsDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        variant="confirm"
+        title="Delete project?"
+        message="Keep the tracks in your library, or delete the tracks too."
+        busy={deleteProject.isPending}
+        actions={[
+          {
+            key: 'keep',
+            label: deleteProject.isPending ? 'Deleting…' : 'Keep tracks',
+            onPress: () => runDeleteProject(false),
+          },
+          {
+            key: 'delete-tracks',
+            label: 'Delete tracks too',
+            variant: 'destructive',
+            onPress: () => runDeleteProject(true),
+          },
+        ]}
+      />
+
+      <ActionsDialog
+        open={menuTrack != null}
+        onOpenChange={(open) => {
+          if (!open) setMenuTrack(null);
+        }}
+        variant="menu"
+        title={menuTrack?.title ?? ''}
+        actions={[
+          {
+            key: 'remove',
+            label: 'Remove from project',
+            icon: FolderMinus,
+            onPress: () => {
+              if (!projectId || !menuTrack) return;
+              const track = menuTrack;
+              setMenuTrack(null);
+              confirm(
+                'Remove from project?',
+                'The track stays in your library.',
+                {
+                  confirmLabel: 'Remove',
+                  pendingLabel: 'Removing…',
+                  destructive: true,
+                  onConfirm: async () => {
+                    try {
+                      await unlinkTrack.mutateAsync({
+                        projectId,
+                        trackId: track.id,
+                      });
+                    } catch (error) {
+                      showError(
+                        'Could not remove',
+                        getErrorMessage(error, 'Try again.'),
+                      );
+                      throw error;
+                    }
+                  },
+                },
+              );
+            },
+          },
+        ]}
+        destructiveAction={{
+          label: 'Delete track permanently',
+          icon: Trash2,
+          onPress: () => {
+            if (!menuTrack) return;
+            const track = menuTrack;
+            setMenuTrack(null);
+            confirm(
+              'Delete track?',
+              'This permanently removes the track and its audio from your library and projects.',
+              {
+                confirmLabel: 'Delete',
+                pendingLabel: 'Deleting…',
+                destructive: true,
+                onConfirm: async () => {
+                  try {
+                    await deleteTrack.mutateAsync(track.id);
+                    void projectQuery.refetch();
+                  } catch (error) {
+                    showError(
+                      'Could not delete track',
+                      getErrorMessage(error, 'Try again.'),
+                    );
+                    throw error;
+                  }
+                },
+              },
+            );
+          },
+        }}
+      />
 
       <ProjectAttachTracksSheet
         open={attachOpen}

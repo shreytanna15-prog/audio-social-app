@@ -6,7 +6,6 @@ import { getAlbum } from '@/features/albums';
 import { usePlayerStore } from '@/features/player';
 import { getPlaylist } from '@/features/playlists';
 import {
-  searchTracks,
   type MusicSearchItem,
   type SearchRecentItem,
   useClearSearchRecent,
@@ -14,6 +13,9 @@ import {
   useRemoveSearchRecent,
   useSearchMusic,
   useSearchRecent,
+} from '@/features/search';
+import {
+  searchTracks,
   useSearchUsers,
 } from '@/features/users';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';

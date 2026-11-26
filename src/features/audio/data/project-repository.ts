@@ -326,6 +326,11 @@ export type SaveProjectInput = {
   id?: string;
   /** Skip local index.json (backend is catalog source of truth). */
   skipIndex?: boolean;
+  /**
+   * Keep pending/temporary source files.
+   * Useful when a remote network sync follows so failure doesn't delete uncommitted takes.
+   */
+  keepSourceFiles?: boolean;
 };
 
 function resolveTrackKind(
@@ -345,6 +350,7 @@ export async function saveProject({
   kind,
   id: providedId,
   skipIndex = false,
+  keepSourceFiles = false,
 }: SaveProjectInput): Promise<AudioRecording> {
   const id = providedId ?? Crypto.randomUUID();
   const now = new Date().toISOString();
@@ -390,14 +396,17 @@ export async function saveProject({
 
   await writeProjectFile(id, persistedProject, track);
 
-  await cleanupPendingUris([
-    mixSource,
-    ...project.layers.flatMap((layer) => [
-      layer.stemUri,
-      layer.baselineUri,
-      layer.sourceUri,
-    ]),
-  ]);
+  // If keepSourceFiles is false, cleanup temporary pending files
+  if (!keepSourceFiles) {
+    await cleanupPendingUris([
+      mixSource,
+      ...project.layers.flatMap((layer) => [
+        layer.stemUri,
+        layer.baselineUri,
+        layer.sourceUri,
+      ]),
+    ]);
+  }
 
   const recording: AudioRecording = {
     ...track,

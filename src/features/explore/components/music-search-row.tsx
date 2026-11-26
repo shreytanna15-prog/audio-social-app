@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Disc3, ListMusic, Music2 } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
-import type { MusicSearchItem } from '@/features/users';
+import type { MusicSearchItem } from '@/features/search';
 import { Text } from '@/shared/components/ui/text';
 
 type Props = { item: MusicSearchItem; onPress: () => void };

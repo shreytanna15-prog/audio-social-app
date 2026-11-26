@@ -1,6 +1,5 @@
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
 import { getErrorMessage } from '@/core/api/errors';
 import { hasRecordableContent } from '@/features/audio/domain/project';
@@ -25,7 +24,11 @@ function audioFingerprint(project: AudioProject): string {
   return fingerprintQuickRecordProject({ ...project, selectedLayerId: null });
 }
 
-export function useQuickRecordEditSession() {
+export function useQuickRecordEditSession({
+  onError,
+}: {
+  onError?: (title: string, message: string) => void;
+} = {}) {
   const { back, canGoBack, replace, dismissTo } = useRouter();
   const {
     projectId: projectIdParam,
@@ -187,13 +190,13 @@ export function useQuickRecordEditSession() {
       return true;
     } catch (error) {
       console.log('Quick Record save failed:', error);
-      Alert.alert(
-        'Could not save',
-        getErrorMessage(
-          error,
-          'Save failed. Check your connection and try again.',
-        ),
+      const message = getErrorMessage(
+        error,
+        'Save failed. Check your connection and try again.',
       );
+      if (onError) {
+        onError('Could not save', message);
+      }
       return false;
     } finally {
       if (mountedRef.current) {
@@ -205,6 +208,7 @@ export function useQuickRecordEditSession() {
     canGoBack,
     dismissTo,
     isSaving,
+    onError,
     persistDraft,
     projectIdParam,
     replace,

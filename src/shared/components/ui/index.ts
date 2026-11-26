@@ -1,3 +1,10 @@
+export {
+  ActionsDialog,
+} from './actions-dialog';
+export type {
+  ActionsDialogDestructive,
+  ActionsDialogItem,
+} from './actions-dialog';
 export { Button, buttonTextVariants, buttonVariants } from './button';
 export type { ButtonProps } from './button';
 export { Collapsible } from './collapsible';
