@@ -13,6 +13,11 @@ import { QuickRecordProcessingOverlay } from '@/features/studio/components/quick
 import { QuickRecordTimer } from '@/features/studio/components/quick-record-timer';
 import { QuickRecordWaveform } from '@/features/studio/components/quick-record-waveform';
 import { useQuickRecordSession } from '@/features/studio/hooks/use-quick-record-session';
+import {
+  TanpuraPanel,
+  TanpuraTriggerButton,
+  useTanpuraController,
+} from '@/features/tanpura';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
 import { Text } from '@/shared/components/ui/text';
@@ -36,6 +41,9 @@ export function QuickRecordScreen() {
   );
   const session = useQuickRecordSession({ confirmDiscard });
   const monitor = useInputMonitor();
+  const tanpura = useTanpuraController({
+    isRecording: session.isRecording,
+  });
   const { requestClose } = session;
   const [windowStartSeconds, setWindowStartSeconds] = useState(0);
 
@@ -78,6 +86,12 @@ export function QuickRecordScreen() {
               Discard
             </Text>
           </Pressable>
+        }
+        right={
+          <TanpuraTriggerButton
+            active={tanpura.isPlaying || tanpura.panelOpen}
+            onPress={() => tanpura.setPanelOpen(true)}
+          />
         }
       />
 
@@ -170,6 +184,7 @@ export function QuickRecordScreen() {
         visible={session.isBusy}
         title={overlayTitle}
       />
+      <TanpuraPanel controller={tanpura} />
       {dialog}
     </View>
   );

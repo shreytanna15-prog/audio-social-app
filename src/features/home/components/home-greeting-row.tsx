@@ -1,5 +1,4 @@
 import { View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Text } from '@/shared/components/ui/text';
 
@@ -13,9 +12,7 @@ export function HomeGreetingRow({ name = 'there' }: HomeGreetingRowProps) {
   const { phrase, name: displayName } = getHomeGreetingParts(name);
 
   return (
-    <Animated.View
-      entering={FadeInDown.duration(420).springify().damping(20)}
-      className="relative mb-2 overflow-hidden px-4 pb-3 pt-0">
+    <View className="relative mb-2 overflow-hidden px-4 pb-3 pt-0">
       <View
         pointerEvents="none"
         className="absolute inset-0"
@@ -55,6 +52,6 @@ export function HomeGreetingRow({ name = 'there' }: HomeGreetingRowProps) {
           />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }

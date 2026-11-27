@@ -15,6 +15,11 @@ import { QuickRecordTimeline } from '@/features/studio/components/quick-record-w
 import { StudioSessionTitle } from '@/features/studio/components/studio-session-title';
 import { showPostPublishFeedClipPrompt } from '@/features/feed/utils/post-publish-feed-clip-prompt';
 import { useMultitrackStudioScreen } from '@/features/studio/hooks/use-multitrack-studio-screen';
+import {
+  TanpuraPanel,
+  TanpuraTriggerButton,
+  useTanpuraController,
+} from '@/features/tanpura';
 import { TrackPublishSheet } from '@/features/tracks/components/track-publish-sheet';
 import { ScreenHeader } from '@/shared/components/layout/screen-header';
 import { useFeedbackDialog } from '@/shared/components/ui/feedback-dialog';
@@ -58,6 +63,9 @@ export function MultitrackStudioScreen() {
     confirmDiscardSession,
   });
   const monitor = useInputMonitor();
+  const tanpura = useTanpuraController({
+    isRecording: session.studio.isRecording,
+  });
   const {
     studio,
     playback,
@@ -159,6 +167,12 @@ export function MultitrackStudioScreen() {
             disabled={busy || studio.isRecording}
             dialogTitle="Rename session"
             placeholder={DEFAULT_SESSION_TITLE}
+          />
+        }
+        right={
+          <TanpuraTriggerButton
+            active={tanpura.isPlaying || tanpura.panelOpen}
+            onPress={() => tanpura.setPanelOpen(true)}
           />
         }
       />
@@ -284,6 +298,7 @@ export function MultitrackStudioScreen() {
         onError={showError}
       />
 
+      <TanpuraPanel controller={tanpura} />
       {dialog}
     </View>
   );
