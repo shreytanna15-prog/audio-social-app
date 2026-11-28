@@ -54,6 +54,13 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="contests"
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
                     name="playlists"
                     options={{
                       headerShown: false,

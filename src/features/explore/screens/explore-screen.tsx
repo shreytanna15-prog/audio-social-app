@@ -2,6 +2,7 @@ import { type Href, useRouter } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ContestCard, useContests } from '@/features/contests';
 import {
   useDiscoverPlaylists,
   useFeaturedArtists,
@@ -12,7 +13,6 @@ import {
 } from '@/features/discover';
 import { usePlayerStore, type PlayerTrack } from '@/features/player';
 import {
-  ChallengeCard,
   CuratedPlaylistsSection,
   FeaturedArtistsSection,
   TrendingSection,
@@ -72,6 +72,14 @@ export function ExploreScreen() {
   const risingQuery = useRisingArtists(1);
   const featuredQuery = useFeaturedArtists(8);
   const playlistsQuery = useDiscoverPlaylists(8);
+  const activeContestsQuery = useContests('active');
+  const upcomingContestsQuery = useContests('upcoming');
+  const closedContestsQuery = useContests('closed');
+  const exploreContest =
+    activeContestsQuery.data?.[0] ??
+    upcomingContestsQuery.data?.[0] ??
+    closedContestsQuery.data?.[0] ??
+    null;
 
   const heroTracks = heroQuery.data ?? [];
   const heroSongs = heroTracks.map((track, index) => mapHeroSong(track, index + 1));
@@ -89,6 +97,9 @@ export function ExploreScreen() {
     risingQuery,
     featuredQuery,
     playlistsQuery,
+    activeContestsQuery,
+    upcomingContestsQuery,
+    closedContestsQuery,
   ];
   const isRefreshing = queries.some((query) => query.isRefetching);
   const hasContent =
@@ -278,16 +289,17 @@ export function ExploreScreen() {
               />
             )}
 
-            <ChallengeCard
-              statusLabel="Active Community Contest"
-              title="Remix Roulette: Neo-Soul"
-              description="Sample Maya Lin's raw studio vocal stems, flip the groove, and earn peer votes from the VibeOGram creator community."
-              endsIn="Ends in 3d 12h"
-              prizeLabel="Prize Pool"
-              prize="$1,500 Studio Grant & Official Release"
-              primaryActionLabel="Join & Download Stems"
-              secondaryAction="share"
-            />
+            {exploreContest ? (
+              <ContestCard
+                contest={exploreContest}
+                variant="explore"
+                onPress={() =>
+                  guard(() =>
+                    push(`/contests/${exploreContest.id}` as Href),
+                  )
+                }
+              />
+            ) : null}
 
             {topSongs.length > 0 ? (
               <TrendingSection

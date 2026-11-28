@@ -67,7 +67,7 @@ export const NOTIFICATIONS: AppNotification[] = [
     actionText: 'remixed your stem',
     highlightText: 'Luminous Drift',
     timeLabel: '1d ago',
-    metaLabel: 'Remix Challenge',
+    metaLabel: 'Remix Contest',
     unread: false,
     trailing: {
       type: 'thumbnail',

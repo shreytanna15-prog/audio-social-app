@@ -1,6 +1,7 @@
 import { type Href, useRouter } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
+import { ContestCard, useContests } from '@/features/contests';
 import {
   useFeaturedArtists,
   useMadeForYouTracks,
@@ -10,7 +11,6 @@ import { usePlayerStore, type PlayerTrack } from '@/features/player';
 import { useMe } from '@/features/profile/api/hooks';
 import { AppHeader } from '@/shared/components/layout/app-header';
 import {
-  ChallengeCard,
   CuratedPlaylistsSection,
   FeaturedArtistsSection,
   TrendingSection,
@@ -80,6 +80,14 @@ export function HomeScreen() {
   const playlistsQuery = useHomePlaylists(8);
   const madeForYouQuery = useMadeForYouTracks(12);
   const recentlyPlayedQuery = useRecentlyPlayed(8);
+  const activeContestsQuery = useContests('active');
+  const upcomingContestsQuery = useContests('upcoming');
+  const closedContestsQuery = useContests('closed');
+  const homeContest =
+    activeContestsQuery.data?.[0] ??
+    upcomingContestsQuery.data?.[0] ??
+    closedContestsQuery.data?.[0] ??
+    null;
 
   const latestProject = latestProjectQuery.data ?? null;
   const featuredArtists = (featuredQuery.data ?? []).map(mapFeaturedArtist);
@@ -146,6 +154,9 @@ export function HomeScreen() {
       playlistsQuery.refetch(),
       madeForYouQuery.refetch(),
       recentlyPlayedQuery.refetch(),
+      activeContestsQuery.refetch(),
+      upcomingContestsQuery.refetch(),
+      closedContestsQuery.refetch(),
     ]);
   };
 
@@ -344,7 +355,17 @@ export function HomeScreen() {
               />
             )}
 
-            <ChallengeCard />
+            {homeContest ? (
+              <ContestCard
+                contest={homeContest}
+                variant="home"
+                onPress={() =>
+                  guard(() =>
+                    push(`/contests/${homeContest.id}` as Href),
+                  )
+                }
+              />
+            ) : null}
 
             {recentlyPlayed.length > 0 ? (
               <RecentlyPlayedSection
