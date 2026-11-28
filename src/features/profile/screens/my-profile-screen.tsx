@@ -10,7 +10,7 @@ import { ProfileScreenShell } from '../components/profile-screen-shell';
 import { ProfileSelfActions } from '../components/profile-self-actions';
 import { useMyProfile } from '../hooks/use-my-profile';
 
-/** Profile tab — logged-in user; Edit / Library actions. */
+/** Profile tab — logged-in user; Edit / Library / Wallet actions. */
 export function MyProfileScreen() {
   const { push } = useRouter();
   const { profile, isLoading, isError, refetch } = useMyProfile();
@@ -62,6 +62,7 @@ export function MyProfileScreen() {
               params: { from: 'profile' },
             } as Href)
           }
+          onWalletPress={() => goTo('/wallet' as Href)}
         />
       }
       onSettingsPress={() => goTo('/(tabs)/profile/settings' as Href)}

@@ -77,8 +77,8 @@
     "vitest": "^3.2.4"
   },
   "scripts": {
-    "start": "node init && cross-env APP_VARIANT=development expo start --dev-client",
-    "start:dev": "node init && cross-env APP_VARIANT=development expo start --dev-client",
+    "start": "cross-env APP_VARIANT=development expo start --dev-client",
+    "start:dev": "cross-env APP_VARIANT=development expo start --dev-client",
     "android": "npm run android:dev",
     "android:dev": "cross-env APP_VARIANT=development expo prebuild --platform android --clean && cross-env APP_VARIANT=development expo run:android --device",
     "android:prod": "cross-env APP_VARIANT=production expo prebuild --platform android --clean && cross-env APP_VARIANT=production expo run:android --variant release --device",
@@ -89,8 +89,10 @@
     "lint": "expo lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run src/features/profile/utils src/features/home/utils/greeting.test.ts src/features/users/api/service.test.ts src/features/explore/data/search-tabs.test.ts src/features/audio/store/input-monitor.store.test.ts src/features/projects src/features/studio/store/studio-project-context.store.test.ts src/features/player/utils/map-comment-to-player-comment.test.ts",
-    "test:integration": "vitest run src/features/users/api/follow-cache.integration.test.ts src/features/audio/services/input-monitor.service.test.ts src/features/audio/services/expo-pcm-capture.monitor.integration.test.ts",
+    "test:unit": "vitest run src/features/profile/utils src/features/home/utils/greeting.test.ts src/features/users/api/service.test.ts src/features/explore/data/search-tabs.test.ts src/features/audio/store/input-monitor.store.test.ts src/features/projects src/features/studio/store/studio-project-context.store.test.ts src/features/player/utils/map-comment-to-player-comment.test.ts src/features/feed/utils/map-feed-item.test.ts src/features/feed/utils/post-publish-feed-clip-prompt.test.ts",
+    "test:integration": "vitest run src/features/feed/api/service.integration.test.ts src/features/users/api/follow-cache.integration.test.ts src/features/audio/services/input-monitor.service.test.ts src/features/audio/services/expo-pcm-capture.monitor.integration.test.ts",
+    "test:e2e:search-web": "playwright test e2e/search-music.spec.ts",
+    "test:e2e:feed-web": "playwright test e2e/feed-clips.spec.ts",
     "test:e2e": "maestro test e2e/maestro/search-follow.yaml",
     "test:e2e:library": "maestro test e2e/maestro/post-cold-library.yaml",
     "test:e2e:projects": "maestro test e2e/maestro/projects-library.yaml",

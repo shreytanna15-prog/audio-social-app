@@ -30,10 +30,12 @@ export function ProfileActionPill({
       variant="text"
       size="sm"
       className={cn(
-        'min-w-0 flex-1 items-center justify-center rounded-full',
+        'w-full min-w-0 flex-1 items-center justify-center rounded-full',
         isPrimary ? 'shadow-sm shadow-primary/30' : '',
       )}
       style={({ pressed }) => ({
+        flexGrow: 1,
+        alignSelf: 'stretch',
         height: PROFILE_PILL_HEIGHT,
         borderRadius: PROFILE_PILL_HEIGHT / 2,
         opacity: pressed ? 0.9 : 1,

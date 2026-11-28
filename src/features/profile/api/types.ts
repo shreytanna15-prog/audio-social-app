@@ -10,6 +10,7 @@ export type MeDto = {
   canChangeUsername: boolean;
   usernameChangeAvailableAt: string | null;
   unreadNotificationCount: number;
+  coinBalance: number;
   createdAt: string;
   updatedAt: string;
 };
